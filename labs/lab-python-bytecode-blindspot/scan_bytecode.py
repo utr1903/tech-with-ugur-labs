@@ -46,6 +46,5 @@ def scan_module(py_path, pyc_path=None):
     )
     suspicious = find_suspicious(shipped) if mismatch else []
     # de-dupe while preserving order
-    seen = {}
-    suspicious = [seen.setdefault(x, x) for x in suspicious if x not in seen]
+    suspicious = list(dict.fromkeys(suspicious))
     return ScanResult(py_path, mismatch, suspicious)
