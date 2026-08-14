@@ -1,0 +1,5 @@
+services:
+  lab:
+    build: .
+    environment:
+      FANCY_SECRET: "hunter2-not-a-real-secret"
