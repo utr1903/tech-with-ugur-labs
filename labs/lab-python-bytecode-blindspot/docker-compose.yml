@@ -2,4 +2,4 @@ services:
   lab:
     build: .
     environment:
-      FANCY_SECRET: "hunter2-not-a-real-secret"
+      FANCY_SECRET: "changeme-not-a-real-secret"
