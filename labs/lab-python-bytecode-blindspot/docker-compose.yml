@@ -1,0 +1,5 @@
+services:
+  lab:
+    build: .
+    environment:
+      FANCY_SECRET: "changeme-not-a-real-secret"
