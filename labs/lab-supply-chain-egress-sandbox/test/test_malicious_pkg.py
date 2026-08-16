@@ -1,7 +1,5 @@
 import importlib.util
-import io
 import os
-import tarfile
 
 HERE = os.path.dirname(__file__)
 PKG = os.path.join(HERE, "..", "malicious-pkg")
