@@ -11,6 +11,7 @@ the only instruction set you need.
 <!-- LAB-INDEX:BEGIN -->
 | Lab | Domain | Blog post | Summary |
 |-----|--------|-----------|---------|
+| [lab-python-bytecode-blindspot](labs/lab-python-bytecode-blindspot/) | cybersecurity | [post](https://utr1903.github.io/tech-with-ugur-blog/posts/python-bytecode-blindspot/) | This lab ships a "friendly" package whose compiled bytecode leaks an environment secret on import, a source scanner that misses it, and a bytecode scanner that catches it. |
 <!-- LAB-INDEX:END -->
 
 ## Conventions
