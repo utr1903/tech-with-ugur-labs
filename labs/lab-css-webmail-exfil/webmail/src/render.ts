@@ -26,6 +26,9 @@ export function renderMessage(opts: RenderOpts): {
   if (!opts.secure) {
     // Vulnerable: attacker CSS lives in the SAME document as the secret input,
     // with no CSP. Its attribute selectors can match the input's value.
+    // This branch assumes emailCss is CSS-only (the lab's threat model is the
+    // CSS attribute-selector channel); it is deliberately unsanitized here to
+    // demonstrate the vulnerability.
     const html = `<!doctype html><html><head><meta charset="utf-8">
 <style id="email">${opts.emailCss}</style>
 </head><body>
@@ -42,6 +45,10 @@ ${SECRET_FORM(opts.token)}
   const emailDoc = `<!doctype html><html><head><meta charset="utf-8">
 <style>${sanitizeCss(opts.emailCss)}</style></head><body>
 <div class="message">You've got mail.</div></body></html>`;
+  // The iframe below is intentionally script-less. NEVER add allow-scripts
+  // alongside allow-same-origin: that combination lets script inside the
+  // iframe reach into the parent DOM and read the secret, collapsing the
+  // isolation defense this lab relies on.
   const html = `<!doctype html><html><head><meta charset="utf-8"></head><body>
 <h1>Inbox</h1>
 ${SECRET_FORM(opts.token)}
