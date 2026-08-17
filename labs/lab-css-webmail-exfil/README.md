@@ -7,6 +7,9 @@ attacker — no `<script>` tag involved. This lab steals a seeded fake CSRF
 token character by character, then blocks the identical attack with three
 layers of defense.
 
+Companion post: [You Stripped the JavaScript. The CSS Still Stole the
+Token.](https://utr1903.github.io/tech-with-ugur-blog/posts/css-webmail-exfil/).
+
 ## Prerequisites
 
 Docker + Docker Compose v2. Nothing else — everything runs in containers,
