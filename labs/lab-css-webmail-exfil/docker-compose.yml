@@ -1,0 +1,50 @@
+services:
+  collector:
+    build: ./collector
+    environment:
+      PORT: "4000"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:4000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  webmail-vuln:
+    build: ./webmail
+    environment:
+      PORT: "3000"
+      SECRET_TOKEN: "a1b2c3d4"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  webmail-secure:
+    build: ./webmail
+    environment:
+      PORT: "3000"
+      SECURE: "1"
+      SECRET_TOKEN: "a1b2c3d4"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 2s
+      retries: 20
+
+  driver:
+    build: ./driver
+    depends_on:
+      collector:
+        condition: service_healthy
+      webmail-vuln:
+        condition: service_healthy
+      webmail-secure:
+        condition: service_healthy
+    environment:
+      WEBMAIL_VULN_URL: "http://webmail-vuln:3000"
+      WEBMAIL_SECURE_URL: "http://webmail-secure:3000"
+      COLLECTOR_URL: "http://collector:4000"
+      EXPECTED_TOKEN: "a1b2c3d4"
+      ALPHABET: "0123456789abcdef"
+      SECRET_LEN: "8"
