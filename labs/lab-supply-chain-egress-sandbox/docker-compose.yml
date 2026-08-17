@@ -1,0 +1,81 @@
+services:
+  mirror:
+    build: ./mirror
+    volumes:
+      - ./malicious-pkg:/pkg:ro
+    networks: [lab_net]
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:8000/friendly-1.0.0.tar.gz')"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  attacker:
+    build: ./attacker
+    volumes:
+      - evidence:/evidence
+    networks: [lab_net]
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import socket; socket.create_connection(('localhost', 9000), 2)"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  proxy:
+    build: ./proxy
+    environment:
+      ALLOW_HOSTS: mirror
+    volumes:
+      - evidence:/evidence
+    networks: [lab_net, sandboxed]
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import socket; socket.create_connection(('localhost', 8080), 2)"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  installer-unsafe:
+    build: ./installer
+    profiles: [runners]
+    environment:
+      RUN_LABEL: host-install
+      EXFIL_TAG: host-install
+      AWS_ACCESS_KEY_ID: AKIAFAKE000LABONLY
+      AWS_SECRET_ACCESS_KEY: FAKE-lab-only-not-a-real-secret
+      LAB_API_TOKEN: lab-token-FAKE-000
+    volumes:
+      - evidence:/evidence
+    networks: [lab_net]
+
+  installer-safe:
+    build: ./installer
+    profiles: [runners]
+    environment:
+      RUN_LABEL: sandboxed-install
+      EXFIL_TAG: sandboxed-install
+      HTTP_PROXY: http://proxy:8080
+      HTTPS_PROXY: http://proxy:8080
+      AWS_ACCESS_KEY_ID: AKIAFAKE000LABONLY
+      AWS_SECRET_ACCESS_KEY: FAKE-lab-only-not-a-real-secret
+      LAB_API_TOKEN: lab-token-FAKE-000
+    volumes:
+      - evidence:/evidence
+    networks: [sandboxed]
+
+  harness:
+    build: ./harness
+    profiles: [runners]
+    volumes:
+      - evidence:/evidence
+    networks: [lab_net]
+
+networks:
+  lab_net:
+  sandboxed:
+    internal: true
+
+volumes:
+  evidence:
