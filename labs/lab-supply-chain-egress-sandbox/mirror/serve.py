@@ -26,6 +26,7 @@ subprocess.run(
     cwd=build_dir,
     check=True,
 )
+shutil.rmtree(build_dir)  # the sdist now lives in DIST; drop the build copy
 os.chdir(DIST)
 print(f"mirror: serving {os.listdir(DIST)} on :{PORT}", flush=True)
 http.server.HTTPServer(

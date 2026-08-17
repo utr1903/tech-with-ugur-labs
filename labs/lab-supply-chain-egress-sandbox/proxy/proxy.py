@@ -93,6 +93,7 @@ class Proxy(http.server.BaseHTTPRequestHandler):
 
 class Server(socketserver.ThreadingMixIn, http.server.HTTPServer):
     daemon_threads = True
+    allow_reuse_address = True  # rebind cleanly on a fast restart
 
 
 if __name__ == "__main__":
