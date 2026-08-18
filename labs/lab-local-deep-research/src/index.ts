@@ -1,4 +1,5 @@
 import { Command } from "commander";
+import { runAnalyzeQuestion, runAnalyzeRepl } from "./commands/analyze.js";
 import { runSearch } from "./commands/search.js";
 import { loadConfig } from "./config.js";
 import { createLogger, installGlobalErrorHandlers } from "./logger.js";
@@ -24,6 +25,18 @@ program
   .argument("<question>", "the question to research")
   .action(async (question: string) => {
     await runSearch({ question, config, logger });
+  });
+
+program
+  .command("analyze")
+  .description("Answer questions grounded in everything under research/")
+  .argument("[question]", "one-shot question; omit for an interactive session")
+  .action(async (question: string | undefined) => {
+    if (question === undefined) {
+      await runAnalyzeRepl({ config, logger });
+    } else {
+      await runAnalyzeQuestion({ question, config, logger });
+    }
   });
 
 await program.parseAsync();
