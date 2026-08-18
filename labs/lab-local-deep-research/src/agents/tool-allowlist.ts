@@ -21,8 +21,8 @@ export function createToolAllowlistMiddleware({
     wrapModelCall: (request, handler) =>
       handler({
         ...request,
-        tools: (request.tools as Array<{ name: string }>).filter((candidate) =>
-          allowed.has(candidate.name),
+        tools: request.tools.filter((candidate) =>
+          allowed.has((candidate as { name: string }).name),
         ),
       }),
   });
