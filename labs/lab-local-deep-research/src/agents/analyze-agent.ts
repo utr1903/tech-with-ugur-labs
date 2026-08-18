@@ -1,5 +1,7 @@
 import type { ChatOllama } from "@langchain/ollama";
 import { createDeepAgent, FilesystemBackend } from "deepagents";
+import type { Logger } from "../logger.js";
+import { createStepLoggingMiddleware } from "./logging-middleware.js";
 import { ANALYZE_SYSTEM_PROMPT } from "./prompts.js";
 import { createStringifyToolContentMiddleware } from "./stringify-tool-content-middleware.js";
 import {
@@ -10,9 +12,11 @@ import {
 export function buildAnalyzeAgent({
   model,
   researchDir,
+  logger,
 }: {
   model: ChatOllama;
   researchDir: string;
+  logger: Logger;
 }) {
   return createDeepAgent({
     model,
@@ -23,6 +27,7 @@ export function buildAnalyzeAgent({
     backend: new FilesystemBackend({ rootDir: researchDir, virtualMode: true }),
     systemPrompt: ANALYZE_SYSTEM_PROMPT,
     middleware: [
+      createStepLoggingMiddleware({ logger }),
       createStringifyToolContentMiddleware(),
       createToolAllowlistMiddleware({ allowedTools: ANALYZE_AGENT_TOOLS }),
     ],
