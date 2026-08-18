@@ -2,27 +2,11 @@ import path from "node:path";
 import readline from "node:readline/promises";
 import { buildAnalyzeAgent } from "../agents/analyze-agent.js";
 import { buildChatModel } from "../agents/model.js";
+import { stripThinkBlocks } from "../agents/strip-think-blocks.js";
 import type { AppConfig } from "../config.js";
 import type { Logger } from "../logger.js";
 
 const ANALYZE_MAX_STEPS = 25;
-
-const THINK_BLOCK_PATTERN = /<think>[\s\S]*?<\/think>/g;
-const THINK_CLOSE_TAG = "</think>";
-
-// qwen3:4b sometimes leaks its internal reasoning into the final answer as
-// <think>...</think>, or — when the opening tag is truncated away — as
-// reasoning text ending in a stray </think> with no opener. Strip both so
-// the human-facing answer never carries the model's internal monologue.
-function stripThinkBlocks(text: string): string {
-  const withoutClosedBlocks = text.replace(THINK_BLOCK_PATTERN, "");
-  const lastCloseIndex = withoutClosedBlocks.lastIndexOf(THINK_CLOSE_TAG);
-  const withoutLeadingReasoning =
-    lastCloseIndex === -1
-      ? withoutClosedBlocks
-      : withoutClosedBlocks.slice(lastCloseIndex + THINK_CLOSE_TAG.length);
-  return withoutLeadingReasoning.trim();
-}
 
 export function extractAnswer(result: {
   messages: Array<{ text?: string }>;

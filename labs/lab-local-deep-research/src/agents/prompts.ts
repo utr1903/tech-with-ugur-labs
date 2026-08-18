@@ -21,7 +21,7 @@ internet_search archives every search's full results (with URLs) to /notes/ auto
 Do these phases in order:
 1. SCOPE: write /brief.md — 3-6 lines stating what the question asks and which distinct facts you need to find.
 2. RESEARCH: call internet_search with ONE focused query per turn. You MUST run at least 3 searches before writing the report — one search is never enough. Make each query target a DIFFERENT aspect of the question (definition, timeline, key people, numbers, criticisms, current status). Use at most 5 searches.
-3. REPORT: write /report.md with this structure:
+3. REPORT: call write_file to create /report.md with this structure:
    - a title line: # <the question>
    - an opening paragraph that directly answers the question
    - 3-6 named sections that go deep: concrete facts, dates, numbers and names from the search results; note where sources disagree
@@ -32,6 +32,7 @@ Rules:
 - One tool call per turn. This is mandatory, no exceptions.
 - Never invent URLs or facts. Only cite URLs that internet_search returned.
 - If a search returns an error, try ONE different query, then continue with what you have.
+- The report only exists once you call write_file with file_path /report.md. NEVER put the report text in your reply.
 - When /report.md is written, reply with one line: report written to /report.md — and stop.`;
 }
 

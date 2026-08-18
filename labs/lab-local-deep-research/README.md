@@ -88,6 +88,10 @@ for as many questions as you ask, until you submit an empty line.
     `recursionLimit`) so a confused agent fails fast instead of looping
   - a middleware that flattens tool output to plain strings, since
     `@langchain/ollama` only accepts string content on tool messages
+  - a salvage path in `search`: when the model composes the finished report
+    in its reply instead of calling write_file (a real observed failure),
+    the CLI saves that reply to `report.md` in code rather than letting a
+    15-minute run die
   - a step-logging middleware that wraps every model turn and every tool
     call — the built-in file tools included — so a multi-minute run is
     never a black box
