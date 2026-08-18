@@ -1,16 +1,18 @@
-import { Client } from "pg";
 import { loadConfig } from "./config.js";
+import { createPool } from "./db/pool.js";
 import { createLogger, installGlobalErrorHandlers } from "./logger.js";
+import { createAppServer } from "./server/http-server.js";
 
 const logger = createLogger({ appName: "demo-app" });
-const config = loadConfig(process.env);
-
 installGlobalErrorHandlers(logger);
 
-logger.info(
-  { config: { port: config.port, appVersion: config.appVersion } },
-  "Demo app initialized.",
-);
+const config = loadConfig(process.env);
+const pool = createPool(config.db, logger);
+const server = createAppServer({ config, pool, logger });
 
-// Database client will be initialized in the actual implementation
-void Client;
+server.listen(config.port, () => {
+  logger.info(
+    { port: config.port, version: config.appVersion },
+    "Server started.",
+  );
+});
