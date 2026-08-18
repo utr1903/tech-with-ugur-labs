@@ -1,0 +1,24 @@
+services:
+  gitea:
+    image: gitea/gitea:1.26.1
+    container_name: gitea
+    environment:
+      - GITEA__security__INSTALL_LOCK=true
+      - GITEA__server__ROOT_URL=http://localhost:3000/
+      - GITEA__server__HTTP_PORT=3000
+      - GITEA__server__DISABLE_SSH=true
+      - GITEA__service__DISABLE_REGISTRATION=true
+      - GITEA__database__DB_TYPE=sqlite3
+    ports:
+      - "3000:3000"
+    networks:
+      - kind
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:3000/api/healthz"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+networks:
+  kind:
+    external: true
