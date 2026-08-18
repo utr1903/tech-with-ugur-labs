@@ -3,6 +3,7 @@ import { createDeepAgent, FilesystemBackend } from "deepagents";
 import { todoListMiddleware } from "langchain";
 import type { createInternetSearchTool } from "../search/tavily-tool.js";
 import { RESEARCH_SYSTEM_PROMPT } from "./prompts.js";
+import { createStringifyToolContentMiddleware } from "./stringify-tool-content-middleware.js";
 import {
   createToolAllowlistMiddleware,
   RESEARCH_AGENT_TOOLS,
@@ -27,6 +28,7 @@ export function buildResearchAgent({
     systemPrompt: RESEARCH_SYSTEM_PROMPT,
     middleware: [
       todoListMiddleware(),
+      createStringifyToolContentMiddleware(),
       createToolAllowlistMiddleware({ allowedTools: RESEARCH_AGENT_TOOLS }),
     ],
   });
