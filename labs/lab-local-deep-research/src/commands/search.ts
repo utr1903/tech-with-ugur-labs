@@ -62,7 +62,14 @@ export async function runSearch({
     }
 
     const reportPath = path.join(topicDir, "report.md");
-    await access(reportPath);
+    try {
+      await access(reportPath);
+    } catch (accessErr) {
+      throw new Error(
+        "The agent finished without writing report.md — try raising MAX_AGENT_STEPS in .env or re-running.",
+        { cause: accessErr },
+      );
+    }
     logger.info({ question, reportPath }, "Running deep research succeeded.");
     return { reportPath };
   } catch (err) {

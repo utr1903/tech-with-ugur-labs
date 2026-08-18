@@ -80,8 +80,16 @@ export async function runAnalyzeRepl({
     for (;;) {
       const question = (await rl.question("ask> ")).trim();
       if (question === "") return;
-      const answer = await runAnalyzeQuestion({ question, config, logger });
-      process.stderr.write(`\n${answer}\n\n`);
+      try {
+        const answer = await runAnalyzeQuestion({ question, config, logger });
+        process.stderr.write(`\n${answer}\n\n`);
+      } catch {
+        // runAnalyzeQuestion already logged the error — just keep the
+        // session alive instead of letting one bad question kill it.
+        process.stderr.write(
+          "Something went wrong answering that — see the log line above. Ask again or press Enter to exit.\n",
+        );
+      }
     }
   } finally {
     rl.close();

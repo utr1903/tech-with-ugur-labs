@@ -67,7 +67,8 @@ for as many questions as you ask, until you submit an empty line.
   - a mandatory system-prompt rule: at most one tool call per turn
   - a tool-allowlist middleware that hides every tool the model doesn't
     strictly need for the task at hand, including the harness's subagent
-    `task` tool
+    `task` tool — re-enabling it is a natural extension if you're running a
+    larger model that can be trusted to delegate sub-tasks sensibly
   - a hard step budget (`MAX_AGENT_STEPS`, passed as LangGraph's
     `recursionLimit`) so a confused agent fails fast instead of looping
   - a middleware that flattens tool output to plain strings, since
