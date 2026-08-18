@@ -1,0 +1,37 @@
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: demo-app
+  namespace: demo
+spec:
+  interval: 1m
+  # Per-attempt budget for install/upgrade, including hooks.
+  timeout: 2m
+  chart:
+    spec:
+      chart: ./charts/demo-app
+      sourceRef:
+        kind: GitRepository
+        name: flux-system
+        namespace: flux-system
+      interval: 1m
+      reconcileStrategy: Revision
+  # Revert manual kubectl edits to what Helm rendered.
+  driftDetection:
+    mode: enabled
+  install:
+    remediation:
+      retries: 1
+  upgrade:
+    remediation:
+      # Roll back on failure; after 2 failed retries the release is
+      # left in the "upgrade retries exhausted" state on purpose.
+      retries: 2
+      strategy: rollback
+      remediateLastFailure: true
+  values:
+    image:
+      repository: demo-app
+      tag: v1
+    appVersion: "1"
+    migrateTo: "1"
