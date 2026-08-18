@@ -18,11 +18,10 @@ describe("createToolAllowlistMiddleware", () => {
       seenTools = modified.tools;
       return Promise.resolve({});
     };
-    // biome-ignore-free cast: exercising the hook directly with a minimal request shape
-    await (middleware.wrapModelCall as (r: unknown, h: unknown) => Promise<unknown>)(
-      request,
-      handler,
-    );
+    // Direct cast: exercising the hook with a minimal request shape
+    await (
+      middleware.wrapModelCall as (r: unknown, h: unknown) => Promise<unknown>
+    )(request, handler);
     expect(seenTools.map((t) => t.name)).toEqual(["read_file"]);
   });
 });

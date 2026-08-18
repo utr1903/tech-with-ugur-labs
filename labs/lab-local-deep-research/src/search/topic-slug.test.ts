@@ -14,7 +14,7 @@ describe("toTopicSlug", () => {
   });
 
   it("caps length at 60 characters without a trailing hyphen", () => {
-    const slug = toTopicSlug("a".repeat(59) + " bcdef");
+    const slug = toTopicSlug(`${"a".repeat(59)} bcdef`);
     expect(slug.length).toBeLessThanOrEqual(60);
     expect(slug.endsWith("-")).toBe(false);
   });
