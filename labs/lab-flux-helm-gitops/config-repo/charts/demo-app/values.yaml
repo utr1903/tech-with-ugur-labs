@@ -1,0 +1,21 @@
+image:
+  repository: demo-app
+  tag: v1
+  # Images are side-loaded into kind; Never surfaces a missing tag immediately.
+  pullPolicy: Never
+
+appVersion: "1"
+migrateTo: "1"
+replicas: 1
+
+service:
+  port: 3000
+  nodePort: 30080
+
+db:
+  host: demo-db
+  port: "5432"
+  name: demo
+  user: demo
+
+secretName: demo-secrets
