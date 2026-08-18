@@ -44,6 +44,7 @@ export async function runAnalyzeQuestion({
     const agent = buildAnalyzeAgent({
       model: buildChatModel(config),
       researchDir: path.resolve(config.researchDir),
+      today: new Date().toISOString().slice(0, 10),
       logger: logger.child({ domain: "analyze" }),
     });
     const result = await agent.invoke(

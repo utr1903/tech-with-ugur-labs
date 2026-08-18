@@ -3,7 +3,7 @@ import { createDeepAgent, FilesystemBackend } from "deepagents";
 import type { Logger } from "../logger.js";
 import type { createInternetSearchTool } from "../search/tavily-tool.js";
 import { createStepLoggingMiddleware } from "./logging-middleware.js";
-import { RESEARCH_SYSTEM_PROMPT } from "./prompts.js";
+import { buildResearchSystemPrompt } from "./prompts.js";
 import { createStringifyToolContentMiddleware } from "./stringify-tool-content-middleware.js";
 import {
   createToolAllowlistMiddleware,
@@ -14,11 +14,13 @@ export function buildResearchAgent({
   model,
   searchTool,
   topicDir,
+  today,
   logger,
 }: {
   model: ChatOllama;
   searchTool: ReturnType<typeof createInternetSearchTool>;
   topicDir: string;
+  today: string;
   logger: Logger;
 }) {
   return createDeepAgent({
@@ -28,7 +30,7 @@ export function buildResearchAgent({
     // paths (/report.md, /notes/*.md). Without this, FilesystemBackend passes
     // absolute paths through as real filesystem paths, escaping topicDir entirely.
     backend: new FilesystemBackend({ rootDir: topicDir, virtualMode: true }),
-    systemPrompt: RESEARCH_SYSTEM_PROMPT,
+    systemPrompt: buildResearchSystemPrompt({ today }),
     middleware: [
       createStepLoggingMiddleware({ logger }),
       createStringifyToolContentMiddleware(),

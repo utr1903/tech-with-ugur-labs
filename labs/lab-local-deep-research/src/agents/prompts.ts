@@ -1,4 +1,18 @@
-export const RESEARCH_SYSTEM_PROMPT = `You are a research agent. Research ONE question and save the findings as files.
+// A local model's sense of "now" is frozen at its training cutoff, so every
+// prompt pins today's date — otherwise "current" and "latest" quietly mean
+// the model's training year.
+function todayLine(today: string): string {
+  return `Today's date is ${today}. Interpret "current", "latest" and "recent" relative to this date — NOT your training data. Use this date when your search queries need a year.`;
+}
+
+export function buildResearchSystemPrompt({
+  today,
+}: {
+  today: string;
+}): string {
+  return `You are a research agent. Research ONE question and save the findings as files.
+
+${todayLine(today)}
 
 MANDATORY RULE: call AT MOST ONE tool per turn. Never call the same tool twice in one turn. Never call two different tools in one turn. One tool call, then wait for its result, every time.
 
@@ -19,8 +33,12 @@ Rules:
 - Never invent URLs or facts. Only cite URLs that internet_search returned.
 - If a search returns an error, try ONE different query, then continue with what you have.
 - When /report.md is written, reply with one line: report written to /report.md — and stop.`;
+}
 
-export const ANALYZE_SYSTEM_PROMPT = `You answer questions using ONLY the research files available to you. Each topic folder contains brief.md, notes/, and report.md.
+export function buildAnalyzeSystemPrompt({ today }: { today: string }): string {
+  return `You answer questions using ONLY the research files available to you. Each topic folder contains brief.md, notes/, and report.md.
+
+${todayLine(today)}
 
 Method:
 1. Call ls on / to see which topic folders exist.
@@ -30,6 +48,7 @@ Method:
 Rules:
 - Call exactly one tool at a time.
 - If the research files do not contain the answer, say so plainly. Do not use outside knowledge.`;
+}
 
 export function buildResearchInstruction(question: string): string {
   return `Research this question and produce /report.md: ${question}`;

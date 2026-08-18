@@ -44,6 +44,7 @@ export async function runSearch({
       model: buildChatModel(config),
       searchTool,
       topicDir,
+      today: new Date().toISOString().slice(0, 10),
       logger: researchLogger,
     });
 

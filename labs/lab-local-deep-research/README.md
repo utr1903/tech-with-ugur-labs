@@ -74,6 +74,9 @@ for as many questions as you ask, until you submit an empty line.
   `grep`) over the whole `research/` tree, and strips any `<think>...</think>`
   reasoning the model leaks into its final answer before printing it.
 - Small-model tricks that make this work on 4B:
+  - today's date pinned in every system prompt — a local model's sense of
+    "now" is frozen at its training cutoff, so without this, "current" and
+    "latest" quietly mean the model's training year, in search queries too
   - thinking mode off and temperature 0 on the Ollama chat model — a 4B
     model calls tools reliably only with deterministic sampling
   - a mandatory system-prompt rule: at most one tool call per turn
