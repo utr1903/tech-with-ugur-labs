@@ -61,6 +61,16 @@ hr_ready_message() {
     -o jsonpath='{.status.conditions[?(@.type=="Ready")].message}'
 }
 
+hr_stalled_reason() {
+  kubectl -n demo get helmrelease demo-app \
+    -o jsonpath='{.status.conditions[?(@.type=="Stalled")].reason}'
+}
+
+hr_stalled_message() {
+  kubectl -n demo get helmrelease demo-app \
+    -o jsonpath='{.status.conditions[?(@.type=="Stalled")].message}'
+}
+
 gitrepo_ready_status() {
   kubectl -n flux-system get gitrepository flux-system \
     -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}'
