@@ -1,7 +1,8 @@
 import type { ChatOllama } from "@langchain/ollama";
 import { createDeepAgent, FilesystemBackend } from "deepagents";
-import { todoListMiddleware } from "langchain";
+import type { Logger } from "../logger.js";
 import type { createInternetSearchTool } from "../search/tavily-tool.js";
+import { createStepLoggingMiddleware } from "./logging-middleware.js";
 import { RESEARCH_SYSTEM_PROMPT } from "./prompts.js";
 import { createStringifyToolContentMiddleware } from "./stringify-tool-content-middleware.js";
 import {
@@ -13,10 +14,12 @@ export function buildResearchAgent({
   model,
   searchTool,
   topicDir,
+  logger,
 }: {
   model: ChatOllama;
   searchTool: ReturnType<typeof createInternetSearchTool>;
   topicDir: string;
+  logger: Logger;
 }) {
   return createDeepAgent({
     model,
@@ -27,7 +30,7 @@ export function buildResearchAgent({
     backend: new FilesystemBackend({ rootDir: topicDir, virtualMode: true }),
     systemPrompt: RESEARCH_SYSTEM_PROMPT,
     middleware: [
-      todoListMiddleware(),
+      createStepLoggingMiddleware({ logger }),
       createStringifyToolContentMiddleware(),
       createToolAllowlistMiddleware({ allowedTools: RESEARCH_AGENT_TOOLS }),
     ],

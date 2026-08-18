@@ -2,7 +2,6 @@ import { createMiddleware } from "langchain";
 
 export const RESEARCH_AGENT_TOOLS = [
   "internet_search",
-  "write_todos",
   "ls",
   "read_file",
   "write_file",

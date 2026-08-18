@@ -33,15 +33,18 @@ export async function runSearch({
     const topicDir = path.resolve(config.researchDir, slug);
     await mkdir(topicDir, { recursive: true });
 
+    const researchLogger = logger.child({ domain: "research" });
     const searchTool = createInternetSearchTool({
       client: tavily({ apiKey: config.tavilyApiKey }),
       maxResults: config.searchMaxResults,
-      logger,
+      notesDir: path.join(topicDir, "notes"),
+      logger: researchLogger,
     });
     const agent = buildResearchAgent({
       model: buildChatModel(config),
       searchTool,
       topicDir,
+      logger: researchLogger,
     });
 
     try {
