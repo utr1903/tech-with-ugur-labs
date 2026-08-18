@@ -50,12 +50,13 @@ export async function runMigrations(
   target: number,
   logger: Logger,
 ): Promise<number> {
+  const client = await pool.connect();
   try {
     logger.info({ target }, "Running migrations...");
-    await pool.query(
+    await client.query(
       "CREATE TABLE IF NOT EXISTS schema_migrations (id INT PRIMARY KEY, name TEXT NOT NULL, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())",
     );
-    const result = await pool.query(
+    const result = await client.query(
       "SELECT id FROM schema_migrations ORDER BY id",
     );
     const applied = result.rows.map((row: { id: number }) => row.id);
@@ -65,16 +66,16 @@ export async function runMigrations(
         { id: migration.id, name: migration.name },
         "Applying migration...",
       );
-      await pool.query("BEGIN");
+      await client.query("BEGIN");
       try {
-        await pool.query(migration.sql);
-        await pool.query(
+        await client.query(migration.sql);
+        await client.query(
           "INSERT INTO schema_migrations (id, name) VALUES ($1, $2)",
           [migration.id, migration.name],
         );
-        await pool.query("COMMIT");
+        await client.query("COMMIT");
       } catch (err) {
-        await pool.query("ROLLBACK");
+        await client.query("ROLLBACK");
         throw err;
       }
       logger.info({ id: migration.id }, "Applying migration succeeded.");
@@ -87,6 +88,8 @@ export async function runMigrations(
   } catch (err) {
     logger.error({ err, target }, "Running migrations failed.");
     throw err;
+  } finally {
+    client.release();
   }
 }
 

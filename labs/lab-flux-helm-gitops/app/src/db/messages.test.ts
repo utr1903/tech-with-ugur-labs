@@ -1,6 +1,8 @@
 import type { Pool } from "pg";
 import { describe, expect, it, vi } from "vitest";
+import type { Logger } from "../logger.js";
 import { listMessages, messagesQuery } from "./messages.js";
+import { createPool } from "./pool.js";
 
 describe("messagesQuery", () => {
   it("selects body only for version 1", () => {
@@ -24,5 +26,27 @@ describe("listMessages", () => {
     expect(pool.query).toHaveBeenCalledWith(
       "SELECT id, body FROM messages ORDER BY id",
     );
+  });
+});
+
+describe("createPool", () => {
+  it("attaches error handler to pool", () => {
+    const mockLogger = {
+      info: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+    } as unknown as Logger;
+    const dbConfig = {
+      host: "localhost",
+      port: 5432,
+      database: "demo",
+      user: "demo",
+      password: "password",
+    };
+
+    const pool = createPool(dbConfig, mockLogger);
+    const listeners = pool.listeners("error");
+    expect(listeners).toHaveLength(1);
+    pool.end();
   });
 });

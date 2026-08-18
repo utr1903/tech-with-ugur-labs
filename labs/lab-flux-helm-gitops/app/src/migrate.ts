@@ -14,7 +14,7 @@ if (rawTarget === undefined || rawTarget === "") {
 const target = Number.parseInt(rawTarget, 10);
 
 const config = loadConfig(process.env);
-const pool = createPool(config.db);
+const pool = createPool(config.db, logger);
 
 try {
   await waitForDb(pool, logger);
