@@ -93,7 +93,7 @@ git -C tmp/fleet -c user.name=labowner -c user.email=labowner@example.invalid \
   add -A
 git -C tmp/fleet -c user.name=labowner -c user.email=labowner@example.invalid \
   commit --quiet -m "Initial fleet configuration"
-git -C tmp/fleet push --quiet "${FLEET_PUSH_URL}" main
+git -C tmp/fleet push --quiet --force "${FLEET_PUSH_URL}" main
 
 echo "==> 7/8 Installing Flux and pointing it at the fleet repo"
 flux install
