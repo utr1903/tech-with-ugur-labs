@@ -1,0 +1,19 @@
+rules:
+  - id: vuln-lab-sqli
+    languages: [typescript]
+    severity: ERROR
+    message: >-
+      SQL is built with string interpolation of user input. Use a parameterized
+      query ($1 placeholders passed to the driver) instead.
+    patterns:
+      - pattern-regex: '(SELECT|INSERT|UPDATE|DELETE)[^`;]*\$\{'
+  - id: vuln-lab-command-injection
+    languages: [typescript]
+    severity: ERROR
+    message: >-
+      A shell command is built with string interpolation of user input and run
+      through a shell. Use execFile with an argument array and validate input.
+    patterns:
+      - pattern-either:
+          - pattern-regex: 'exec(Async)?\(`[^`]*\$\{'
+          - pattern-regex: '`(ping|sh|bash|curl|wget)\b[^`]*\$\{'
