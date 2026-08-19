@@ -1,7 +1,7 @@
 {
   "code": {
     "gitleaks": ["vuln-lab-hardcoded-api-key"],
-    "semgrep": ["vuln-lab-sqli", "vuln-lab-command-injection"]
+    "semgrep": ["scanners.semgrep.vuln-lab-sqli", "scanners.semgrep.vuln-lab-command-injection"]
   },
   "build": {
     "trivy-sca": ["CVE-2021-23337"],

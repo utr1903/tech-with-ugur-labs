@@ -1,0 +1,7 @@
+title = "scanning-lab gitleaks rules"
+
+[[rules]]
+id = "vuln-lab-hardcoded-api-key"
+description = "Hardcoded internal API key committed to source"
+regex = '''sk-vuln-lab-[A-Za-z0-9-]+'''
+keywords = ["sk-vuln-lab-"]
