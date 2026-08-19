@@ -9,7 +9,7 @@
     "trivy-dockerfile": ["DS-0002"]
   },
   "deploy": {
-    "trivy-k8s": ["AVD-KSV-0012", "AVD-KSV-0014", "AVD-KSV-0011"]
+    "trivy-k8s": ["KSV-0012", "KSV-0014", "KSV-0011"]
   },
   "admission": {
     "kyverno": ["require-run-as-non-root"]
