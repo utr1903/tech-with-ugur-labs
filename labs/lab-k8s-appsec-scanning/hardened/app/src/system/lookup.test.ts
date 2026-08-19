@@ -10,6 +10,10 @@ describe("isValidHost", () => {
     expect(isValidHost("127.0.0.1; id")).toBe(false);
     expect(isValidHost("$(id)")).toBe(false);
   });
+  it("rejects a leading dash (argument injection)", () => {
+    expect(isValidHost("-f")).toBe(false);
+    expect(isValidHost("-oProxyCommand=id")).toBe(false);
+  });
 });
 
 describe("runLookup", () => {

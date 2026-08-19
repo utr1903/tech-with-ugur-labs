@@ -4,7 +4,7 @@ import { promisify } from "node:util";
 const execFileAsync = promisify(execFile);
 
 // Allowlist: hostnames and IPv4/IPv6 literals only — no shell metacharacters.
-const HOST_RE = /^[A-Za-z0-9._:-]{1,253}$/;
+const HOST_RE = /^[A-Za-z0-9](?:[A-Za-z0-9._:-]{0,252})$/;
 
 export function isValidHost(host: string): boolean {
   return HOST_RE.test(host);

@@ -25,6 +25,8 @@ up() {
 }
 
 test_admission() {
+  local rule
+  rule="$(expected_ids admission kyverno | head -n1)"
   log "Admission: vulnerable manifest (expect DENY)"
   if kubectl --context "${KCTX}" apply --dry-run=server \
     -f vulnerable/k8s/deployment.yaml >"${out}/vulnerable.txt" 2>&1; then
@@ -32,7 +34,7 @@ test_admission() {
     cat "${out}/vulnerable.txt"
     return 1
   fi
-  grep -q "require-run-as-non-root" "${out}/vulnerable.txt" \
+  grep -q "${rule}" "${out}/vulnerable.txt" \
     || {
       echo "deny message missing the policy rule name" >&2
       cat "${out}/vulnerable.txt"

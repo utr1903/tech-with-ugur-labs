@@ -62,7 +62,7 @@ Tested on macOS with Docker Desktop. Install everything else with:
 brew install trivy semgrep gitleaks kind kubectl jq
 ```
 
-`node`, `npm`, and `curl` are also required. Run
+`node` and `npm` are also required. Run
 `./scripts/check-prereqs.sh` at any time to confirm the host has everything
 installed.
 
@@ -91,6 +91,7 @@ Tested-with versions:
 ./run.sh            # the full gauntlet: scan, admission, consolidated report
 ./run.sh scan        # static scans of both apps (code + build + deploy) — no cluster
 ./run.sh admission   # spin up kind + Kyverno, test deny/admit, tear down
+./run.sh report      # print the consolidated table from the last run
 ./run.sh e2e         # non-interactive: asserts every finding id, prints E2E PASSED
 ./run.sh down        # delete the kind cluster and remove tmp/
 ```

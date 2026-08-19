@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-tools=(docker kind kubectl trivy semgrep gitleaks jq curl node npm)
+tools=(docker kind kubectl trivy semgrep gitleaks jq node npm)
 missing=0
 for tool in "${tools[@]}"; do
   if ! command -v "$tool" >/dev/null 2>&1; then
