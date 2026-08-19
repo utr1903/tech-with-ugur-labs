@@ -6,6 +6,8 @@ source scripts/lib.sh
 
 ./scripts/check-prereqs.sh
 mkdir -p tmp
+[[ -f tmp/gitea-password ]] || openssl rand -hex 12 | tr -d '\n' > tmp/gitea-password
+gitea_load_password
 
 echo "==> 1/8 Starting Gitea (the lab's git remote)"
 docker network inspect kind >/dev/null 2>&1 || docker network create kind
@@ -110,6 +112,6 @@ wait_for 120 "app answering with the decrypted token" app_get_messages
 
 echo
 echo "GitOps loop is up:"
-echo "  Gitea UI:   ${GITEA_HOST} (${GITEA_USER} / ${GITEA_PASSWORD})"
+echo "  Gitea UI:   ${GITEA_HOST} (${GITEA_USER} / password in tmp/gitea-password)"
 echo "  App:        ${APP_URL}/api/messages (token in tmp/api-token)"
 echo "  Watch Flux: flux get helmreleases -n demo --watch"

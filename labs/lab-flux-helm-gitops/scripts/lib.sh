@@ -2,13 +2,26 @@
 # Shared constants and helpers for the lab scripts. Source, don't execute.
 
 export GITEA_USER="labowner"
-export GITEA_PASSWORD="gitops-lab-password" # demo credential for the throwaway local Gitea
 export GITEA_HOST="http://localhost:3000"
-export FLEET_PUSH_URL="http://${GITEA_USER}:${GITEA_PASSWORD}@localhost:3000/${GITEA_USER}/fleet.git"
 export CLUSTER="flux-lab"
 export APP_URL="http://localhost:8080"
 LAB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 export LAB_DIR
+
+# Derives GITEA_PASSWORD and FLEET_PUSH_URL from tmp/gitea-password. Runs once
+# at source time (empty password if the file doesn't exist yet) and again
+# from up.sh right after it generates the file, so both cases end up with the
+# real value in scope.
+gitea_load_password() {
+  if [[ -f "${LAB_DIR}/tmp/gitea-password" ]]; then
+    GITEA_PASSWORD="$(cat "${LAB_DIR}/tmp/gitea-password")"
+  else
+    GITEA_PASSWORD=""
+  fi
+  export GITEA_PASSWORD
+  export FLEET_PUSH_URL="http://${GITEA_USER}:${GITEA_PASSWORD}@localhost:3000/${GITEA_USER}/fleet.git"
+}
+gitea_load_password
 
 fleet_fresh_clone() {
   rm -rf "${LAB_DIR}/tmp/fleet-work"

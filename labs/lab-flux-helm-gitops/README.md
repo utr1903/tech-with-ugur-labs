@@ -127,15 +127,16 @@ When it finishes you'll see:
 
 ```
 GitOps loop is up:
-  Gitea UI:   http://localhost:3000 (labowner / gitops-lab-password)
+  Gitea UI:   http://localhost:3000 (labowner / password in tmp/gitea-password)
   App:        http://localhost:8080/api/messages (token in tmp/api-token)
   Watch Flux: flux get helmreleases -n demo --watch
 ```
 
-Open `http://localhost:3000`, log in as `labowner` / `gitops-lab-password`,
-and browse to the `fleet` repository — that's the entire desired state of
-the cluster: the `HelmRelease`, the namespace, the Postgres manifests, and
-the encrypted secret. Call the app the same way Flux's health checks do:
+Open `http://localhost:3000`, log in as `labowner` with the password from
+`cat tmp/gitea-password`, and browse to the `fleet` repository — that's the
+entire desired state of the cluster: the `HelmRelease`, the namespace, the
+Postgres manifests, and the encrypted secret. Call the app the same way
+Flux's health checks do:
 
 ```bash
 curl -H "Authorization: Bearer $(cat tmp/api-token)" http://localhost:8080/api/messages
