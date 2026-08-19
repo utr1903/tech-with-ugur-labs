@@ -12,7 +12,7 @@ One command runs the whole gauntlet:
 
 ## Companion lab
 
-This is the defensive sequel to **[Break a vulnerable app on Kubernetes: recon to RCE](../lab-k8s-appsec-exploit/)**, where the *same* app is attacked live — SQL injection to stolen PII, a leaked hardcoded key, command-injection RCE, and a one-request crash. Read that lab to see the four bugs exploited; read this one to catch them before they ship. Its companion post: [Break a Vulnerable App on Kubernetes: Recon to RCE With OSS Tools](https://utr1903.github.io/tech-with-ugur-blog/posts/k8s-appsec-exploit/).
+This is the defensive sequel to **[Break a vulnerable app on Kubernetes: recon to RCE](../lab-k8s-appsec-exploit/)**, where the *same* app is attacked live — SQL injection to stolen PII, a leaked hardcoded key, command-injection RCE, and a one-request crash. Read that lab to see the four bugs exploited; read this one to catch them before they ship. Its companion post: [Break a Vulnerable App on Kubernetes: Recon to RCE With OSS Tools](https://techwithugur.dev/posts/k8s-appsec-exploit/).
 
 ## Safety
 
