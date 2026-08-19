@@ -1,0 +1,70 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: appsec-scan
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: hardened-app
+  namespace: appsec-scan
+  labels:
+    app: hardened-app
+spec:
+  type: NodePort
+  selector:
+    app: hardened-app
+  ports:
+    - port: 3000
+      targetPort: 3000
+      nodePort: 30082
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hardened-app
+  namespace: appsec-scan
+  labels:
+    app: hardened-app
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: hardened-app
+  template:
+    metadata:
+      labels:
+        app: hardened-app
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: hardened-app
+          image: hardened-app-scanning:v1
+          imagePullPolicy: IfNotPresent
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          ports:
+            - containerPort: 3000
+          env:
+            - name: PORT
+              value: "3000"
+            - name: DATABASE_URL
+              value: "postgres://appuser:appuser@postgres:5432/appdb"
+          resources:
+            requests: { cpu: "50m", memory: 64Mi }
+            limits: { cpu: "250m", memory: 128Mi }
+          readinessProbe:
+            httpGet: { path: /health, port: 3000 }
+            initialDelaySeconds: 2
+            periodSeconds: 3
+          livenessProbe:
+            httpGet: { path: /health, port: 3000 }
+            initialDelaySeconds: 5
+            periodSeconds: 5
