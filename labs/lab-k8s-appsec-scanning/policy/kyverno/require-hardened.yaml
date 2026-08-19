@@ -1,0 +1,51 @@
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-hardened-workloads
+spec:
+  validationFailureAction: Enforce
+  background: false
+  rules:
+    - name: require-run-as-non-root
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [appsec-scan]
+      validate:
+        message: "Pod spec.securityContext.runAsNonRoot must be set to true"
+        pattern:
+          spec:
+            securityContext:
+              runAsNonRoot: true
+
+    - name: drop-all-capabilities
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [appsec-scan]
+      validate:
+        message: "Containers must drop the ALL capability (securityContext.capabilities.drop must include ALL)"
+        pattern:
+          spec:
+            containers:
+              - securityContext:
+                  capabilities:
+                    drop: ["ALL"]
+
+    - name: require-resource-limits
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+              namespaces: [appsec-scan]
+      validate:
+        message: "Containers must set resources.limits.cpu and resources.limits.memory"
+        pattern:
+          spec:
+            containers:
+              - resources:
+                  limits:
+                    cpu: "?*"
+                    memory: "?*"
