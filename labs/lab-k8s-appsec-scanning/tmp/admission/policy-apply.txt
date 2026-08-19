@@ -1,0 +1,1 @@
+clusterpolicy.kyverno.io/require-hardened-workloads created

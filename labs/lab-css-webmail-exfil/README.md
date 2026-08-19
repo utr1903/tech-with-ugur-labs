@@ -8,7 +8,7 @@ token character by character, then blocks the identical attack with three
 layers of defense.
 
 Companion post: [You Stripped the JavaScript. The CSS Still Stole the
-Token.](https://utr1903.github.io/tech-with-ugur-blog/posts/css-webmail-exfil/).
+Token.](https://techwithugur.dev/posts/css-webmail-exfil/).
 
 ## Prerequisites
 

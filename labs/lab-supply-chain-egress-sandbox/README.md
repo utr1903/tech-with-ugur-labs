@@ -11,7 +11,7 @@ Docker; nothing touches the real internet, and the only secrets involved are
 obviously fake.
 
 Companion post: [Your Package Manager Runs Code at Install Time: a sandbox that
-catches the credential grab](https://utr1903.github.io/tech-with-ugur-blog/posts/supply-chain-egress-sandbox/).
+catches the credential grab](https://techwithugur.dev/posts/supply-chain-egress-sandbox/).
 
 ## What's inside
 - `malicious-pkg/` — a benign-looking `friendly` package whose `setup.py`

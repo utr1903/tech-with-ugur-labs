@@ -1,0 +1,15 @@
+namespace/appsec-scan configured (server dry run)
+service/vuln-app created (server dry run)
+Error from server: error when creating "vulnerable/k8s/deployment.yaml": admission webhook "validate.kyverno.svc-fail" denied the request: 
+
+resource Deployment/appsec-scan/vuln-app was blocked due to the following policies 
+
+require-hardened-workloads:
+  autogen-drop-all-capabilities: 'validation error: Containers must drop the ALL capability
+    (securityContext.capabilities.drop must include ALL). rule autogen-drop-all-capabilities
+    failed at path /spec/template/spec/containers/0/securityContext/'
+  autogen-require-resource-limits: 'validation error: Containers must set resources.limits.cpu
+    and resources.limits.memory. rule autogen-require-resource-limits failed at path
+    /spec/template/spec/containers/0/resources/limits/cpu/'
+  autogen-require-run-as-non-root: 'validation error: Pod spec.securityContext.runAsNonRoot
+    must be set to true. rule autogen-require-run-as-non-root failed at path /spec/template/spec/securityContext/runAsNonRoot/'
