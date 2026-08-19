@@ -12,7 +12,7 @@ drive the loop reliably — every model turn spent on research, none on
 bookkeeping.
 
 Companion post: [Deep Research on Your Own
-Laptop](https://utr1903.github.io/tech-with-ugur-blog/posts/local-deep-research/).
+Laptop](https://techwithugur.dev/posts/local-deep-research/).
 
 ## Prerequisites
 

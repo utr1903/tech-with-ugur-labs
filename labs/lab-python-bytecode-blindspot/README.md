@@ -7,7 +7,7 @@ whose compiled bytecode leaks an environment secret on import, a source
 scanner that misses it, and a bytecode scanner that catches it.
 
 Companion post: [The Python Bytecode Blind Spot: when the source you scan
-isn't the code that runs](https://utr1903.github.io/tech-with-ugur-blog/posts/python-bytecode-blindspot/).
+isn't the code that runs](https://techwithugur.dev/posts/python-bytecode-blindspot/).
 
 ## Prerequisites
 - Docker with Compose v2 (`docker compose version`)

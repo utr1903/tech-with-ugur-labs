@@ -10,7 +10,7 @@ GitOps loop on your own machine — Flux reconciling Helm releases from a
 local git server — and then deliberately breaks it five different ways, so
 you can watch the actual recovery mechanics instead of taking them on faith.
 
-Companion post: [GitOps That Survives Bad Days: Flux, Helm, encrypted secrets, and self-healing rollbacks](https://utr1903.github.io/tech-with-ugur-blog/posts/flux-helm-gitops/).
+Companion post: [GitOps That Survives Bad Days: Flux, Helm, encrypted secrets, and self-healing rollbacks](https://techwithugur.dev/posts/flux-helm-gitops/).
 
 ## What you build
 

@@ -1,0 +1,275 @@
+{
+  "SchemaVersion": 2,
+  "Trivy": {
+    "Version": "0.71.1"
+  },
+  "ReportID": "01a01af4-3152-7e2c-a674-58db90466f5e",
+  "CreatedAt": "2026-08-19T18:56:46.16293+02:00",
+  "ArtifactName": "hardened/k8s/deployment.yaml",
+  "ArtifactType": "filesystem",
+  "Results": [
+    {
+      "Target": "deployment.yaml",
+      "Class": "config",
+      "Type": "kubernetes",
+      "MisconfSummary": {
+        "Successes": 99,
+        "Failures": 2
+      },
+      "Misconfigurations": [
+        {
+          "Type": "Kubernetes Security Check",
+          "ID": "KSV-0020",
+          "Title": "Runs with UID \u003c= 10000",
+          "Description": "Force the container to run with user ID \u003e 10000 to avoid conflicts with the host’s user table.",
+          "Message": "Container 'hardened-app' of Deployment 'hardened-app' should set 'securityContext.runAsUser' \u003e 10000",
+          "Namespace": "builtin.kubernetes.KSV020",
+          "Query": "data.builtin.kubernetes.KSV020.deny",
+          "Resolution": "Set 'containers[].securityContext.runAsUser' to an integer \u003e 10000.",
+          "Severity": "LOW",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0020",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-runasuser/",
+            "https://avd.aquasec.com/misconfig/ksv-0020"
+          ],
+          "Status": "FAIL",
+          "CauseMetadata": {
+            "Provider": "Kubernetes",
+            "Service": "general",
+            "StartLine": 43,
+            "EndLine": 68,
+            "Code": {
+              "Lines": [
+                {
+                  "Number": 43,
+                  "Content": "          type: RuntimeDefault",
+                  "IsCause": true,
+                  "Annotation": "",
+                  "Truncated": false,
+                  "Highlighted": "          \u001b[38;5;33mtype\u001b[0m: RuntimeDefault",
+                  "FirstCause": true,
+                  "LastCause": false
+                },
+                {
+                  "Number": 44,
+                  "Content": "      containers:",
+                  "IsCause": true,
+                  "Annotation": "",
+                  "Truncated": false,
+                  "Highlighted": "      \u001b[38;5;33mcontainers\u001b[0m:",
+                  "FirstCause": false,
+                  "LastCause": false
+                },
+                {
+                  "Number": 45,
+                  "Content": "        - name: hardened-app",
+                  "IsCause": true,
+                  "Annotation": "",
+                  "Truncated": false,
+                  "Highlighted": "        - \u001b[38;5;33mname\u001b[0m: hardened-app",
+                  "FirstCause": false,
+                  "LastCause": false
+                },
+                {
+                  "Number": 46,
+                  "Content": "          image: hardened-app-scanning:v1",
+                  "IsCause": true,
+                  "Annotation": "",
+                  "Truncated": false,
+                  "Highlighted": "          \u001b[38;5;33mimage\u001b[0m: hardened-app-scanning:v1",
+                  "FirstCause": false,
+                  "LastCause": false
+                },
+                {
+                  "Number": 47,
+                  "Content": "          imagePullPolicy: IfNotPresent",
+                  "IsCause": true,
+                  "Annotation": "",
+                  "Truncated": false,
+                  "Highlighted": "          \u001b[38;5;33mimagePullPolicy\u001b[0m: IfNotPresent",
+                  "FirstCause": false,
+                  "LastCause": false
+                },
+                {
+                  "Number": 48,
+                  "Content": "          securityContext:",
+                  "IsCause": true,
+                  "Annotation": "",
+                  "Truncated": false,
+                  "Highlighted": "          \u001b[38;5;33msecurityContext\u001b[0m:",
+                  "FirstCause": false,
+                  "LastCause": false
+                },
+                {
+                  "Number": 49,
+                  "Content": "            allowPrivilegeEscalation: false",
+                  "IsCause": true,
+                  "Annotation": "",
+                  "Truncated": false,
+                  "Highlighted": "            \u001b[38;5;33mallowPrivilegeEscalation\u001b[0m: \u001b[38;5;166mfalse",
+                  "FirstCause": false,
+                  "LastCause": false
+                },
+                {
+                  "Number": 50,
+                  "Content": "            readOnlyRootFilesystem: true",
+                  "IsCause": true,
+                  "Annotation": "",
+                  "Truncated": false,
+                  "Highlighted": "\u001b[0m            \u001b[38;5;33mreadOnlyRootFilesystem\u001b[0m: \u001b[38;5;166mtrue",
+                  "FirstCause": false,
+                  "LastCause": false
+                },
+                {
+                  "Number": 51,
+                  "Content": "            capabilities:",
+                  "IsCause": true,
+                  "Annotation": "",
+                  "Truncated": false,
+                  "Highlighted": "\u001b[0m            \u001b[38;5;33mcapabilities\u001b[0m:",
+                  "FirstCause": false,
+                  "LastCause": true
+                },
+                {
+                  "Number": 52,
+                  "Content": "",
+                  "IsCause": false,
+                  "Annotation": "",
+                  "Truncated": true,
+                  "FirstCause": false,
+                  "LastCause": false
+                }
+              ]
+            }
+          }
+        },
+        {
+          "Type": "Kubernetes Security Check",
+          "ID": "KSV-0021",
+          "Title": "Runs with GID \u003c= 10000",
+          "Description": "Force the container to run with group ID \u003e 10000 to avoid conflicts with the host’s user table.",
+          "Message": "Container 'hardened-app' of Deployment 'hardened-app' should set 'securityContext.runAsGroup' \u003e 10000",
+          "Namespace": "builtin.kubernetes.KSV021",
+          "Query": "data.builtin.kubernetes.KSV021.deny",
+          "Resolution": "Set 'containers[].securityContext.runAsGroup' to an integer \u003e 10000.",
+          "Severity": "LOW",
+          "PrimaryURL": "https://avd.aquasec.com/misconfig/ksv-0021",
+          "References": [
+            "https://kubesec.io/basics/containers-securitycontext-runasuser/",
+            "https://avd.aquasec.com/misconfig/ksv-0021"
+          ],
+          "Status": "FAIL",
+          "CauseMetadata": {
+            "Provider": "Kubernetes",
+            "Service": "general",
+            "StartLine": 43,
+            "EndLine": 68,
+            "Code": {
+              "Lines": [
+                {
+                  "Number": 43,
+                  "Content": "          type: RuntimeDefault",
+                  "IsCause": true,
+                  "Annotation": "",
+                  "Truncated": false,
+                  "Highlighted": "          \u001b[38;5;33mtype\u001b[0m: RuntimeDefault",
+                  "FirstCause": true,
+                  "LastCause": false
+                },
+                {
+                  "Number": 44,
+                  "Content": "      containers:",
+                  "IsCause": true,
+                  "Annotation": "",
+                  "Truncated": false,
+                  "Highlighted": "      \u001b[38;5;33mcontainers\u001b[0m:",
+                  "FirstCause": false,
+                  "LastCause": false
+                },
+                {
+                  "Number": 45,
+                  "Content": "        - name: hardened-app",
+                  "IsCause": true,
+                  "Annotation": "",
+                  "Truncated": false,
+                  "Highlighted": "        - \u001b[38;5;33mname\u001b[0m: hardened-app",
+                  "FirstCause": false,
+                  "LastCause": false
+                },
+                {
+                  "Number": 46,
+                  "Content": "          image: hardened-app-scanning:v1",
+                  "IsCause": true,
+                  "Annotation": "",
+                  "Truncated": false,
+                  "Highlighted": "          \u001b[38;5;33mimage\u001b[0m: hardened-app-scanning:v1",
+                  "FirstCause": false,
+                  "LastCause": false
+                },
+                {
+                  "Number": 47,
+                  "Content": "          imagePullPolicy: IfNotPresent",
+                  "IsCause": true,
+                  "Annotation": "",
+                  "Truncated": false,
+                  "Highlighted": "          \u001b[38;5;33mimagePullPolicy\u001b[0m: IfNotPresent",
+                  "FirstCause": false,
+                  "LastCause": false
+                },
+                {
+                  "Number": 48,
+                  "Content": "          securityContext:",
+                  "IsCause": true,
+                  "Annotation": "",
+                  "Truncated": false,
+                  "Highlighted": "          \u001b[38;5;33msecurityContext\u001b[0m:",
+                  "FirstCause": false,
+                  "LastCause": false
+                },
+                {
+                  "Number": 49,
+                  "Content": "            allowPrivilegeEscalation: false",
+                  "IsCause": true,
+                  "Annotation": "",
+                  "Truncated": false,
+                  "Highlighted": "            \u001b[38;5;33mallowPrivilegeEscalation\u001b[0m: \u001b[38;5;166mfalse",
+                  "FirstCause": false,
+                  "LastCause": false
+                },
+                {
+                  "Number": 50,
+                  "Content": "            readOnlyRootFilesystem: true",
+                  "IsCause": true,
+                  "Annotation": "",
+                  "Truncated": false,
+                  "Highlighted": "\u001b[0m            \u001b[38;5;33mreadOnlyRootFilesystem\u001b[0m: \u001b[38;5;166mtrue",
+                  "FirstCause": false,
+                  "LastCause": false
+                },
+                {
+                  "Number": 51,
+                  "Content": "            capabilities:",
+                  "IsCause": true,
+                  "Annotation": "",
+                  "Truncated": false,
+                  "Highlighted": "\u001b[0m            \u001b[38;5;33mcapabilities\u001b[0m:",
+                  "FirstCause": false,
+                  "LastCause": true
+                },
+                {
+                  "Number": 52,
+                  "Content": "",
+                  "IsCause": false,
+                  "Annotation": "",
+                  "Truncated": true,
+                  "FirstCause": false,
+                  "LastCause": false
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
