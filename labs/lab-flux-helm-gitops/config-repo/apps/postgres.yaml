@@ -1,0 +1,55 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: demo-db
+  namespace: demo
+  labels:
+    app.kubernetes.io/name: demo-db
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: demo-db
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: demo-db
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:18.6-alpine
+          imagePullPolicy: Never
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: demo
+            - name: POSTGRES_USER
+              value: demo
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: demo-secrets
+                  key: pgPassword
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "demo", "-d", "demo"]
+            periodSeconds: 5
+      volumes:
+        - name: data
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: demo-db
+  namespace: demo
+spec:
+  selector:
+    app.kubernetes.io/name: demo-db
+  ports:
+    - port: 5432
+      targetPort: 5432
