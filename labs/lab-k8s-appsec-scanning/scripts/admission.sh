@@ -19,21 +19,48 @@ up() {
   kubectl --context "${KCTX}" apply --server-side --force-conflicts -f \
     "https://github.com/kyverno/kyverno/releases/download/${KYVERNO_VERSION}/install.yaml"
   kubectl --context "${KCTX}" -n kyverno rollout status deploy/kyverno-admission-controller --timeout=180s
-  kubectl --context "${KCTX}" apply -f policy/kyverno/require-hardened.yaml
-  log "Waiting for the Kyverno webhook to register"
+  log "Waiting for the Kyverno admission webhook to start serving"
+  local attempt policy_applied=""
+  for attempt in $(seq 1 24); do
+    if kubectl --context "${KCTX}" apply -f policy/kyverno/require-hardened.yaml \
+      >"${out}/policy-apply.txt" 2>&1; then
+      policy_applied="yes"
+      break
+    fi
+    sleep 5
+  done
+  if [[ -z "${policy_applied}" ]]; then
+    echo "Kyverno webhook never became ready; policy apply kept failing:" >&2
+    cat "${out}/policy-apply.txt" >&2
+    return 1
+  fi
+  log "Waiting for the Kyverno webhook to register for the ${NAMESPACE} namespace"
   sleep 10
 }
 
 test_admission() {
-  local rule
+  local rule attempt
   rule="$(expected_ids admission kyverno | head -n1)"
   log "Admission: vulnerable manifest (expect DENY)"
-  if kubectl --context "${KCTX}" apply --dry-run=server \
-    -f vulnerable/k8s/deployment.yaml >"${out}/vulnerable.txt" 2>&1; then
-    echo "UNEXPECTED: vulnerable manifest was admitted" >&2
-    cat "${out}/vulnerable.txt"
-    return 1
-  fi
+  for attempt in $(seq 1 6); do
+    if kubectl --context "${KCTX}" apply --dry-run=server \
+      -f vulnerable/k8s/deployment.yaml >"${out}/vulnerable.txt" 2>&1; then
+      echo "UNEXPECTED: vulnerable manifest was admitted" >&2
+      cat "${out}/vulnerable.txt"
+      return 1
+    fi
+    if grep -q "${rule}" "${out}/vulnerable.txt"; then
+      break
+    fi
+    if [[ "${attempt}" -lt 6 ]] && grep -qiE \
+      "connection refused|failed calling webhook|context deadline exceeded|no endpoints available|dial tcp" \
+      "${out}/vulnerable.txt"; then
+      log "Webhook not ready yet, retrying (${attempt}/6)"
+      sleep 5
+      continue
+    fi
+    break
+  done
   grep -q "${rule}" "${out}/vulnerable.txt" \
     || {
       echo "deny message missing the policy rule name" >&2
