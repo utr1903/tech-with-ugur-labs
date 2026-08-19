@@ -54,6 +54,10 @@ flowchart LR
 Tear it down and there's nothing left outside this folder's `tmp/`
 directory.
 
+## Companion post
+
+[Catch It Before Prod: A Layered OSS Scanning Gauntlet for Kubernetes Apps](https://techwithugur.dev/posts/k8s-appsec-scanning/)
+
 ## Prerequisites
 
 Tested on macOS with Docker Desktop. Install everything else with:
