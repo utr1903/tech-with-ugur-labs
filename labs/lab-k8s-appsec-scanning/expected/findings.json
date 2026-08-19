@@ -1,0 +1,17 @@
+{
+  "code": {
+    "gitleaks": ["vuln-lab-hardcoded-api-key"],
+    "semgrep": ["vuln-lab-sqli", "vuln-lab-command-injection"]
+  },
+  "build": {
+    "trivy-sca": ["CVE-2021-23337"],
+    "trivy-image": ["CVE-2021-23337"],
+    "trivy-dockerfile": ["AVD-DS-0002"]
+  },
+  "deploy": {
+    "trivy-k8s": ["AVD-KSV-0012", "AVD-KSV-0014", "AVD-KSV-0011"]
+  },
+  "admission": {
+    "kyverno": ["require-run-as-non-root"]
+  }
+}
