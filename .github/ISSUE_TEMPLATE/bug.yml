@@ -3,6 +3,10 @@ description: A step in a lab README fails or produces a different result.
 title: "[lab-<name>] "
 labels: [bug]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        The maintainer reads issues by hand. Do not paste secrets, tokens, or private data.
   - type: dropdown
     id: lab
     attributes:
