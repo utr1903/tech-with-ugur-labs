@@ -6,6 +6,9 @@ const PINNED = "pin.evil-c2.lab";
 const VENDOR = "updates.goodvendor.lab";
 const SEEDED = new Set([...BEACONS, PINNED]);
 
+// The e2e gate's assertions. Encodes the expected outcome of the lab so
+// `./e2e.sh` fails loudly if interception, decryption, pin detection or
+// blocklist matching regresses.
 export function verifyReport(report: Report): { ok: boolean; failures: string[] } {
   const failures: string[] = [];
   const by = (f: string) => report.domains.find((d) => d.fqdn === f);

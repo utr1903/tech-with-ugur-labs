@@ -1,3 +1,10 @@
+// The TLS SNI and decrypted HTTP evidence layers, folded into one record per
+// hostname from the gateway addon's JSONL capture:
+//   sniSeen   - a ClientHello named this host (the app opened TLS to it)
+//   decrypted - a full HTTP request was seen (the app trusted the gateway CA)
+//   tlsFailed - the app aborted the handshake after seeing the forged cert
+//               (certificate pinning suspected)
+//   payload   - the decrypted request body, if any
 export type HostEvidence = {
   decrypted: boolean;
   sniSeen: boolean;

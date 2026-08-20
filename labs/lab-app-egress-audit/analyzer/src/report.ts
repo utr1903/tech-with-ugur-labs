@@ -11,12 +11,19 @@ export type DomainVerdict = {
 
 export type Report = { generatedAt: string; domains: DomainVerdict[] };
 
+// The deepest visibility layer reached for a host: a decrypted request beats
+// a bare SNI, which beats a name that was merely looked up in DNS.
 function layerOf(ev: HostEvidence | undefined): DomainVerdict["evidenceLayer"] {
   if (ev?.decrypted) return "decrypted HTTP";
   if (ev?.sniSeen) return "SNI-only";
   return "DNS-only";
 }
 
+// One row per hostname seen in EITHER the DNS log or the gateway capture.
+// The verdict comes purely from the blocklist; the evidence layer and the
+// `opaque` flag describe how much of the conversation we could see.
+// `opaque` = we saw the SNI, the client then aborted the handshake, and nothing
+// was ever decrypted — the signature of certificate pinning.
 export function buildReport(
   dnsFqdns: string[],
   evidence: Map<string, HostEvidence>,

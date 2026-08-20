@@ -1,9 +1,21 @@
 """mitmproxy addon: record the three egress visibility layers to JSONL.
 
-- tls_clienthello: the SNI of every TLS connection, decryptable or not.
-- request: fully decrypted HTTP for connections whose cert the app trusted.
-- tls_failed_client: the app rejected our forged cert (certificate pinning) —
-  the connection stays opaque, but the SNI is still a finding.
+mitmproxy loads this file via `-s capture.py`, imports it in-process, and for
+every object in the module-level `addons` list calls the method named after
+each lifecycle event as it happens. We never run this script ourselves.
+
+Three events, one per visibility layer, each appended as one JSON line:
+
+- tls_clienthello   -> the SNI of every TLS connection, decryptable or not.
+                       Fires as soon as the ClientHello is parsed, before any
+                       certificate has been presented.
+- request           -> the fully decrypted HTTP request (method, path, body)
+                       for connections whose forged cert the app accepted.
+- tls_failed_client -> the app aborted the handshake after seeing our forged
+                       cert (certificate pinning). The payload stays opaque,
+                       but the SNI captured earlier still names the destination.
+
+The analyzer folds these lines into one evidence record per hostname.
 """
 
 import json
@@ -23,6 +35,8 @@ def _write(record):
 
 class Capture:
     def __init__(self):
+        # tls_failed_client only identifies the client connection, not the
+        # hostname, so remember each connection's SNI to attribute failures.
         self._sni_by_client = {}
 
     def tls_clienthello(self, data):
@@ -31,6 +45,8 @@ class Capture:
         _write({"event": "clienthello", "sni": sni})
 
     def request(self, flow):
+        # Reached only if the client completed TLS with us, i.e. trusted our CA.
+        # pretty_host prefers the Host header / SNI over the raw destination IP.
         _write(
             {
                 "event": "request",
@@ -42,6 +58,7 @@ class Capture:
         )
 
     def tls_failed_client(self, data):
+        # The client saw our forged cert and hung up: the signature of pinning.
         sni = self._sni_by_client.get(data.context.client.id)
         _write({"event": "tls_failed_client", "sni": sni})
 

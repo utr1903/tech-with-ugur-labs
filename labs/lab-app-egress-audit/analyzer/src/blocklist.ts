@@ -1,4 +1,6 @@
-// Parse a hosts-format blocklist (`<ip> <hostname>` per line, `#` comments).
+// Parse a threat-intel blocklist in hosts format (`<ip> <hostname>` per line,
+// `#` comments, as published by feeds such as URLhaus). Only the hostnames
+// matter; the IP column is the sinkhole address and is discarded.
 export function parseBlocklist(hostsText: string): Set<string> {
   const set = new Set<string>();
   for (const raw of hostsText.split("\n")) {

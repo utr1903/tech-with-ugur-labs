@@ -2,6 +2,10 @@ import https from "node:https";
 import type { SuspectConfig } from "../config.js";
 import type { Logger } from "../logger.js";
 
+// STEP 1 of 4, and the only benign one: the update check every real app does.
+// It goes to the vendor's own domain, carries no data, and throws loudly on
+// failure like honest code. It is in the report so the app's full footprint
+// is visible, and comes out `clean`.
 export async function checkForUpdate(cfg: SuspectConfig, logger: Logger): Promise<void> {
   try {
     logger.info({ url: cfg.updateUrl }, "Checking for updates...");

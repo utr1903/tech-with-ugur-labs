@@ -8,6 +8,13 @@ import { createLogger, installGlobalErrorHandlers } from "./logger.js";
 const logger = createLogger({ appName: "suspect-app" });
 installGlobalErrorHandlers(logger);
 
+// The "freshly downloaded app". Four steps, in order:
+//   1. a legitimate update check (the cover story)     -> egress/updateCheck.ts
+//   2. build a host fingerprint (fake, see SAFETY)     -> fingerprint.ts
+//   3. covertly POST it to two attacker domains        -> egress/beacon.ts
+//   4. a certificate-pinned C2 check-in that refuses
+//      to talk through any interceptor                 -> egress/pinned.ts
+// Steps 2-4 are the suspicious behaviour the gateway is meant to expose.
 async function main(): Promise<void> {
   const cfg = loadConfig(process.env);
   const fingerprint = buildFingerprint();

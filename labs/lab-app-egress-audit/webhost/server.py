@@ -1,8 +1,13 @@
 """Lab webhost: plays the vendor update endpoint AND the attacker sink.
 
+dnsmasq resolves every *.lab name to this container, so it answers as
+updates.goodvendor.lab, both beacon sinks and pin.evil-c2.lab at once, using
+the multi-SAN certificate generated in entrypoint.sh.
+
 Every request is answered 200. The point of this container is to be a
-believable destination for the suspect app; the *evidence* about what was said
-to it comes from the gateway's decryption, not from here.
+believable destination so the suspect app's connections complete; the
+*evidence* about what was said to it comes from the gateway's decryption, not
+from here — which is why it deliberately logs nothing.
 """
 
 import http.server
