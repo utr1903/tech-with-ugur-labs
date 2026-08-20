@@ -1,0 +1,108 @@
+services:
+  # dnsmasq: resolves every *.lab name to the webhost and logs every query
+  # (the DNS visibility layer) to the shared `dnslog` volume.
+  dns:
+    build: ./dns
+    networks:
+      labnet:
+        ipv4_address: 10.10.0.3
+    volumes:
+      - dnslog:/var/log/dns
+    healthcheck:
+      # nslookup also queries AAAA (which dnsmasq REFUSEs, as the lab is
+      # IPv4-only), so grep for the A answer instead of trusting the exit code.
+      test: ["CMD", "sh", "-c", "nslookup updates.goodvendor.lab 127.0.0.1 2>/dev/null | grep -q 10.10.0.10"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  # One TLS server standing in for the vendor, both beacon sinks and the C2
+  # host. Publishes its public cert to `certs` so the suspect app can pin to it.
+  webhost:
+    build: ./webhost
+    networks:
+      labnet:
+        ipv4_address: 10.10.0.10
+    volumes:
+      - certs:/certs
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import ssl,urllib.request; ctx=ssl._create_unverified_context(); urllib.request.urlopen('https://localhost:443/health', context=ctx)"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  # mitmproxy in transparent mode plus the iptables REDIRECT rules that feed it.
+  # NET_ADMIN is the capability needed to edit firewall rules; this is the only
+  # service that gets it. Writes its CA to `certs` and the evidence JSONL to
+  # `capture`.
+  gateway:
+    build: ./gateway
+    cap_add:
+      - NET_ADMIN
+    networks:
+      labnet:
+        ipv4_address: 10.10.0.2
+    volumes:
+      - certs:/certs
+      - capture:/capture
+    healthcheck:
+      test: ["CMD", "test", "-f", "/certs/mitmproxy-ca-cert.pem"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # The "downloaded app". It shares the gateway's network namespace
+  # (network_mode: service:<name>), so it has the gateway's IP, routes and —
+  # crucially — iptables rules: every packet it sends is redirected into
+  # mitmproxy at the kernel level and it is never configured with a proxy.
+  # A container in a borrowed namespace cannot declare its own networks, dns or
+  # ports, so it writes the dnsmasq IP into /etc/resolv.conf itself (DNS_IP).
+  suspect-app:
+    build: ./suspect-app
+    network_mode: "service:gateway"
+    environment:
+      DNS_IP: 10.10.0.3
+    volumes:
+      - certs:/certs
+    depends_on:
+      dns:
+        condition: service_healthy
+      webhost:
+        condition: service_healthy
+      gateway:
+        condition: service_healthy
+
+  # Runs after the suspect app exits. Reads the DNS log, the capture and the
+  # blocklist (all read-only), writes report.json and prints the verdict table.
+  # It never touches the network.
+  analyzer:
+    build: ./analyzer
+    networks:
+      - labnet
+    volumes:
+      - dnslog:/var/log/dns:ro
+      - capture:/capture:ro
+      - ./threat-intel:/threat-intel:ro
+      - report:/out
+    depends_on:
+      suspect-app:
+        condition: service_completed_successfully
+
+networks:
+  labnet:
+    # internal: no NAT to the host, so nothing on this network can reach the
+    # internet — the app can beacon all it likes, the packets have nowhere to go.
+    internal: true
+    # ipam (IP Address Management): pin the subnet so services can take fixed
+    # addresses (dnsmasq must name the webhost by IP, and the suspect app must
+    # name dnsmasq by IP). 10.10.0.0/24 = 10.10.0.1–10.10.0.254, RFC 1918 private.
+    ipam:
+      config:
+        - subnet: 10.10.0.0/24
+
+volumes:
+  certs:
+  capture:
+  dnslog:
+  report:

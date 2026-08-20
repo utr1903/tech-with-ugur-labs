@@ -1,0 +1,25 @@
+# Threat-intel blocklist snapshot, hosts format: `<ip> <hostname>` per line.
+#
+# Hosts format is the syntax of /etc/hosts; feeds publish in it so the file can
+# be dropped onto a machine or a Pi-hole to sinkhole every listed domain to
+# 0.0.0.0. The analyzer uses only the hostname column.
+#
+# In production this would be a live feed such as the URLhaus hosts list
+# (https://urlhaus.abuse.ch/). It is committed here as a pinned, offline
+# excerpt so the lab is deterministic (the e2e gate asserts exact verdicts) and
+# needs no network access. Swap in a fresh download and the analyzer is
+# unchanged.
+#
+# Note what is NOT listed: updates.goodvendor.lab. The vendor's update check
+# must come out `clean` to show the report covers the app's full footprint.
+
+# --- seeded lab malware infrastructure ---
+0.0.0.0 cdn-metrics.tracklab.lab
+0.0.0.0 telemetry.adnexus.lab
+0.0.0.0 pin.evil-c2.lab
+
+# --- placeholder feed excerpt: .invalid is a reserved TLD that never resolves,
+#     standing in for the thousands of real entries a production feed carries ---
+0.0.0.0 login-secure-update.invalid
+0.0.0.0 cdn-cache-node-7.invalid
+0.0.0.0 analytics-collector.invalid
