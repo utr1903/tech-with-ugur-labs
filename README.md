@@ -25,7 +25,8 @@ the only instruction set you need.
 - A single documented entrypoint (usually `docker compose up`)
 - Pinned versions; a `test/` folder with the smoke test used to
   verify the lab
-- Found a problem? Open an issue — mention the lab folder name.
+- Have a question, or found a problem? Open an issue using one of the
+  templates — they ask for the lab folder name so it lands in context.
 
 ## License
 [MIT](LICENSE)

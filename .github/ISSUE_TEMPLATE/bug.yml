@@ -1,0 +1,41 @@
+name: Lab does not work as documented
+description: A step in a lab README fails or produces a different result.
+title: "[lab-<name>] "
+labels: [bug]
+body:
+  - type: dropdown
+    id: lab
+    attributes:
+      label: Lab
+      options:
+        - lab-css-webmail-exfil
+        - lab-flux-helm-gitops
+        - lab-k8s-appsec-exploit
+        - lab-k8s-appsec-scanning
+        - lab-local-deep-research
+        - lab-python-bytecode-blindspot
+        - lab-supply-chain-egress-sandbox
+    validations:
+      required: true
+  - type: input
+    id: step
+    attributes:
+      label: README step
+      placeholder: e.g. "3. Run the attack"
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Command and output
+      description: Paste the exact command and the error. Remove anything private first.
+      render: shell
+    validations:
+      required: true
+  - type: input
+    id: env
+    attributes:
+      label: Environment
+      placeholder: macOS 15 / Docker Desktop 4.4x / Node 22
+    validations:
+      required: true
