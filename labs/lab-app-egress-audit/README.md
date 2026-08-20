@@ -9,6 +9,8 @@ Then it reads back exactly what the app leaked, and where the visibility ends.
 Everything runs locally in Docker. Nothing touches the real internet, and the
 only "secret" the app exfiltrates is an obviously-fake canary.
 
+Companion post: [Is That App You Just Installed Phoning Home? Build a mitmproxy egress gateway that finds out](https://techwithugur.dev/posts/app-egress-audit/).
+
 ## Contents
 - [Prerequisites](#prerequisites)
 - [Run it](#run-it)
