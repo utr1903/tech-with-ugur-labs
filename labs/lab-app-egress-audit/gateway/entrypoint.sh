@@ -1,21 +1,25 @@
 #!/bin/sh
 set -eu
 
-# Transparent redirect: any tcp 80/443 that the suspect app routes through this
-# gateway is sent to mitmproxy's transparent listener on 8080. mitmproxy reads
-# the original destination from the kernel (SO_ORIGINAL_DST). mitmproxy's own
-# upstream connections are locally generated (OUTPUT chain), so they are NOT
-# matched by this PREROUTING rule and need no uid exclusion.
-sysctl -w net.ipv4.ip_forward=1 >/dev/null 2>&1 || true
-iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-ports 8080
-iptables -t nat -A PREROUTING -p tcp --dport 443 -j REDIRECT --to-ports 8080
+# Shared-namespace transparent interception. The suspect app runs in THIS
+# container's network namespace (compose `network_mode: service:gateway`), so its
+# outbound TCP is generated locally and hits the OUTPUT chain. We redirect its
+# tcp 80/443 to mitmproxy's transparent listener on 8080, while mitmproxy's OWN
+# upstream connections (owned by the mitmproxy user) are excluded so they are not
+# looped back into the proxy.
+MITM_UID="$(id -u mitmproxy)"
+iptables -t nat -A OUTPUT -p tcp -m owner --uid-owner "$MITM_UID" -j RETURN
+iptables -t nat -A OUTPUT -p tcp --dport 80 -j REDIRECT --to-ports 8080
+iptables -t nat -A OUTPUT -p tcp --dport 443 -j REDIRECT --to-ports 8080
 
-mkdir -p /capture
+# mitmproxy runs as the mitmproxy user, so it needs to own its config + capture dirs.
+mkdir -p /capture /certs
+chown mitmproxy:mitmproxy /capture /certs
 
 # lazy connection strategy: do the client-side TLS first so we always capture
 # the SNI and present our forged cert — even for the pinned connection, which
 # the app rejects before any upstream is contacted.
-exec mitmdump \
+exec runuser -u mitmproxy -- mitmdump \
   --mode transparent \
   --showhost \
   --ssl-insecure \

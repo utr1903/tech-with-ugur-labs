@@ -1,0 +1,15 @@
+# Threat-intel blocklist snapshot (hosts format: <ip> <hostname>).
+# In production this is a live feed such as the URLhaus hosts list
+# (https://urlhaus.abuse.ch/). Committed here as a pinned, offline excerpt so
+# the lab is deterministic. The entries below are the lab's own seeded bad
+# domains plus a few clearly-non-real placeholders standing in for a real feed.
+
+# --- seeded lab malware infrastructure ---
+0.0.0.0 cdn-metrics.tracklab.lab
+0.0.0.0 telemetry.adnexus.lab
+0.0.0.0 pin.evil-c2.lab
+
+# --- placeholder feed excerpt (non-routable .invalid names) ---
+0.0.0.0 login-secure-update.invalid
+0.0.0.0 cdn-cache-node-7.invalid
+0.0.0.0 analytics-collector.invalid

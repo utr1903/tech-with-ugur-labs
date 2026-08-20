@@ -1,10 +1,11 @@
 #!/bin/sh
 set -eu
 
-# Route ALL egress through the gateway container. The app itself is never told
-# about a proxy — we redirect it at the network layer, exactly as an inspection
-# gateway would in front of an uncooperative binary.
-ip route replace default via "${GATEWAY_IP:-10.10.1.2}"
+# We share the gateway's network namespace, so all of our egress is transparently
+# redirected into mitmproxy — the app is never told about a proxy. Point our
+# resolver at the lab DNS so every lookup is logged and every .lab name resolves
+# to the webhost.
+echo "nameserver ${DNS_IP:-10.10.0.3}" > /etc/resolv.conf
 
 # Wait for the gateway to publish its CA (trusted for the decryptable calls) and
 # for the vendor's real leaf cert (used to pin the C2 connection).

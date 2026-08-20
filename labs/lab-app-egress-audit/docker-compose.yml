@@ -1,0 +1,90 @@
+services:
+  dns:
+    build: ./dns
+    networks:
+      labnet:
+        ipv4_address: 10.10.0.3
+    volumes:
+      - dnslog:/var/log/dns
+    healthcheck:
+      # nslookup also queries AAAA (which dnsmasq REFUSEs, as the lab is
+      # IPv4-only), so grep for the A answer instead of trusting the exit code.
+      test: ["CMD", "sh", "-c", "nslookup updates.goodvendor.lab 127.0.0.1 2>/dev/null | grep -q 10.10.0.10"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  webhost:
+    build: ./webhost
+    networks:
+      labnet:
+        ipv4_address: 10.10.0.10
+    volumes:
+      - certs:/certs
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import ssl,urllib.request; ctx=ssl._create_unverified_context(); urllib.request.urlopen('https://localhost:443/health', context=ctx)"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  gateway:
+    build: ./gateway
+    cap_add:
+      - NET_ADMIN
+    networks:
+      labnet:
+        ipv4_address: 10.10.0.2
+    volumes:
+      - certs:/certs
+      - capture:/capture
+    healthcheck:
+      test: ["CMD", "test", "-f", "/certs/mitmproxy-ca-cert.pem"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  # The suspect app shares the gateway's network namespace, so every packet it
+  # sends is transparently redirected into mitmproxy — it is never configured
+  # with a proxy. It therefore inherits the gateway's network and cannot declare
+  # its own networks/dns/ports; it points its resolver at the lab DNS itself.
+  suspect-app:
+    build: ./suspect-app
+    network_mode: "service:gateway"
+    environment:
+      DNS_IP: 10.10.0.3
+    volumes:
+      - certs:/certs
+    depends_on:
+      dns:
+        condition: service_healthy
+      webhost:
+        condition: service_healthy
+      gateway:
+        condition: service_healthy
+
+  analyzer:
+    build: ./analyzer
+    networks:
+      - labnet
+    volumes:
+      - dnslog:/var/log/dns:ro
+      - capture:/capture:ro
+      - ./threat-intel:/threat-intel:ro
+      - report:/out
+    depends_on:
+      suspect-app:
+        condition: service_completed_successfully
+
+networks:
+  labnet:
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.10.0.0/24
+
+volumes:
+  certs:
+  capture:
+  dnslog:
+  report:
