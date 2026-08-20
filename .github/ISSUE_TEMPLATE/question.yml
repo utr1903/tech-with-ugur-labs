@@ -1,0 +1,33 @@
+name: Question about a lab
+description: Ask how or why something in a lab works.
+title: "[lab-<name>] "
+labels: [question]
+body:
+  - type: dropdown
+    id: lab
+    attributes:
+      label: Lab
+      description: Which lab folder is this about?
+      options:
+        - lab-css-webmail-exfil
+        - lab-flux-helm-gitops
+        - lab-k8s-appsec-exploit
+        - lab-k8s-appsec-scanning
+        - lab-local-deep-research
+        - lab-python-bytecode-blindspot
+        - lab-supply-chain-egress-sandbox
+        - other / general
+    validations:
+      required: true
+  - type: textarea
+    id: question
+    attributes:
+      label: Question
+      description: What are you trying to understand? Quote the README step or file if it helps.
+    validations:
+      required: true
+  - type: textarea
+    id: tried
+    attributes:
+      label: What you have tried
+      description: Optional. Commands you ran, docs you read, what you expected instead.
