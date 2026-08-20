@@ -3,6 +3,10 @@ description: Ask how or why something in a lab works.
 title: "[lab-<name>] "
 labels: [question]
 body:
+  - type: markdown
+    attributes:
+      value: |
+        The maintainer reads issues by hand. Do not paste secrets, tokens, or private data.
   - type: dropdown
     id: lab
     attributes:
