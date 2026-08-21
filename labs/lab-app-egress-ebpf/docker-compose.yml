@@ -52,7 +52,9 @@ services:
       - --output
       - option:parse-arguments
       - --server
-      - http-address=:3366,healthz
+      - http-address=:3366
+      - --server
+      - healthz
     volumes:
       - /etc/os-release:/etc/os-release-host:ro
       - events:/events
