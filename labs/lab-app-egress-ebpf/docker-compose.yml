@@ -1,0 +1,115 @@
+services:
+  # The lab's only resolver. Each *.lab name maps to its own IP so the kernel
+  # view (which only sees IPs) joins back to a single FQDN unambiguously.
+  dns:
+    build: ./dns
+    networks:
+      labnet:
+        ipv4_address: 10.10.0.3
+    volumes:
+      - dnslog:/var/log/dns
+    healthcheck:
+      test: ["CMD", "sh", "-c", "nslookup updates.goodvendor.lab 127.0.0.1 2>/dev/null | grep -q 10.10.0.10"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  # One TLS server standing in for the vendor and both beacon sinks. It adds
+  # .11 and .12 as alias IPs (NET_ADMIN) and publishes its public cert so the
+  # suspect app can trust it as the vendor. No payload is ever decrypted.
+  webhost:
+    build: ./webhost
+    cap_add:
+      - NET_ADMIN
+    networks:
+      labnet:
+        ipv4_address: 10.10.0.10
+    volumes:
+      - certs:/certs
+    healthcheck:
+      test: ["CMD", "python3", "-c",
+             "import ssl,urllib.request; ctx=ssl._create_unverified_context(); urllib.request.urlopen('https://localhost:443/health', context=ctx)"]
+      interval: 2s
+      timeout: 3s
+      retries: 20
+
+  # The eBPF sensor. It is the ONLY privileged service: it instruments the host
+  # kernel, so it needs host PID/cgroup namespaces and privileges. It is scoped
+  # to the suspect-app UTS name, so it only emits that container's events, and
+  # streams them as JSON to the shared `events` volume.
+  tracee:
+    image: aquasec/tracee:0.24.1
+    privileged: true
+    pid: host
+    cgroup: host
+    command:
+      - --scope
+      - uts=suspect-app
+      - --events
+      - net_packet_dns,security_socket_connect,sched_process_exec
+      - --output
+      - json:/events/tracee.jsonl
+      - --output
+      - option:parse-arguments
+      - --server
+      - http-address=:3366
+      - --server
+      - healthz
+    volumes:
+      - /etc/os-release:/etc/os-release-host:ro
+      - events:/events
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3366/healthz"]
+      interval: 3s
+      timeout: 3s
+      retries: 30
+      start_period: 10s
+
+  # The "downloaded app". Deliberately BARE: no proxy env, no injected CA, no
+  # capabilities, no shared namespace. Its only network config is `dns:` (like
+  # DHCP). `hostname` fixes the UTS name Tracee scopes to. It cooperates with
+  # nothing, yet the sensor attributes every connection it makes.
+  suspect-app:
+    build: ./suspect-app
+    hostname: suspect-app
+    dns:
+      - 10.10.0.3
+    networks:
+      - labnet
+    volumes:
+      - certs:/certs:ro
+    depends_on:
+      dns:
+        condition: service_healthy
+      webhost:
+        condition: service_healthy
+      tracee:
+        condition: service_healthy
+
+  # Runs after the suspect app exits. Reads the event stream and the blocklist
+  # (read-only), writes report.json and prints the verdict table. Never touches
+  # the network.
+  analyzer:
+    build: ./analyzer
+    networks:
+      - labnet
+    volumes:
+      - events:/events:ro
+      - ./threat-intel:/threat-intel:ro
+      - report:/out
+    depends_on:
+      suspect-app:
+        condition: service_completed_successfully
+
+networks:
+  labnet:
+    internal: true
+    ipam:
+      config:
+        - subnet: 10.10.0.0/24
+
+volumes:
+  certs:
+  events:
+  dnslog:
+  report:

@@ -1,0 +1,20 @@
+{
+  "name": "analyzer",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "report": "tsx src/index.ts report",
+    "verify": "tsx src/index.ts verify",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "pino": "9.5.0",
+    "tsx": "4.19.2"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.2",
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
+  }
+}
