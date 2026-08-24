@@ -19,4 +19,8 @@ helm upgrade --install kps prometheus-community/kube-prometheus-stack \
   --wait --timeout 10m
 
 wait_pods_ready monitoring
+
+log "Applying recording rules..."
+kubectl apply -f rules/recording-rules.yaml
+
 log "Cluster up. Grafana: kubectl port-forward -n monitoring svc/kps-grafana 3000:80"
