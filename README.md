@@ -20,6 +20,7 @@ the only instruction set you need.
 | [lab-k8s-appsec-scanning](labs/lab-k8s-appsec-scanning/) | cybersecurity | [post](https://techwithugur.dev/posts/k8s-appsec-scanning/) | This lab takes the same deliberately vulnerable app as its companion exploit lab and catches every one of its flaws before any of it runs — layered open-source scanners (Gitleaks, Semgrep, Trivy) across the code, build, and deploy stages, plus a Kyverno admission gate that refuses the vulnerable image and admits a hardened variant. |
 
 | [lab-app-egress-audit](labs/lab-app-egress-audit/) | cybersecurity | [post](https://techwithugur.dev/posts/app-egress-audit/) | This lab builds an egress-inspection gateway from mitmproxy in transparent mode plus a DNS-logging dnsmasq resolver, forces a "freshly downloaded app" through it without configuring the app, then reads back exactly what the app leaked and where the visibility ends. |
+| [lab-app-egress-ebpf](labs/lab-app-egress-ebpf/) | cybersecurity | [post](https://techwithugur.dev/posts/app-egress-ebpf/) | This lab catches a "freshly downloaded app" beaconing home from a dropped helper binary by instrumenting the Linux kernel with eBPF (Aqua Tracee), attributing every DNS answer and TCP connect to the exact process and its full parent lineage — with no proxy, no injected CA, and no cooperation from the app. |
 <!-- LAB-INDEX:END -->
 
 ## Conventions
