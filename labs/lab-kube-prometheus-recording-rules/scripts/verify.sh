@@ -87,6 +87,24 @@ check_dashboards() {
   log "OK: dashboards"
 }
 
+check_alerting() {
+  log "Checking provisioned alerting..."
+  local deadline=$((SECONDS + 180)) ok=0
+  while (( SECONDS < deadline )); do
+    local rules cps
+    rules=$(curl -fsS -u "$GRAFANA_AUTH" "${GRAFANA_URL}/api/v1/provisioning/alert-rules" \
+      | jq -r '[.[].uid] | sort | join(",")') || rules=""
+    cps=$(curl -fsS -u "$GRAFANA_AUTH" "${GRAFANA_URL}/api/v1/provisioning/contact-points" \
+      | jq -r '[.[].name] | index("webhook-app") != null') || cps=false
+    if [[ "$rules" == "lab-node-cpu-high,lab-node-mem-high,lab-node-unhealthy,lab-pod-cpu-high,lab-pod-mem-high,lab-pod-unhealthy" && "$cps" == "true" ]]; then
+      ok=1; break
+    fi
+    sleep 10
+  done
+  (( ok == 1 )) || { log "FAIL: alert rules or contact point not provisioned"; return 1; }
+  log "OK: alerting"
+}
+
 main() {
   wait_pods_ready monitoring
   start_prom_port_forward
@@ -94,6 +112,7 @@ main() {
   check_webhook_app
   start_grafana_port_forward
   check_dashboards
+  check_alerting
   log "verify: all checks passed"
 }
 main "$@"
