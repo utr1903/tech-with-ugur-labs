@@ -51,10 +51,21 @@ check_recording_rules() {
   log "OK: recording rules"
 }
 
+check_webhook_app() {
+  log "Checking webhook-app health..."
+  wait_pods_ready webhook-app 120
+  kubectl run curl-probe --rm -i --restart=Never -n webhook-app \
+    --image=alpine:3.20.3 --command -- \
+    wget -q -O- http://webhook-app.webhook-app.svc:8080/healthz | grep -q '"ok":true' \
+    || { log "FAIL: webhook-app /healthz"; return 1; }
+  log "OK: webhook-app"
+}
+
 main() {
   wait_pods_ready monitoring
   start_prom_port_forward
   check_recording_rules
+  check_webhook_app
   log "verify: all checks passed"
 }
 main "$@"

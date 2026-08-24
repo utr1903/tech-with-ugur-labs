@@ -23,4 +23,6 @@ wait_pods_ready monitoring
 log "Applying recording rules..."
 kubectl apply -f rules/recording-rules.yaml
 
+scripts/deploy-webhook-app.sh
+
 log "Cluster up. Grafana: kubectl port-forward -n monitoring svc/kps-grafana 3000:80"
