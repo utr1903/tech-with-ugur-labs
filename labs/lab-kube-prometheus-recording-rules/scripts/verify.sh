@@ -105,14 +105,59 @@ check_alerting() {
   log "OK: alerting"
 }
 
+deploy_faults() {
+  log "Deploying fault workloads..."
+  kubectl apply -f faults/
+  # kind nodes on this host share one kernel, so node-exporter's per-node
+  # CPU/memory series are actually host-wide: a single fault pod capped at
+  # its own 200m/100m limit can't move node:{cpu,memory}_utilization:percent
+  # past 80% on a 10-core/8Gi host. Scale out (limits per pod stay as
+  # committed) until the aggregate load actually crosses the threshold.
+  kubectl scale deployment/cpu-hog -n faults --replicas=48
+  kubectl scale deployment/mem-hog -n faults --replicas=4
+  # break-node.sh defaults to lab-kps-worker2; if webhook-app landed there,
+  # stopping its kubelet would take the delivery target down too, so break
+  # the other worker instead.
+  local break_node=lab-kps-worker2
+  local webhook_node
+  webhook_node=$(kubectl get pod -n webhook-app -l app=webhook-app -o jsonpath='{.items[0].spec.nodeName}')
+  if [[ "$webhook_node" == "lab-kps-worker2" ]]; then
+    log "DEVIATION: webhook-app is on lab-kps-worker2; breaking lab-kps-worker instead"
+    break_node=lab-kps-worker
+  fi
+  scripts/break-node.sh "$break_node"
+}
+
+# All six alerts must land in the webhook server's JSON logs.
+check_alert_delivery() {
+  local expected=(LabNodeCpuHigh LabNodeMemHigh LabNodeUnhealthy LabPodCpuHigh LabPodMemHigh LabPodUnhealthy)
+  local deadline=$((SECONDS + 600))
+  log "Waiting for all ${#expected[@]} alerts to reach webhook-app (up to 600s)..."
+  while (( SECONDS < deadline )); do
+    local logs missing=()
+    logs=$(kubectl logs -n webhook-app deployment/webhook-app --tail=-1)
+    for name in "${expected[@]}"; do
+      echo "$logs" | grep -F '"alertname":"'"$name"'"' | grep -qF '"Receiving alert succeeded."' \
+        || missing+=("$name")
+    done
+    if (( ${#missing[@]} == 0 )); then log "OK: all alerts delivered"; return 0; fi
+    log "Still missing: ${missing[*]}"
+    sleep 20
+  done
+  log "FAIL: alerts never delivered: ${missing[*]}"
+  return 1
+}
+
 main() {
   wait_pods_ready monitoring
   start_prom_port_forward
+  start_grafana_port_forward
   check_recording_rules
   check_webhook_app
-  start_grafana_port_forward
   check_dashboards
   check_alerting
+  deploy_faults
+  check_alert_delivery
   log "verify: all checks passed"
 }
 main "$@"
