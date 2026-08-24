@@ -1,13 +1,13 @@
 services:
   # dnsmasq: resolves every *.lab name to the webhost and logs every query
-  # (the DNS visibility layer) to the shared `dnslog` volume.
+  # (the DNS visibility layer) to `tmp/dnslog/` on the host (a bind mount).
   dns:
     build: ./dns
     networks:
       labnet:
         ipv4_address: 10.10.0.3
     volumes:
-      - dnslog:/var/log/dns
+      - ./tmp/dnslog:/var/log/dns
     healthcheck:
       # nslookup also queries AAAA (which dnsmasq REFUSEs, as the lab is
       # IPv4-only), so grep for the A answer instead of trusting the exit code.
@@ -17,14 +17,15 @@ services:
       retries: 20
 
   # One TLS server standing in for the vendor, both beacon sinks and the C2
-  # host. Publishes its public cert to `certs` so the suspect app can pin to it.
+  # host. Publishes its public cert to `tmp/certs/` so the suspect app can pin
+  # to it.
   webhost:
     build: ./webhost
     networks:
       labnet:
         ipv4_address: 10.10.0.10
     volumes:
-      - certs:/certs
+      - ./tmp/certs:/certs
     healthcheck:
       test: ["CMD", "python3", "-c",
              "import ssl,urllib.request; ctx=ssl._create_unverified_context(); urllib.request.urlopen('https://localhost:443/health', context=ctx)"]
@@ -34,8 +35,8 @@ services:
 
   # mitmproxy in transparent mode plus the iptables REDIRECT rules that feed it.
   # NET_ADMIN is the capability needed to edit firewall rules; this is the only
-  # service that gets it. Writes its CA to `certs` and the evidence JSONL to
-  # `capture`.
+  # service that gets it. Writes its CA to `tmp/certs/` and the evidence JSONL to
+  # `tmp/capture/` on the host (bind mounts).
   gateway:
     build: ./gateway
     cap_add:
@@ -44,8 +45,8 @@ services:
       labnet:
         ipv4_address: 10.10.0.2
     volumes:
-      - certs:/certs
-      - capture:/capture
+      - ./tmp/certs:/certs
+      - ./tmp/capture:/capture
     healthcheck:
       test: ["CMD", "test", "-f", "/certs/mitmproxy-ca-cert.pem"]
       interval: 2s
@@ -64,7 +65,7 @@ services:
     environment:
       DNS_IP: 10.10.0.3
     volumes:
-      - certs:/certs
+      - ./tmp/certs:/certs
     depends_on:
       dns:
         condition: service_healthy
@@ -81,10 +82,10 @@ services:
     networks:
       - labnet
     volumes:
-      - dnslog:/var/log/dns:ro
-      - capture:/capture:ro
+      - ./tmp/dnslog:/var/log/dns:ro
+      - ./tmp/capture:/capture:ro
       - ./threat-intel:/threat-intel:ro
-      - report:/out
+      - ./tmp/report:/out
     depends_on:
       suspect-app:
         condition: service_completed_successfully
@@ -101,8 +102,3 @@ networks:
       config:
         - subnet: 10.10.0.0/24
 
-volumes:
-  certs:
-  capture:
-  dnslog:
-  report:
