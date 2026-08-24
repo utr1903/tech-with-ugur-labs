@@ -45,7 +45,8 @@ tears everything down:
 ```
 
 ## What you should see
-The analyzer prints a per-domain verdict table and writes `report.json`:
+The analyzer prints a per-domain verdict table and writes `/out/report.json`
+(bind-mounted to `tmp/report/report.json` on your host):
 
 | FQDN | Verdict | Evidence layer | What it means |
 |------|---------|----------------|----------------|
@@ -57,6 +58,23 @@ The analyzer prints a per-domain verdict table and writes `report.json`:
 The two beacons carry the canary `FAKE-FP-000-lab-only`; the pinned connection
 refuses the gateway's certificate, so its payload stays hidden — but the
 destination is still a finding.
+
+### Where the run's output lands
+
+The lab runs and tears down in seconds, so each container writes its output to
+this lab's gitignored `tmp/` directory (host bind mounts) where you can read it
+after everything stops:
+
+| Path on your host | What it is |
+|---|---|
+| `tmp/capture/capture.jsonl` | every SNI, decrypted request and TLS failure the gateway captured — the evidence the analyzer folds into verdicts |
+| `tmp/dnslog/queries.log` | every DNS query the app made (the DNS visibility layer) |
+| `tmp/report/report.json` | the analyzer's structured verdict report |
+| `tmp/certs/` | the gateway's CA and the vendor certificate the `webhost` generated at startup |
+
+`./e2e.sh` starts each run from an empty `tmp/`; a plain `docker compose up`
+overwrites the previous run's files in place. Nothing here is committed — `tmp/`
+is gitignored.
 
 ## The big picture
 
@@ -156,7 +174,7 @@ no-resolv                 # don't read /etc/resolv.conf for upstream servers
 no-hosts                  # don't read /etc/hosts either
 address=/lab/10.10.0.10   # answer *.lab (any depth) with the webhost's IP
 log-queries               # write one line per query...
-log-facility=/var/log/dns/queries.log   # ...to this file (a shared volume)
+log-facility=/var/log/dns/queries.log   # ...to this file (a shared mount)
 listen-address=0.0.0.0    # answer on every interface in the container
 bind-interfaces
 ```
@@ -183,9 +201,9 @@ source IP is `10.10.0.2` — the gateway's address — because the suspect app
 shares the gateway's network namespace.
 
 Two practical notes:
-- The log lives on the `dnslog` named volume, which is mounted read-only into
-  the analyzer. That is how evidence crosses container boundaries throughout
-  the lab: shared volumes, never the network.
+- The log lives in `tmp/dnslog/` on your host (a bind mount), and is mounted
+  read-only into the analyzer. That is how evidence crosses container
+  boundaries throughout the lab: shared directories, never the network.
 - dnsmasq refuses AAAA (IPv6) queries here since the lab is IPv4-only. Node's
   resolver copes fine, but `nslookup` exits non-zero, so the compose
   healthcheck greps the output for the expected A answer instead of trusting
@@ -203,7 +221,8 @@ doesn't log anything.
 `webhost/entrypoint.sh` generates a self-signed certificate on start-up with
 a **Subject Alternative Name (SAN)** for each of the four lab hostnames, so
 one cert is valid for all of them. The private key stays in the container's
-`/tmp`; only the public certificate is written to the shared `certs` volume.
+`/tmp`; only the public certificate is written to the shared `certs` mount
+(`tmp/certs/` on your host).
 
 That published certificate is not just a formality. The suspect app reads it
 and **pins** against it — it is the "vendor's real certificate" that the
@@ -302,7 +321,7 @@ non-interactive, headless form):
 | `--showhost` | name flows by their SNI / `Host` header instead of the raw IP (all four "hosts" share `10.10.0.10`) |
 | `--ssl-insecure` | don't verify the *upstream* server's cert — the webhost's is self-signed |
 | `--set connection_strategy=lazy` | do the client-side TLS handshake *before* contacting upstream. This guarantees we record the SNI and present the forged cert even when the client will refuse it — the pinned connection would otherwise never reach our hooks |
-| `--set confdir=/certs` | put the generated CA on the shared volume so the suspect app can trust it |
+| `--set confdir=/certs` | put the generated CA on the shared `certs` mount so the suspect app can trust it |
 | `-s /addon/capture.py` | load our addon (below) |
 | `-q` | quiet console; the addon writes the evidence |
 
@@ -390,7 +409,7 @@ borrows another's namespace cannot declare its own `networks`, `dns` or
 
 1. writes `nameserver 10.10.0.3` into `/etc/resolv.conf` — pointing at
    dnsmasq, so every lookup is logged and every `.lab` name resolves;
-2. waits for both certificates to appear on the `certs` volume;
+2. waits for both certificates to appear on the `certs` mount;
 3. exports `NODE_EXTRA_CA_CERTS=/certs/mitmproxy-ca-cert.pem`, which adds
    the gateway's CA to Node's trust store. This is the lab equivalent of the
    step a real egress gateway needs in a corporate setting — pushing the
@@ -445,12 +464,13 @@ resolve, so the placeholders are harmless even outside the lab.
 
 The analyzer is a Node.js program that runs **after** the suspect app exits
 (`depends_on: suspect-app: condition: service_completed_successfully`). It
-never touches the network; it reads three files from volumes and writes one:
+never touches the network; it reads three files from bind mounts and writes
+one:
 
 | Input | Mount | Parser |
 |-------|-------|--------|
-| `/var/log/dns/queries.log` | `dnslog` volume, read-only | `src/dnsLog.ts` — regex for `query[TYPE] <name> from <ip>`, de-duplicated |
-| `/capture/capture.jsonl` | `capture` volume, read-only | `src/capture.ts` — folds the three event types into one `HostEvidence` per hostname: `sniSeen`, `decrypted`, `tlsFailed`, `payload` |
+| `/var/log/dns/queries.log` | `tmp/dnslog/` bind mount, read-only | `src/dnsLog.ts` — regex for `query[TYPE] <name> from <ip>`, de-duplicated |
+| `/capture/capture.jsonl` | `tmp/capture/` bind mount, read-only | `src/capture.ts` — folds the three event types into one `HostEvidence` per hostname: `sniSeen`, `decrypted`, `tlsFailed`, `payload` |
 | `/threat-intel/blocklist.hosts` | bind-mounted from the repo, read-only | `src/blocklist.ts` — hosts-format parser into a lower-cased `Set` |
 
 `src/report.ts` then builds one row per hostname seen in *either* DNS or the
@@ -466,8 +486,8 @@ capture:
   "pinning suspected" flag.
 - **`payload`** — the decrypted request body, when there is one.
 
-`npm run report` prints the table and writes `/out/report.json` (the `report`
-volume). `npm run verify` — what `./e2e.sh` calls — re-reads that JSON and
+`npm run report` prints the table and writes `/out/report.json`
+(`tmp/report/report.json` on your host). `npm run verify` — what `./e2e.sh` calls — re-reads that JSON and
 asserts the expected outcome in `src/verify.ts`: both beacons decrypted *and*
 carrying the canary *and* flagged; the pinned host `SNI-only` *and* opaque
 *and* flagged; the vendor present *and* clean; and no `malicious` verdict on
@@ -574,9 +594,9 @@ dnsmasq can sinkhole it with an `address=/bad.domain/0.0.0.0` line.
 - **Add a fifth domain.** Point the app at `https://cdn.totallyfine.lab/x`
   without adding it to the blocklist and watch it come out `clean` — then
   ask yourself how you'd triage an unknown domain that isn't on any list yet.
-- **Read the raw evidence.** `docker compose run --rm --no-deps analyzer sh`
-  and `cat /capture/capture.jsonl /var/log/dns/queries.log` to see exactly
-  what the parsers are working from.
+- **Read the raw evidence.** `cat tmp/capture/capture.jsonl
+  tmp/dnslog/queries.log` — the exact files the parsers work from, sitting
+  right in this directory after a run.
 
 ## SAFETY
 This is a teaching lab and is inert outside itself:
@@ -595,4 +615,9 @@ audit an app's egress so you can do it against software you actually distrust.
 ## Clean up
 ```bash
 docker compose down -v
+```
+The stack leaves its output behind in `tmp/` on purpose, so you can inspect it
+after a run. To clear it too:
+```bash
+rm -rf tmp
 ```
