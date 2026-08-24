@@ -52,7 +52,8 @@ for zero cooperation and tears everything down:
 ```
 
 ## What you should see
-The analyzer prints a per-domain verdict table and writes `/out/report.json`:
+The analyzer prints a per-domain verdict table and writes `/out/report.json`
+(bind-mounted to `tmp/report/report.json` on your host):
 
 | FQDN | Verdict | Process | Lineage |
 |---|---|---|---|
@@ -64,6 +65,23 @@ Both beacons come out attributed to `sys-helper` — a dropped binary, child of
 the main `node` process — while the benign update check is attributed to
 `node` itself. That per-process split, from a completely passive kernel
 sensor, is the whole point of the lab.
+
+### Where the run's output lands
+
+The lab runs and tears down in seconds, so each container writes its output to
+this lab's gitignored `tmp/` directory (host bind mounts) where you can read it
+after everything stops:
+
+| Path on your host | What it is |
+|---|---|
+| `tmp/events/tracee.jsonl` | every raw kernel event Tracee captured — the DNS answers, socket connects, and process execs the analyzer joins |
+| `tmp/report/report.json` | the analyzer's structured verdict report |
+| `tmp/dnslog/queries.log` | every DNS query the app made (debug view of the DNS layer) |
+| `tmp/certs/` | the vendor certificate the `webhost` generated at startup |
+
+`./e2e.sh` starts each run from an empty `tmp/`; a plain `docker compose up`
+overwrites the previous run's files in place. Nothing here is committed — `tmp/`
+is gitignored.
 
 ## How it works
 
@@ -92,7 +110,8 @@ Three event types, each feeding one part of the join:
 `--output option:parse-arguments` is what makes Tracee decode each event's
 arguments (the DNS answer records, the socket address, the exec path) into
 structured JSON instead of raw bytes. Everything lands as one JSON line per
-event on the shared `events` volume; the `analyzer` reads it only after the
+event, written to `tmp/events/tracee.jsonl` on the host; the `analyzer` reads it
+only after the
 suspect app has exited (`depends_on: suspect-app: condition:
 service_completed_successfully`).
 
@@ -227,4 +246,9 @@ This is a teaching lab and is inert outside itself:
 ## Clean up
 ```bash
 docker compose down -v
+```
+The stack leaves its output behind in `tmp/` on purpose, so you can inspect it
+after a run. To clear it too:
+```bash
+rm -rf tmp
 ```

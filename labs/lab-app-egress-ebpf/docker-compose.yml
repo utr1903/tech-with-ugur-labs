@@ -7,7 +7,7 @@ services:
       labnet:
         ipv4_address: 10.10.0.3
     volumes:
-      - dnslog:/var/log/dns
+      - ./tmp/dnslog:/var/log/dns
     healthcheck:
       test: ["CMD", "sh", "-c", "nslookup updates.goodvendor.lab 127.0.0.1 2>/dev/null | grep -q 10.10.0.10"]
       interval: 2s
@@ -25,7 +25,7 @@ services:
       labnet:
         ipv4_address: 10.10.0.10
     volumes:
-      - certs:/certs
+      - ./tmp/certs:/certs
     healthcheck:
       test: ["CMD", "python3", "-c",
              "import ssl,urllib.request; ctx=ssl._create_unverified_context(); urllib.request.urlopen('https://localhost:443/health', context=ctx)"]
@@ -36,7 +36,7 @@ services:
   # The eBPF sensor. It is the ONLY privileged service: it instruments the host
   # kernel, so it needs host PID/cgroup namespaces and privileges. It is scoped
   # to the suspect-app UTS name, so it only emits that container's events, and
-  # streams them as JSON to the shared `events` volume.
+  # streams them as JSON to `tmp/events/` on the host (a bind mount).
   tracee:
     image: aquasec/tracee:0.24.1
     privileged: true
@@ -57,7 +57,7 @@ services:
       - healthz
     volumes:
       - /etc/os-release:/etc/os-release-host:ro
-      - events:/events
+      - ./tmp/events:/events
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "-", "http://127.0.0.1:3366/healthz"]
       interval: 3s
@@ -77,7 +77,7 @@ services:
     networks:
       - labnet
     volumes:
-      - certs:/certs:ro
+      - ./tmp/certs:/certs:ro
     depends_on:
       dns:
         condition: service_healthy
@@ -94,9 +94,9 @@ services:
     networks:
       - labnet
     volumes:
-      - events:/events:ro
+      - ./tmp/events:/events:ro
       - ./threat-intel:/threat-intel:ro
-      - report:/out
+      - ./tmp/report:/out
     depends_on:
       suspect-app:
         condition: service_completed_successfully
@@ -107,9 +107,3 @@ networks:
     ipam:
       config:
         - subnet: 10.10.0.0/24
-
-volumes:
-  certs:
-  events:
-  dnslog:
-  report:
