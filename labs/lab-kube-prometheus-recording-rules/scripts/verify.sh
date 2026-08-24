@@ -61,11 +61,39 @@ check_webhook_app() {
   log "OK: webhook-app"
 }
 
+GRAFANA_URL=http://127.0.0.1:13000
+
+start_grafana_port_forward() {
+  GRAFANA_AUTH="admin:$(kubectl get secret -n monitoring kps-grafana -o jsonpath='{.data.admin-password}' | base64 -d)"
+  kubectl port-forward -n monitoring svc/kps-grafana 13000:80 >/dev/null &
+  PF_PIDS+=($!)
+  for _ in $(seq 1 30); do
+    curl -fsS -u "$GRAFANA_AUTH" "${GRAFANA_URL}/api/health" >/dev/null 2>&1 && return 0
+    sleep 1
+  done
+  log "FAIL: Grafana port-forward never became ready"; return 1
+}
+
+check_dashboards() {
+  for uid in lab-raw-queries lab-recorded-metrics; do
+    log "Checking dashboard ${uid}..."
+    local deadline=$((SECONDS + 180)) ok=0
+    while (( SECONDS < deadline )); do
+      curl -fsS -u "$GRAFANA_AUTH" "${GRAFANA_URL}/api/dashboards/uid/${uid}" >/dev/null 2>&1 && { ok=1; break; }
+      sleep 10
+    done
+    (( ok == 1 )) || { log "FAIL: dashboard ${uid} not imported"; return 1; }
+  done
+  log "OK: dashboards"
+}
+
 main() {
   wait_pods_ready monitoring
   start_prom_port_forward
   check_recording_rules
   check_webhook_app
+  start_grafana_port_forward
+  check_dashboards
   log "verify: all checks passed"
 }
 main "$@"

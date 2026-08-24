@@ -25,4 +25,6 @@ kubectl apply -f rules/recording-rules.yaml
 
 scripts/deploy-webhook-app.sh
 
+scripts/apply-observability.sh
+
 log "Cluster up. Grafana: kubectl port-forward -n monitoring svc/kps-grafana 3000:80"

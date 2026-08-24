@@ -1,0 +1,61 @@
+{
+  "uid": "lab-raw-queries",
+  "title": "Utilization — raw queries",
+  "tags": ["lab", "raw"],
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-30m", "to": "now" },
+  "templating": {
+    "list": [
+      { "name": "node", "type": "query", "datasource": { "type": "prometheus", "uid": "prometheus" }, "query": "label_values(kube_node_info, node)", "includeAll": true, "multi": true, "current": { "text": "All", "value": "$__all" } },
+      { "name": "namespace", "type": "query", "datasource": { "type": "prometheus", "uid": "prometheus" }, "query": "label_values(kube_pod_info, namespace)", "includeAll": true, "multi": true, "current": { "text": "All", "value": "$__all" } },
+      { "name": "worst_x", "type": "custom", "query": "3,5,10", "current": { "text": "5", "value": "5" } },
+      { "name": "cpu_threshold", "type": "custom", "query": "50,80,90", "current": { "text": "80", "value": "80" } },
+      { "name": "mem_threshold", "type": "custom", "query": "50,80,90", "current": { "text": "80", "value": "80" } }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1, "type": "timeseries", "title": "Worst $worst_x nodes — CPU %",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "custom": { "thresholdsStyle": { "mode": "line" } }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 80 } ] } }, "overrides": [] },
+      "targets": [ { "refId": "A", "legendFormat": "{{nodename}}", "expr": "topk($worst_x, 100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode=\"idle\"}[5m]))) * on(instance) group_left(nodename) node_uname_info{nodename=~\"$node\"})" } ]
+    },
+    {
+      "id": 2, "type": "timeseries", "title": "Worst $worst_x nodes — MEM %",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100, "custom": { "thresholdsStyle": { "mode": "line" } }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 80 } ] } }, "overrides": [] },
+      "targets": [ { "refId": "A", "legendFormat": "{{nodename}}", "expr": "topk($worst_x, 100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes) * on(instance) group_left(nodename) node_uname_info{nodename=~\"$node\"})" } ]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Worst $worst_x pods — CPU % of limit",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "custom": { "thresholdsStyle": { "mode": "line" } }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 80 } ] } }, "overrides": [] },
+      "targets": [ { "refId": "A", "legendFormat": "{{namespace}}/{{pod}} on {{node}}", "expr": "topk($worst_x, 100 * sum by (namespace, pod) (rate(container_cpu_usage_seconds_total{container!=\"\", namespace=~\"$namespace\"}[5m])) / sum by (namespace, pod) (kube_pod_container_resource_limits{resource=\"cpu\", namespace=~\"$namespace\"}) * on(namespace, pod) group_left(node) max by (namespace, pod, node) (kube_pod_info))" } ]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Worst $worst_x pods — MEM % of limit",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "custom": { "thresholdsStyle": { "mode": "line" } }, "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "red", "value": 80 } ] } }, "overrides": [] },
+      "targets": [ { "refId": "A", "legendFormat": "{{namespace}}/{{pod}} on {{node}}", "expr": "topk($worst_x, 100 * sum by (namespace, pod) (container_memory_working_set_bytes{container!=\"\", namespace=~\"$namespace\"}) / sum by (namespace, pod) (kube_pod_container_resource_limits{resource=\"memory\", namespace=~\"$namespace\"}) * on(namespace, pod) group_left(node) max by (namespace, pod, node) (kube_pod_info))" } ]
+    },
+    {
+      "id": 5, "type": "table", "title": "Unhealthy nodes (condition = reason)",
+      "gridPos": { "h": 7, "w": 12, "x": 0, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [ { "refId": "A", "format": "table", "instant": true, "expr": "kube_node_status_condition{condition=\"Ready\", status!=\"true\"} == 1 or kube_node_status_condition{condition=~\"MemoryPressure|DiskPressure|PIDPressure\", status=\"true\"} == 1" } ]
+    },
+    {
+      "id": 6, "type": "table", "title": "Unhealthy pods (waiting reason)",
+      "gridPos": { "h": 7, "w": 12, "x": 12, "y": 16 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "fieldConfig": { "defaults": {}, "overrides": [] },
+      "targets": [ { "refId": "A", "format": "table", "instant": true, "expr": "(kube_pod_container_status_waiting_reason{reason!=\"ContainerCreating\", namespace=~\"$namespace\"} == 1) * on(namespace, pod) group_left(node) max by (namespace, pod, node) (kube_pod_info)" } ]
+    }
+  ]
+}
