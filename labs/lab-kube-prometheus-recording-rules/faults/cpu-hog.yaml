@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: faults
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cpu-hog
+  namespace: faults
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: cpu-hog } }
+  template:
+    metadata: { labels: { app: cpu-hog } }
+    spec:
+      # Pinned to lab-kps-worker: the broken node (lab-kps-worker2) must never
+      # host the fault pods, or their kubelet-scraped metrics freeze mid-run.
+      nodeSelector:
+        kubernetes.io/hostname: lab-kps-worker
+      containers:
+        - name: hog
+          image: alpine:3.20.3
+          command: ["sh", "-c", "yes > /dev/null"]
+          resources:
+            requests: { cpu: 50m, memory: 32Mi }
+            limits: { cpu: 200m, memory: 64Mi }

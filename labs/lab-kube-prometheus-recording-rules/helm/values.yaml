@@ -1,0 +1,44 @@
+# kube-prometheus-stack 88.5.4 — lab overrides only.
+defaultRules:
+  create: false          # the lab's own recording rules are the only rules
+alertmanager:
+  enabled: false         # alerting is Grafana-managed in this lab
+kubeControllerManager:
+  enabled: false         # unreachable targets in kind — keep the target list clean
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeProxy:
+  enabled: false
+# Everything the verify run depends on is pinned to lab-kps-worker, so
+# lab-kps-worker2 exists purely to be broken: verify.sh stops its kubelet
+# and every observer (Prometheus, Grafana, kube-state-metrics, the webhook
+# server) keeps running — the lab stays reachable and deterministic.
+prometheusOperator:
+  nodeSelector:
+    kubernetes.io/hostname: lab-kps-worker
+kube-state-metrics:
+  nodeSelector:
+    kubernetes.io/hostname: lab-kps-worker
+prometheus:
+  prometheusSpec:
+    scrapeInterval: 15s
+    evaluationInterval: 15s
+    nodeSelector:
+      kubernetes.io/hostname: lab-kps-worker
+grafana:
+  defaultDashboardsEnabled: false   # only the lab's two dashboards
+  nodeSelector:
+    kubernetes.io/hostname: lab-kps-worker
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: monitoring
+    alerts:
+      enabled: true               # off by default in the chart — this lab's key switch
+      label: grafana_alert
+      labelValue: "1"
+      searchNamespace: monitoring

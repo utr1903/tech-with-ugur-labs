@@ -1,0 +1,139 @@
+apiVersion: 1
+groups:
+  - orgId: 1
+    name: lab-utilization
+    folder: lab-alerts
+    interval: 10s
+    rules:
+      - uid: lab-node-cpu-high
+        title: LabNodeCpuHigh
+        condition: threshold
+        for: 30s
+        noDataState: OK
+        execErrState: OK
+        labels: { lab: kube-prometheus-recording-rules }
+        annotations:
+          summary: "Node {{ $labels.node }} CPU above 80%."
+        data:
+          - refId: query
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: query, instant: true, expr: "node:cpu_utilization:percent" }
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              refId: threshold
+              type: threshold
+              expression: query
+              conditions:
+                - evaluator: { type: gt, params: [80] }
+      - uid: lab-node-mem-high
+        title: LabNodeMemHigh
+        condition: threshold
+        for: 30s
+        noDataState: OK
+        execErrState: OK
+        labels: { lab: kube-prometheus-recording-rules }
+        annotations:
+          summary: "Node {{ $labels.node }} memory above 80%."
+        data:
+          - refId: query
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: query, instant: true, expr: "node:memory_utilization:percent" }
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              refId: threshold
+              type: threshold
+              expression: query
+              conditions:
+                - evaluator: { type: gt, params: [80] }
+      - uid: lab-node-unhealthy
+        title: LabNodeUnhealthy
+        condition: threshold
+        for: 30s
+        noDataState: OK
+        execErrState: OK
+        labels: { lab: kube-prometheus-recording-rules }
+        annotations:
+          summary: "Node {{ $labels.node }} unhealthy: {{ $labels.condition }}={{ $labels.status }}."
+        data:
+          - refId: query
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: query, instant: true, expr: "node:unhealthy:info" }
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              refId: threshold
+              type: threshold
+              expression: query
+              conditions:
+                - evaluator: { type: gt, params: [0] }
+      - uid: lab-pod-cpu-high
+        title: LabPodCpuHigh
+        condition: threshold
+        for: 30s
+        noDataState: OK
+        execErrState: OK
+        labels: { lab: kube-prometheus-recording-rules }
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} on {{ $labels.node }} CPU above 80% of limit."
+        data:
+          - refId: query
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: query, instant: true, expr: "pod:cpu_utilization_vs_limit:percent" }
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              refId: threshold
+              type: threshold
+              expression: query
+              conditions:
+                - evaluator: { type: gt, params: [80] }
+      - uid: lab-pod-mem-high
+        title: LabPodMemHigh
+        condition: threshold
+        for: 30s
+        noDataState: OK
+        execErrState: OK
+        labels: { lab: kube-prometheus-recording-rules }
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} on {{ $labels.node }} memory above 80% of limit."
+        data:
+          - refId: query
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: query, instant: true, expr: "pod:memory_utilization_vs_limit:percent" }
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              refId: threshold
+              type: threshold
+              expression: query
+              conditions:
+                - evaluator: { type: gt, params: [80] }
+      - uid: lab-pod-unhealthy
+        title: LabPodUnhealthy
+        condition: threshold
+        for: 30s
+        noDataState: OK
+        execErrState: OK
+        labels: { lab: kube-prometheus-recording-rules }
+        annotations:
+          summary: "Pod {{ $labels.namespace }}/{{ $labels.pod }} on {{ $labels.node }} unhealthy: {{ $labels.reason }}."
+        data:
+          - refId: query
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: prometheus
+            model: { refId: query, instant: true, expr: "pod:unhealthy:info" }
+          - refId: threshold
+            datasourceUid: __expr__
+            model:
+              refId: threshold
+              type: threshold
+              expression: query
+              conditions:
+                - evaluator: { type: gt, params: [0] }

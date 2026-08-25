@@ -1,0 +1,23 @@
+{
+  "name": "webhook-app",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "lint": "biome check src",
+    "knip": "knip"
+  },
+  "dependencies": {
+    "pino": "9.5.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "1.9.4",
+    "@types/node": "22.10.1",
+    "knip": "5.39.2",
+    "tsx": "4.19.2",
+    "typescript": "5.7.2",
+    "vitest": "2.1.8"
+  }
+}

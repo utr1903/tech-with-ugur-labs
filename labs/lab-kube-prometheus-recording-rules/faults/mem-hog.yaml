@@ -1,0 +1,26 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mem-hog
+  namespace: faults
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: mem-hog } }
+  template:
+    metadata: { labels: { app: mem-hog } }
+    spec:
+      # Pinned to lab-kps-worker: the broken node (lab-kps-worker2) must never
+      # host the fault pods, or their kubelet-scraped metrics freeze mid-run.
+      nodeSelector:
+        kubernetes.io/hostname: lab-kps-worker
+      volumes:
+        - name: mem
+          emptyDir: { medium: Memory, sizeLimit: 128Mi }
+      containers:
+        - name: hog
+          image: alpine:3.20.3
+          command: ["sh", "-c", "dd if=/dev/zero of=/mem/fill bs=1M count=110 && sleep 3600"]
+          volumeMounts: [ { name: mem, mountPath: /mem } ]
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 100m, memory: 128Mi }
