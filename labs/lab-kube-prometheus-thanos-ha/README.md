@@ -17,6 +17,8 @@ deduplicated series to show the duplication is really being collapsed, and
 kills a Prometheus replica and a Thanos Query replica mid-run to prove the
 answers stay complete while a pod is down.
 
+Companion post: [When One Prometheus Isn't Enough: Sharding, Replication, and Thanos — Proven Side by Side](https://techwithugur.dev/posts/kube-prometheus-thanos-ha/).
+
 ## Contents
 - [Architecture](#architecture)
 - [Prerequisites](#prerequisites)
