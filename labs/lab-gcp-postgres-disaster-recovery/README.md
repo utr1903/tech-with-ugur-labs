@@ -132,10 +132,10 @@ Watching them in order should show:
 - `Seeding the database...` / `succeeded` — with `orderCount: 500`.
 - `Computing table checksums...` / `succeeded` — the pre-migration
   baseline.
-- `Creating on-demand backup...`, then one or more
-  `Waiting for operation...` / `succeeded` pairs while the Cloud SQL Admin
-  API backup operation runs, then `Creating on-demand backup succeeded.` —
-  with the `backupRunId` the restore step will use later.
+- `Creating on-demand backup...`, then a `Waiting for operation...` /
+  `... succeeded.` pair while the Cloud SQL Admin API backup operation
+  runs, then `Creating on-demand backup succeeded.` — with the
+  `backupRunId` the restore step will use later.
 - `Applying the faulty migration...` / `succeeded` — the migration commits
   cleanly; nothing here reports an error.
 - `Computing table checksums...` / `succeeded` again, right after the
@@ -148,10 +148,10 @@ Watching them in order should show:
   early, since there would be nothing to recover from).
 - `Invariant violated; triggering automatic restore...` (a warning) — the
   pivot point where the runner decides to recover on its own.
-- `Restoring instance from backup...`, then one or more
-  `Waiting for operation...` / `succeeded` pairs while the restore
-  operation runs, then `Restoring instance from backup succeeded.`,
-  followed by `Waiting for instance to be RUNNABLE...` / `succeeded`.
+- `Restoring instance from backup...`, then a `Waiting for operation...` /
+  `... succeeded.` pair while the restore operation runs, then
+  `Restoring instance from backup succeeded.`, followed by
+  `Waiting for instance to be RUNNABLE...` / `succeeded`.
 - One or more rounds of `Connecting to Postgres...` / `Connecting to
   Postgres failed.` / `Connecting to Postgres failed; retrying...` (a
   warning) before a final `Connecting to Postgres...` / succeeded pair
