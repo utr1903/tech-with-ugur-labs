@@ -54,11 +54,13 @@ export async function connectDbWithRetry(
       return await connectDb(config, logger);
     } catch (err) {
       lastErr = err;
-      logger.warn(
-        { attempt, attempts, delayMs },
-        "Connecting to Postgres failed; retrying...",
-      );
-      await sleep(delayMs);
+      if (attempt < attempts) {
+        logger.warn(
+          { attempt, attempts, delayMs },
+          "Connecting to Postgres failed; retrying...",
+        );
+        await sleep(delayMs);
+      }
     }
   }
   throw lastErr;
