@@ -237,20 +237,12 @@ deploy_faults() {
   kubectl_retry rollout status deployment/cpu-hog -n faults --timeout=120s || true
   kubectl_retry rollout status deployment/mem-hog -n faults --timeout=120s || true
 
-  # break-node.sh defaults to worker2; if webhook-app landed there, stopping
-  # its kubelet would take down the alert-delivery target, so break the
-  # other worker instead.
-  local break_node=lab-kps-worker2
-  local webhook_node
-  webhook_node=$(kubectl_retry get pod -n webhook-app -l app=webhook-app -o jsonpath='{.items[0].spec.nodeName}') \
-    || { log "FAIL: could not determine webhook-app's node after retries"; return 1; }
-  [[ -n "$webhook_node" ]] \
-    || { log "FAIL: webhook-app pod not found when checking its node"; return 1; }
-  if [[ "$webhook_node" == "lab-kps-worker2" ]]; then
-    log "webhook-app is running on lab-kps-worker2; breaking lab-kps-worker instead"
-    break_node=lab-kps-worker
-  fi
-  scripts/break-node.sh "$break_node"
+  # The broken node is always lab-kps-worker2: everything this check
+  # depends on (Prometheus, Grafana, kube-state-metrics, webhook-app, the
+  # fault pods) is pinned to lab-kps-worker via nodeSelector, so stopping
+  # worker2's kubelet makes a node go NotReady without ever taking down an
+  # observer — Grafana stays reachable and the run is deterministic.
+  scripts/break-node.sh lab-kps-worker2
 
   # Wait for the node-level metric to actually cross the alert threshold
   # before easing off cpu-hog. Once it has, LabNodeCpuHigh's own "for: 30s"

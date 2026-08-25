@@ -14,6 +14,10 @@ spec:
   template:
     metadata: { labels: { app: cpu-hog } }
     spec:
+      # Pinned to lab-kps-worker: the broken node (lab-kps-worker2) must never
+      # host the fault pods, or their kubelet-scraped metrics freeze mid-run.
+      nodeSelector:
+        kubernetes.io/hostname: lab-kps-worker
       containers:
         - name: hog
           image: alpine:3.20.3

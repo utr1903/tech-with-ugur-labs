@@ -9,6 +9,10 @@ spec:
   template:
     metadata: { labels: { app: crashloop } }
     spec:
+      # Pinned to lab-kps-worker: the broken node (lab-kps-worker2) must never
+      # host the fault pods, or their kubelet-scraped metrics freeze mid-run.
+      nodeSelector:
+        kubernetes.io/hostname: lab-kps-worker
       containers:
         - name: crash
           image: alpine:3.20.3

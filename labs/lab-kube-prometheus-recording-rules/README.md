@@ -41,13 +41,13 @@ notices and imports. Nothing is clicked into place by hand.
 ## Prerequisites
 
 - Docker
-- [kind](https://kind.sigs.k8s.io/) ≥ 0.29
+- [kind](https://kind.sigs.k8s.io/) ≥ 0.32
 - kubectl
 - [Helm](https://helm.sh/) ≥ 3.14; v4 tested
 - make, jq, curl
 
 The lab pins everything else for you: kube-prometheus-stack chart
-`88.5.4`, node image `kindest/node:v1.33.1`, and the webhook server on
+`88.5.4`, node image `kindest/node:v1.36.1` (Kubernetes 1.36), and the webhook server on
 Node 22 (built into its own image — no local Node install needed).
 
 ## Quickstart
@@ -96,7 +96,12 @@ That one screenshot is the whole thesis of the lab.
 ## How it works
 
 **`kind/`** — a three-node cluster (`cluster.yaml`): one control-plane,
-two workers, all on `kindest/node:v1.33.1`. `node-monitor-grace-period`
+two workers, all on `kindest/node:v1.36.1`. The two workers have fixed
+roles: everything the lab depends on (Prometheus, Grafana,
+kube-state-metrics, the webhook server, the fault pods) is pinned to
+`lab-kps-worker` with `nodeSelector`, and `lab-kps-worker2` exists
+purely to be broken — so the demo always sacrifices the same node and
+Grafana stays reachable throughout. `node-monitor-grace-period`
 is shortened to 20s on the control plane and each worker's
 `node-status-update-frequency` to 4s, so a node that goes `NotReady`
 during `make verify` is detected in seconds instead of the ~40s
@@ -121,6 +126,10 @@ commented in place:
   watch for labeled `ConfigMap`s and import them. `sidecar.alerts` is
   **off by default in the chart**; turning it on is the key switch that
   makes Grafana-managed alerting via `ConfigMap` possible here at all.
+- `nodeSelector: kubernetes.io/hostname: lab-kps-worker` on the
+  operator, Prometheus, Grafana, and kube-state-metrics — the whole
+  monitoring plane lives on worker 1, so breaking worker 2's kubelet
+  during `make verify` never takes an observer down with it.
 
 **`rules/recording-rules.yaml`** — a `PrometheusRule` with two groups.
 `lab.node.utilization` computes `node:cpu_utilization:percent` and
@@ -193,7 +202,8 @@ packages every file under `dashboards/` and `alerting/` into a labeled
 label --local -f - <label>=1 | kubectl apply -f -`) so the sidecars
 pick it up; `deploy-webhook-app.sh` builds and side-loads the webhook
 image; `break-node.sh` stops the kubelet (`docker exec <node>
-systemctl stop kubelet`) on whichever worker `verify.sh` tells it to.
+systemctl stop kubelet`) — always on `lab-kps-worker2`, since every
+observer is pinned to `lab-kps-worker`.
 
 ## Caveats
 

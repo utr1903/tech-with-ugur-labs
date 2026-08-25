@@ -18,6 +18,10 @@ spec:
       labels:
         app: webhook-app
     spec:
+      # Pinned to lab-kps-worker: verify.sh breaks lab-kps-worker2's kubelet,
+      # and the alert-delivery target must survive that deterministically.
+      nodeSelector:
+        kubernetes.io/hostname: lab-kps-worker
       containers:
         - name: webhook-app
           image: webhook-app:0.1.0
