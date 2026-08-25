@@ -26,3 +26,13 @@ helm upgrade --install kps-thanos prometheus-community/kube-prometheus-stack \
   --namespace monitoring-thanos --create-namespace \
   -f helm/values-thanos.yaml \
   --wait --timeout 10m
+
+log "Deploying Thanos Query and the per-shard services..."
+kubectl apply -f thanos/query.yaml -f thanos/shard-services.yaml
+kubectl rollout status deployment/thanos-query -n monitoring-thanos --timeout=180s
+
+log "Cluster up."
+log "  Vanilla Prometheus: http://127.0.0.1:30900"
+log "  Shard 0:            http://127.0.0.1:30901"
+log "  Shard 1:            http://127.0.0.1:30902"
+log "  Thanos Query:       http://127.0.0.1:30903"
