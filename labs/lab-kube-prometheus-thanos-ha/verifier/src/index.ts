@@ -1,6 +1,7 @@
 import { runDedup } from "./commands/dedup.js";
 import { runEquivalence } from "./commands/equivalence.js";
 import { runFailover } from "./commands/failover.js";
+import { runGrafana } from "./commands/grafana.js";
 import { runPartiality } from "./commands/partiality.js";
 import { runReadiness } from "./commands/readiness.js";
 import { loadConfig } from "./config.js";
@@ -29,6 +30,7 @@ const commands: [string, (ctx: Ctx) => Promise<void>][] = [
   ["partiality", runPartiality],
   ["dedup", runDedup],
   ["failover", runFailover],
+  ["grafana", runGrafana],
 ];
 
 const requested = process.argv[2] ?? "all";

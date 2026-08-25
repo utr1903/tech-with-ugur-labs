@@ -9,7 +9,32 @@ defaultRules:
 alertmanager:
   enabled: false
 grafana:
-  enabled: false         # switched on later, together with the comparison dashboard
+  enabled: true
+  defaultDashboardsEnabled: false   # only the comparison dashboard
+  service:
+    type: NodePort
+    nodePort: 30904
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: monitoring-thanos
+    datasources:
+      defaultDatasourceEnabled: false   # the auto-datasource would round-robin raw shards — misleading
+  additionalDataSources:
+    - name: Vanilla Prometheus
+      type: prometheus
+      uid: vanilla-prom
+      access: proxy
+      url: http://kps-vanilla-prometheus.monitoring-vanilla.svc:9090
+      isDefault: false
+    - name: Thanos Query
+      type: prometheus
+      uid: thanos-query
+      access: proxy
+      url: http://thanos-query.monitoring-thanos.svc:9090
+      isDefault: true
 kubeControllerManager:
   enabled: false
 kubeScheduler:
