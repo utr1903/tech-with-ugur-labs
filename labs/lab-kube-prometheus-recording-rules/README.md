@@ -33,7 +33,7 @@ Alertmanager in this cluster — `alertmanager.enabled: false` in the
 Helm values — the routing that would normally live in Alertmanager's
 config lives in Grafana's own notification policy instead.
 
-Everything that shows up in Grafana — both dashboards, both alert
+Everything that shows up in Grafana — both dashboards, the six alert
 rules, the contact point, the notification policy — is provisioned the
 same way: a labeled `ConfigMap` that a Grafana sidecar container
 notices and imports. Nothing is clicked into place by hand.
@@ -145,7 +145,8 @@ unhealthy pods. Both dashboards define the identical five template
 variables (`$node`, `$namespace`, `$worst_x`, `$cpu_threshold`,
 `$mem_threshold`) — that's deliberate, not an oversight: it's what makes
 the two dashboards comparable panel-for-panel. `$worst_x` drives the
-`topk()` count on every panel in both; `$node` and `$namespace` filter
+`topk()` count on the four worst-N panels in both (the two unhealthy
+panels have no topk); `$node` and `$namespace` filter
 both dashboards' queries, just at different cost. The recorded-metrics
 dashboard filters on the recorded metric's own clean `node=`/`namespace=`
 label directly (`node:cpu_utilization:percent{node=~"$node"}`); the
