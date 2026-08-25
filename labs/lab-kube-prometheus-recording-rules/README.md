@@ -5,6 +5,8 @@ recording rules with human-readable node names, two dashboards that
 prove why recording rules matter, and Grafana-managed alerts delivered
 to your own webhook server — no Alertmanager in the picture.
 
+Companion post: [Recording Rules Done Right: One Dataset, Two Grafana Dashboards, and Alerts Straight to Your Own Webhook](https://techwithugur.dev/posts/kube-prometheus-recording-rules/).
+
 ## Contents
 - [What this lab shows](#what-this-lab-shows)
 - [Prerequisites](#prerequisites)
