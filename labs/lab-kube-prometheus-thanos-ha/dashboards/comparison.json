@@ -1,0 +1,46 @@
+{
+  "uid": "lab-thanos-comparison",
+  "title": "Vanilla vs Thanos — same questions, same answers",
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Nodes seen — vanilla Prometheus",
+      "gridPos": { "h": 5, "w": 12, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "vanilla-prom" },
+      "targets": [{ "refId": "A", "expr": "count(node_uname_info)" }]
+    },
+    {
+      "id": 2, "type": "stat", "title": "Nodes seen — Thanos Query",
+      "gridPos": { "h": 5, "w": 12, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "thanos-query" },
+      "targets": [{ "refId": "A", "expr": "count(node_uname_info)" }]
+    },
+    {
+      "id": 3, "type": "timeseries", "title": "Busy CPU cores — vanilla Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "vanilla-prom" },
+      "targets": [{ "refId": "A", "expr": "sum(rate(node_cpu_seconds_total{mode!=\"idle\"}[2m]))" }]
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Busy CPU cores — Thanos Query",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 5 },
+      "datasource": { "type": "prometheus", "uid": "thanos-query" },
+      "targets": [{ "refId": "A", "expr": "sum(rate(node_cpu_seconds_total{mode!=\"idle\"}[2m]))" }]
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Available memory — vanilla Prometheus",
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 13 },
+      "datasource": { "type": "prometheus", "uid": "vanilla-prom" },
+      "targets": [{ "refId": "A", "expr": "sum(node_memory_MemAvailable_bytes)" }]
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Available memory — Thanos Query",
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 13 },
+      "datasource": { "type": "prometheus", "uid": "thanos-query" },
+      "targets": [{ "refId": "A", "expr": "sum(node_memory_MemAvailable_bytes)" }]
+    }
+  ]
+}

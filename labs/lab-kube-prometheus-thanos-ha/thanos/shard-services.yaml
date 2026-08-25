@@ -1,0 +1,31 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-shard-0
+  namespace: monitoring-thanos
+spec:
+  type: NodePort
+  selector:
+    operator.prometheus.io/name: kps-thanos-prometheus
+    operator.prometheus.io/shard: "0"
+  ports:
+    - name: http-web
+      port: 9090
+      targetPort: 9090
+      nodePort: 30901
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus-shard-1
+  namespace: monitoring-thanos
+spec:
+  type: NodePort
+  selector:
+    operator.prometheus.io/name: kps-thanos-prometheus
+    operator.prometheus.io/shard: "1"
+  ports:
+    - name: http-web
+      port: 9090
+      targetPort: 9090
+      nodePort: 30902

@@ -1,0 +1,21 @@
+kind: Cluster
+apiVersion: kind.x-k8s.io/v1alpha4
+name: lab-thanos
+nodes:
+  - role: control-plane
+    image: kindest/node:v1.36.1
+    extraPortMappings:
+      - containerPort: 30900   # vanilla Prometheus
+        hostPort: 30900
+      - containerPort: 30901   # Prometheus shard 0
+        hostPort: 30901
+      - containerPort: 30902   # Prometheus shard 1
+        hostPort: 30902
+      - containerPort: 30903   # Thanos Query
+        hostPort: 30903
+      - containerPort: 30904   # Grafana
+        hostPort: 30904
+  - role: worker
+    image: kindest/node:v1.36.1
+  - role: worker
+    image: kindest/node:v1.36.1
