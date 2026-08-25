@@ -238,4 +238,7 @@ systemctl stop kubelet`) on whichever worker `verify.sh` tells it to.
   — which is why `make verify` takes on the order of 10-15 minutes and
   why the replica count you'll see in the logs varies by machine. This
   only holds because kind nodes share one kernel; it would not apply to
-  real, separate nodes.
+  real, separate nodes. The replica count is capped against runaway
+  scaling, so on a very large host the node-level alerts may not reach
+  80% — `verify.sh` will say so with a `WARN: ... capped at N replicas`
+  line instead of failing silently.

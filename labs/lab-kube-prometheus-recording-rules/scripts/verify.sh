@@ -20,6 +20,19 @@ start_prom_port_forward() {
 
 prom_query() { curl -fsG "${PROM_URL}/api/v1/query" --data-urlencode "query=$1"; }
 
+# deploy_faults' sizing/poll queries run through a port-forward that can die
+# mid-run; under set -euo pipefail a failed prom_query there would abort the
+# whole script. Fall back to a default and log it instead of aborting silently.
+prom_query_or() {
+  local query="$1" filter="$2" default="$3" out
+  out=$(prom_query "$query" 2>/dev/null | jq -r "$filter" 2>/dev/null) || out=""
+  if [[ -z "$out" ]]; then
+    log "WARN: prom_query '${query}' failed or returned empty; using default ${default}"
+    out="$default"
+  fi
+  printf '%s' "$out"
+}
+
 # Each recorded metric must exist AND carry a node label that is a
 # node name (lab-kps-*), not an IP.
 check_recording_rules() {
@@ -54,6 +67,7 @@ check_recording_rules() {
 check_webhook_app() {
   log "Checking webhook-app health..."
   wait_pods_ready webhook-app 120
+  kubectl delete pod curl-probe -n webhook-app --ignore-not-found >/dev/null 2>&1 || true
   kubectl run curl-probe --rm -i --restart=Never -n webhook-app \
     --image=alpine:3.20.3 --command -- \
     wget -q -O- http://webhook-app.webhook-app.svc:8080/healthz | grep -q '"ok":true' \
@@ -117,10 +131,10 @@ deploy_faults() {
   # fixed number, so this works on hosts of any size. Per-pod limits stay
   # exactly as committed in faults/*.yaml -- only the replica count scales.
   local cores cur_cpu cur_mem mem_total_bytes
-  cores=$(prom_query 'count by (instance) (node_cpu_seconds_total{mode="idle"})' | jq -r '.data.result[0].value[1] // 1')
-  cur_cpu=$(prom_query 'max(node:cpu_utilization:percent)' | jq -r '.data.result[0].value[1] // 0')
-  cur_mem=$(prom_query 'max(node:memory_utilization:percent)' | jq -r '.data.result[0].value[1] // 0')
-  mem_total_bytes=$(prom_query 'node_memory_MemTotal_bytes' | jq -r '.data.result[0].value[1] // 0')
+  cores=$(prom_query_or 'count by (instance) (node_cpu_seconds_total{mode="idle"})' '.data.result[0].value[1] // 1' 1)
+  cur_cpu=$(prom_query_or 'max(node:cpu_utilization:percent)' '.data.result[0].value[1] // 0' 0)
+  cur_mem=$(prom_query_or 'max(node:memory_utilization:percent)' '.data.result[0].value[1] // 0' 0)
+  mem_total_bytes=$(prom_query_or 'node_memory_MemTotal_bytes' '.data.result[0].value[1] // 0' 0)
 
   # cpu-hog is limited to 200m (0.2 core) per pod. NOTE: this deliberately
   # does NOT subtract cur_cpu from the target -- node:cpu_utilization:percent
@@ -132,25 +146,37 @@ deploy_faults() {
   # rate) for a fixed target is safe in both directions: if real baseline
   # load is also present, we cross the threshold with more margin; if it
   # isn't (the common case), our own load alone still reaches target.
-  local cpu_replicas
-  cpu_replicas=$(awk -v tgt=90 -v cores="$cores" 'BEGIN {
+  # Caps are a runaway guard, not a sizing target -- set high enough that
+  # a real host doesn't hit them (see README caveats for the envelope this
+  # covers). If a cap does bind, warn loudly instead of silently under-
+  # provisioning the fault load.
+  local cpu_replicas cpu_capped
+  read -r cpu_replicas cpu_capped <<< "$(awk -v tgt=90 -v cores="$cores" -v cap=256 'BEGIN {
     v = tgt / 100 * cores / 0.2
     if (v < 1) v = 1
     r = int(v); if (v > r) r++
-    if (r > 64) r = 64
-    print r
-  }')
+    capped = 0
+    if (r > cap) { r = cap; capped = 1 }
+    print r, capped
+  }')"
+  if (( cpu_capped )); then
+    log "WARN: cpu-hog capped at ${cpu_replicas} replicas -- host may be too large for the 80% node thresholds; see README caveats"
+  fi
   # mem-hog fills ~110MB per pod; same reasoning -- size off total memory
   # (stable) for a fixed target rather than subtracting the current reading.
-  local mem_replicas
-  mem_replicas=$(awk -v tgt=85 -v total="$mem_total_bytes" 'BEGIN {
+  local mem_replicas mem_capped
+  read -r mem_replicas mem_capped <<< "$(awk -v tgt=85 -v total="$mem_total_bytes" -v cap=128 'BEGIN {
     fill = 110 * 1024 * 1024
     v = tgt / 100 * total / fill
     if (v < 1) v = 1
     r = int(v); if (v > r) r++
-    if (r > 16) r = 16
-    print r
-  }')
+    capped = 0
+    if (r > cap) { r = cap; capped = 1 }
+    print r, capped
+  }')"
+  if (( mem_capped )); then
+    log "WARN: mem-hog capped at ${mem_replicas} replicas -- host may be too large for the 80% node thresholds; see README caveats"
+  fi
 
   log "Sizing faults from live capacity: cores=${cores} cpu%=${cur_cpu} mem%=${cur_mem} memTotal=${mem_total_bytes}B (current utilization logged for diagnostics only, not subtracted -- see comment above) -> cpu-hog replicas=${cpu_replicas}, mem-hog replicas=${mem_replicas}"
   kubectl scale deployment/cpu-hog -n faults --replicas="$cpu_replicas"
@@ -186,7 +212,7 @@ deploy_faults() {
   log "Waiting for node CPU utilization to cross 80% (up to 300s)..."
   local node_cpu_deadline=$((SECONDS + 300)) node_cpu=0 node_cpu_crossed=0
   while (( SECONDS < node_cpu_deadline )); do
-    node_cpu=$(prom_query 'max(node:cpu_utilization:percent)' | jq -r '.data.result[0].value[1] // 0')
+    node_cpu=$(prom_query_or 'max(node:cpu_utilization:percent)' '.data.result[0].value[1] // 0' 0)
     if awk -v v="$node_cpu" 'BEGIN { exit !(v + 0 > 80) }'; then
       node_cpu_crossed=1
       break
@@ -220,7 +246,7 @@ deploy_faults() {
   log "Waiting for a cpu-hog pod to cross 80% of its own CPU limit (up to 300s)..."
   local pod_cpu_deadline=$((SECONDS + 300)) pod_cpu=0
   while (( SECONDS < pod_cpu_deadline )); do
-    pod_cpu=$(prom_query 'max(pod:cpu_utilization_vs_limit:percent{namespace="faults"})' | jq -r '.data.result[0].value[1] // 0')
+    pod_cpu=$(prom_query_or 'max(pod:cpu_utilization_vs_limit:percent{namespace="faults"})' '.data.result[0].value[1] // 0' 0)
     awk -v v="$pod_cpu" 'BEGIN { exit !(v + 0 > 80) }' && break
     sleep 15
   done
