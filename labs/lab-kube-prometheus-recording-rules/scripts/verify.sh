@@ -108,16 +108,69 @@ check_alerting() {
 deploy_faults() {
   log "Deploying fault workloads..."
   kubectl apply -f faults/
+
   # kind nodes on this host share one kernel, so node-exporter's per-node
   # CPU/memory series are actually host-wide: a single fault pod capped at
   # its own 200m/100m limit can't move node:{cpu,memory}_utilization:percent
-  # past 80% on a 10-core/8Gi host. Scale out (limits per pod stay as
-  # committed) until the aggregate load actually crosses the threshold.
-  kubectl scale deployment/cpu-hog -n faults --replicas=48
-  kubectl scale deployment/mem-hog -n faults --replicas=4
+  # past 80% by itself. Compute how many replicas are needed from the LIVE
+  # environment (cores, current utilization, total memory) instead of a
+  # fixed number, so this works on hosts of any size. Per-pod limits stay
+  # exactly as committed in faults/*.yaml -- only the replica count scales.
+  local cores cur_cpu cur_mem mem_total_bytes
+  cores=$(prom_query 'count by (instance) (node_cpu_seconds_total{mode="idle"})' | jq -r '.data.result[0].value[1] // 1')
+  cur_cpu=$(prom_query 'max(node:cpu_utilization:percent)' | jq -r '.data.result[0].value[1] // 0')
+  cur_mem=$(prom_query 'max(node:memory_utilization:percent)' | jq -r '.data.result[0].value[1] // 0')
+  mem_total_bytes=$(prom_query 'node_memory_MemTotal_bytes' | jq -r '.data.result[0].value[1] // 0')
+
+  # cpu-hog is limited to 200m (0.2 core) per pod. NOTE: this deliberately
+  # does NOT subtract cur_cpu from the target -- node:cpu_utilization:percent
+  # is a rate([5m]) metric, and a live run showed it can carry a transient
+  # spike (e.g. from the helm install/image-load that just happened) that
+  # decays within the same window we're sizing for. Subtracting a stale high
+  # reading under-provisions the fault load and the alert never fires.
+  # Sizing purely off cores (a stable signal -- effectively nproc, not a
+  # rate) for a fixed target is safe in both directions: if real baseline
+  # load is also present, we cross the threshold with more margin; if it
+  # isn't (the common case), our own load alone still reaches target.
+  local cpu_replicas
+  cpu_replicas=$(awk -v tgt=90 -v cores="$cores" 'BEGIN {
+    v = tgt / 100 * cores / 0.2
+    if (v < 1) v = 1
+    r = int(v); if (v > r) r++
+    if (r > 64) r = 64
+    print r
+  }')
+  # mem-hog fills ~110MB per pod; same reasoning -- size off total memory
+  # (stable) for a fixed target rather than subtracting the current reading.
+  local mem_replicas
+  mem_replicas=$(awk -v tgt=85 -v total="$mem_total_bytes" 'BEGIN {
+    fill = 110 * 1024 * 1024
+    v = tgt / 100 * total / fill
+    if (v < 1) v = 1
+    r = int(v); if (v > r) r++
+    if (r > 16) r = 16
+    print r
+  }')
+
+  log "Sizing faults from live capacity: cores=${cores} cpu%=${cur_cpu} mem%=${cur_mem} memTotal=${mem_total_bytes}B (current utilization logged for diagnostics only, not subtracted -- see comment above) -> cpu-hog replicas=${cpu_replicas}, mem-hog replicas=${mem_replicas}"
+  kubectl scale deployment/cpu-hog -n faults --replicas="$cpu_replicas"
+  kubectl scale deployment/mem-hog -n faults --replicas="$mem_replicas"
+
+  # Let the (now much larger) fault fleet actually schedule and start
+  # BEFORE pulling a node out from under the scheduler. A live run showed
+  # that scaling to dozens of replicas and breaking a node in the same
+  # instant creates a rescheduling storm violent enough to starve
+  # Prometheus itself (it OOM/CPU-starved and restarted mid-run), burning
+  # most of check_alert_delivery's 600s budget on cluster self-recovery
+  # instead of alert evaluation. Waiting here keeps the two disruptions
+  # sequential instead of compounding.
+  kubectl rollout status deployment/cpu-hog -n faults --timeout=120s || true
+  kubectl rollout status deployment/mem-hog -n faults --timeout=120s || true
+
   # break-node.sh defaults to lab-kps-worker2; if webhook-app landed there,
   # stopping its kubelet would take the delivery target down too, so break
-  # the other worker instead.
+  # the other worker instead. (Judgment call, not brief text -- the brief's
+  # break-node.sh call is unconditional.)
   local break_node=lab-kps-worker2
   local webhook_node
   webhook_node=$(kubectl get pod -n webhook-app -l app=webhook-app -o jsonpath='{.items[0].spec.nodeName}')
@@ -126,6 +179,42 @@ deploy_faults() {
     break_node=lab-kps-worker
   fi
   scripts/break-node.sh "$break_node"
+
+  # Wait for the node-level metric to actually cross the alert threshold
+  # before easing off cpu-hog. Once it has, LabNodeCpuHigh's own "for: 30s"
+  # window can elapse independently of what happens next -- this poll runs
+  # on deploy_faults' own time, not check_alert_delivery's 600s budget.
+  log "Waiting for node CPU utilization to cross 80% (up to 300s)..."
+  local node_cpu_deadline=$((SECONDS + 300)) node_cpu=0
+  while (( SECONDS < node_cpu_deadline )); do
+    node_cpu=$(prom_query 'max(node:cpu_utilization:percent)' | jq -r '.data.result[0].value[1] // 0')
+    awk -v v="$node_cpu" 'BEGIN { exit !(v + 0 > 80) }' && break
+    sleep 15
+  done
+  log "Node CPU utilization: ${node_cpu}%"
+
+  # Sustaining dozens of cpu-hog replicas is what crosses the node-level
+  # threshold, but that same contention (all of them competing for the
+  # same limited cores) keeps CFS from letting any single pod reach its
+  # OWN 200m ceiling -- a live run showed LabPodCpuHigh (own-limit-
+  # relative) never fires under that contention even with the node
+  # aggregate sitting at 86%+. Ease off now that the node threshold has
+  # been crossed (it's already latched in Prometheus/Grafana, doesn't
+  # need sustained load) so at least one pod can reach its own limit.
+  local cpu_replicas_settle=$(( cpu_replicas / 4 ))
+  (( cpu_replicas_settle < 1 )) && cpu_replicas_settle=1
+  log "Easing cpu-hog to ${cpu_replicas_settle} replicas so individual pods can reach their own CPU limit..."
+  kubectl scale deployment/cpu-hog -n faults --replicas="$cpu_replicas_settle"
+  kubectl rollout status deployment/cpu-hog -n faults --timeout=120s || true
+
+  log "Waiting for a cpu-hog pod to cross 80% of its own CPU limit (up to 300s)..."
+  local pod_cpu_deadline=$((SECONDS + 300)) pod_cpu=0
+  while (( SECONDS < pod_cpu_deadline )); do
+    pod_cpu=$(prom_query 'max(pod:cpu_utilization_vs_limit:percent{namespace="faults"})' | jq -r '.data.result[0].value[1] // 0')
+    awk -v v="$pod_cpu" 'BEGIN { exit !(v + 0 > 80) }' && break
+    sleep 15
+  done
+  log "Max pod CPU utilization vs own limit in faults namespace: ${pod_cpu}%"
 }
 
 # All six alerts must land in the webhook server's JSON logs.
