@@ -17,7 +17,12 @@ async function readBody(req: IncomingMessage): Promise<string> {
 
 export function createHandler({ logger }: { logger: Logger }) {
   return (req: IncomingMessage, res: ServerResponse): void => {
-    void handle(req, res, logger);
+    handle(req, res, logger).catch((err: unknown) => {
+      logger.error({ err }, "Handling request failed.");
+      if (!res.destroyed) {
+        res.destroy();
+      }
+    });
   };
 }
 
@@ -31,8 +36,8 @@ async function handle(
     return;
   }
   if (req.method === "POST" && req.url === "/alerts") {
-    const body = await readBody(req);
     try {
+      const body = await readBody(req);
       logger.info({ bytes: body.length }, "Receiving alert...");
       const payload: unknown = JSON.parse(body);
       logger.debug({ payload }, "Receiving alert payload.");

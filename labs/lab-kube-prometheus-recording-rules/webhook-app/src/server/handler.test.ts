@@ -1,5 +1,5 @@
 import { createServer } from "node:http";
-import type { AddressInfo } from "node:net";
+import { type AddressInfo, connect } from "node:net";
 import { pino } from "pino";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { createHandler } from "./handler.js";
@@ -77,5 +77,34 @@ describe("createHandler", () => {
   it("responds 404 elsewhere", async () => {
     const res = await fetch(`${baseUrl}/nope`);
     expect(res.status).toBe(404);
+  });
+
+  it("survives a client aborting mid-body and keeps serving", async () => {
+    const port = (server.address() as AddressInfo).port;
+    await new Promise<void>((resolve) => {
+      const socket = connect(port, "127.0.0.1", () => {
+        socket.write(
+          "POST /alerts HTTP/1.1\r\n" +
+            "Host: 127.0.0.1\r\n" +
+            "Content-Type: application/json\r\n" +
+            "Content-Length: 1000\r\n" +
+            "\r\n" +
+            '{"alerts":[',
+        );
+        // Let the server start reading the body, then abort the connection
+        // mid-stream instead of sending the promised 1000 bytes.
+        setTimeout(() => {
+          socket.destroy();
+          resolve();
+        }, 50);
+      });
+      socket.on("error", () => resolve());
+    });
+
+    // Give the aborted request's rejection a moment to propagate before
+    // proving the process (and this server) is still alive.
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    const health = await fetch(`${baseUrl}/healthz`);
+    expect(health.status).toBe(200);
   });
 });
