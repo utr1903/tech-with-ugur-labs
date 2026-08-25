@@ -1,4 +1,4 @@
-import pino from "pino";
+import { pino } from "pino";
 import { describe, expect, it } from "vitest";
 import { type FetchLike, PromClient } from "./client.js";
 
