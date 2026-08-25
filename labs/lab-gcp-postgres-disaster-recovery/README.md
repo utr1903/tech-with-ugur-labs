@@ -9,9 +9,9 @@ restore actually worked. This lab rehearses exactly that sequence end to
 end, with no human in the loop: it provisions a real Cloud SQL for
 PostgreSQL instance, seeds it with known-good data, ships a migration with a
 deliberately silent bug, catches the damage with an invariant check,
-triggers an automatic restore from an on-demand backup, and then proves the
-restored data is bit-for-bit identical to the pre-migration baseline using
-checksums.
+triggers an automatic restore from an on-demand backup, and then proves —
+by comparing table checksums, not by assuming the restore worked — that the
+restored data is identical to the pre-migration baseline.
 
 ## What the drill does
 
@@ -52,15 +52,14 @@ Everything after `terraform apply` runs from your machine against the
 instance over its public IP and the Cloud SQL Admin API:
 
 ```
-+---------------------------+                          +----------------------------+
-|        Your laptop        |                          |  Cloud SQL for Postgres    |
-|                            |   public IP :5432        |     (single instance)      |
-|  terraform apply/destroy   |------------------------->|                            |
-|  npm run drill             |                          |   - the Postgres database  |
-|   (seed / migrate / check) |   Cloud SQL Admin API     |   - backup runs            |
-|                            |------------------------->|   - restore in place       |
-+---------------------------+   (backup / restore /     +----------------------------+
-                                  instance status)
++----------------------------+                              +----------------------------+
+|        Your laptop         |       public IP :5432        |   Cloud SQL for Postgres   |
+|                            |  ------------------------->  |     (single instance)      |
+| terraform apply/destroy    |                              |                            |
+| npm run drill              |     Cloud SQL Admin API      | - the Postgres database    |
+|  (seed / migrate / check)  |  ------------------------->  | - backup runs              |
++----------------------------+                              | - restore in place         |
+                                                            +----------------------------+
 ```
 
 ## What you'll learn
@@ -76,7 +75,7 @@ instance over its public IP and the Cloud SQL Admin API:
   instance `RUNNABLE` again tells you the restore operation finished, not
   that the data it recovered is actually correct. The drill only calls the
   recovery successful once checksums confirm the restored tables are
-  byte-for-byte identical to the pre-migration baseline.
+  identical to the pre-migration baseline.
 
 ## Prerequisites
 
@@ -125,25 +124,41 @@ The drill runner logs structured JSON lines (via `pino`) to stdout, one
 event per stage transition, tagged with `"appName":"postgres-dr-drill"`.
 Watching them in order should show:
 
+- `Running the disaster-recovery drill...` — logged once at the very
+  start; everything below happens between this line and the matching
+  `succeeded.` / `failed.` line at the end.
+- `Connecting to Postgres...` / `succeeded` — the runner's first connection
+  to the freshly provisioned instance.
 - `Seeding the database...` / `succeeded` — with `orderCount: 500`.
-- `Computing table checksums...` — once for the pre-migration baseline.
-- `Creating on-demand backup...` / `succeeded` — with the `backupRunId` the
-  restore step will use later.
+- `Computing table checksums...` / `succeeded` — the pre-migration
+  baseline.
+- `Creating on-demand backup...`, then one or more
+  `Waiting for operation...` / `succeeded` pairs while the Cloud SQL Admin
+  API backup operation runs, then `Creating on-demand backup succeeded.` —
+  with the `backupRunId` the restore step will use later.
 - `Applying the faulty migration...` / `succeeded` — the migration commits
   cleanly; nothing here reports an error.
+- `Computing table checksums...` / `succeeded` again, right after the
+  migration — this is the evidence that the corrupted state measurably
+  differs from the baseline; these checksums will not match the previous
+  pair.
 - `Checking post-migration invariants...` / `succeeded` — with
   `corruptedRows` and `grandTotalDriftCents` both **non-zero**, confirming
   the migration actually corrupted data (a run where both are zero aborts
   early, since there would be nothing to recover from).
 - `Invariant violated; triggering automatic restore...` (a warning) — the
   pivot point where the runner decides to recover on its own.
-- `Restoring instance from backup...` / `succeeded`, then
-  `Waiting for instance to be RUNNABLE...` / `succeeded`.
-- `Connecting to Postgres failed; retrying...` (a warning, possibly
-  several times) followed by `Connecting to Postgres succeeded.` — the
-  restored instance takes a little while to accept connections again even
-  after it reports `RUNNABLE`.
-- `Computing table checksums...` again, on the restored instance.
+- `Restoring instance from backup...`, then one or more
+  `Waiting for operation...` / `succeeded` pairs while the restore
+  operation runs, then `Restoring instance from backup succeeded.`,
+  followed by `Waiting for instance to be RUNNABLE...` / `succeeded`.
+- One or more rounds of `Connecting to Postgres...` / `Connecting to
+  Postgres failed.` / `Connecting to Postgres failed; retrying...` (a
+  warning) before a final `Connecting to Postgres...` / succeeded pair
+  goes through — the restored instance takes a little while to accept
+  connections again even after it reports `RUNNABLE`.
+- `Computing table checksums...` / `succeeded` again, on the restored
+  instance — compared against the baseline for the final proof.
 - `Running the disaster-recovery drill succeeded.` — the final line, with
   `tablesVerified: ["control_totals","orders"]` and the same
   `corruptedRows` / `grandTotalDriftCents` figures from the invariant
