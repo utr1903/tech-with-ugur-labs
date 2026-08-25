@@ -43,7 +43,7 @@ notices and imports. Nothing is clicked into place by hand.
 - Docker
 - [kind](https://kind.sigs.k8s.io/) ≥ 0.29
 - kubectl
-- [Helm](https://helm.sh/) ≥ 3.14
+- [Helm](https://helm.sh/) ≥ 3.14; v4 tested
 - make, jq, curl
 
 The lab pins everything else for you: kube-prometheus-stack chart
@@ -53,8 +53,8 @@ Node 22 (built into its own image — no local Node install needed).
 ## Quickstart
 
 ```bash
-make up       # kind cluster + chart + all lab resources (~10 min)
-make verify   # end-to-end check, faults, and all six alerts (~10-15 min)
+make up       # kind cluster + chart + all lab resources (~2-5 min warm, up to ~10 min cold)
+make verify   # end-to-end check, faults, and all six alerts (~10-15 min when healthy)
 make down     # delete the cluster
 ```
 
@@ -229,6 +229,17 @@ systemctl stop kubelet`) on whichever worker `verify.sh` tells it to.
   is `NotReady` with its kubelet stopped. This is the point (it's what
   proves the alerts fire), but don't expect to keep using this cluster
   for anything else afterwards — run `make down`.
+- **`make verify` deliberately drives the shared kind host VM toward its
+  limits — other Docker/kubernetes workloads on the same machine make
+  that worse, not just noisier.** Fault sizing reads the *live* capacity
+  and usage of the machine kind is running on (Docker Desktop's VM, or
+  the host itself on Linux). Any other Docker containers, kind clusters,
+  or local Kubernetes workloads running at the same time both distort
+  that reading and compete for the same CPU/memory the fault pods are
+  trying to consume — on a busy machine this can push the whole shared
+  VM to saturation and take the kind control plane's own API server down
+  with it. Close other Docker/kubernetes workloads before `make verify`,
+  or expect the run to fail.
 - **Dynamic fault sizing assumes kind-on-one-host semantics.** kind's
   nodes are containers sharing your machine's kernel, so node-exporter's
   per-node CPU/memory series are actually host-wide, not

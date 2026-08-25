@@ -33,6 +33,24 @@ prom_query_or() {
   printf '%s' "$out"
 }
 
+# deploy_faults deliberately drives the shared host toward its limits, which
+# can make the kind control plane's own API server briefly unreachable (TLS
+# handshake timeouts, dropped watches) without the cluster actually being
+# broken. A bare kubectl call in that window dies under set -euo pipefail
+# with a raw transport error and no diagnosable line. Retry instead of
+# letting one transient blip kill the whole script.
+kubectl_retry() {
+  local attempt
+  for attempt in 1 2 3 4 5; do
+    if kubectl "$@"; then return 0; fi
+    if (( attempt < 5 )); then
+      log "WARN: kubectl $* failed (attempt ${attempt}/5); retrying in 5s..."
+      sleep 5
+    fi
+  done
+  return 1
+}
+
 # Each recorded metric must exist AND carry a node label that is a
 # node name (lab-kps-*), not an IP.
 check_recording_rules() {
@@ -121,7 +139,8 @@ check_alerting() {
 
 deploy_faults() {
   log "Deploying fault workloads..."
-  kubectl apply -f faults/
+  kubectl_retry apply -f faults/ \
+    || { log "FAIL: could not apply faults/ manifests"; return 1; }
 
   # kind nodes on this host share one kernel, so node-exporter's per-node
   # CPU/memory series are actually host-wide: a single fault pod capped at
@@ -149,9 +168,11 @@ deploy_faults() {
   # Caps are a runaway guard, not a sizing target -- set high enough that
   # a real host doesn't hit them (see README caveats for the envelope this
   # covers). If a cap does bind, warn loudly instead of silently under-
-  # provisioning the fault load.
+  # provisioning the fault load. Phase-1 CPU target is 88 (comfortably
+  # above the 80 threshold, with a little less aggregate pressure than the
+  # 90 this used to run at).
   local cpu_replicas cpu_capped
-  read -r cpu_replicas cpu_capped <<< "$(awk -v tgt=90 -v cores="$cores" -v cap=256 'BEGIN {
+  read -r cpu_replicas cpu_capped <<< "$(awk -v tgt=88 -v cores="$cores" -v cap=256 'BEGIN {
     v = tgt / 100 * cores / 0.2
     if (v < 1) v = 1
     r = int(v); if (v > r) r++
@@ -162,12 +183,29 @@ deploy_faults() {
   if (( cpu_capped )); then
     log "WARN: cpu-hog capped at ${cpu_replicas} replicas -- host may be too large for the 80% node thresholds; see README caveats"
   fi
-  # mem-hog fills ~110MB per pod; same reasoning -- size off total memory
-  # (stable) for a fixed target rather than subtracting the current reading.
+  # mem-hog fills ~110MB per pod of REAL tmpfs memory -- unlike CPU (a rate
+  # metric that settles), every replica's fill is additive on top of
+  # whatever the host is already using. Sizing off a fixed percentage of
+  # total memory with no regard for the current reading (as this used to)
+  # can overcommit a host that already has a meaningful baseline: at 65%
+  # baseline on an ~8.2Gi VM, an 85%-of-total target added ~6.7Gi on top of
+  # ~5.3Gi already in use and saturated the VM, taking the kind API server
+  # down with it. Size off the GAP to the target instead (extra_to_target),
+  # and separately cap that gap so projected total usage (cur + extra)
+  # never exceeds an absolute 90% ceiling even if the target itself is
+  # raised later -- two independent min() terms, not one, so a future
+  # target bump can't silently reopen this. cur_mem can read stale/high
+  # (same rate-metric caveat as CPU); clamping extra at 0 means a stale
+  # high reading only under-fills, never overcommits.
   local mem_replicas mem_capped
-  read -r mem_replicas mem_capped <<< "$(awk -v tgt=85 -v total="$mem_total_bytes" -v cap=128 'BEGIN {
+  read -r mem_replicas mem_capped <<< "$(awk -v tgt=85 -v ceiling=90 -v cur="$cur_mem" -v total="$mem_total_bytes" -v cap=128 'BEGIN {
     fill = 110 * 1024 * 1024
-    v = tgt / 100 * total / fill
+    extra_to_target = (tgt - cur) / 100 * total
+    extra_to_ceiling = (ceiling - cur) / 100 * total
+    extra = extra_to_target
+    if (extra_to_ceiling < extra) extra = extra_to_ceiling
+    if (extra < 0) extra = 0
+    v = extra / fill
     if (v < 1) v = 1
     r = int(v); if (v > r) r++
     capped = 0
@@ -178,9 +216,11 @@ deploy_faults() {
     log "WARN: mem-hog capped at ${mem_replicas} replicas -- host may be too large for the 80% node thresholds; see README caveats"
   fi
 
-  log "Sizing faults from live capacity: cores=${cores} cpu%=${cur_cpu} mem%=${cur_mem} memTotal=${mem_total_bytes}B (current utilization logged for diagnostics only, not subtracted -- see comment above) -> cpu-hog replicas=${cpu_replicas}, mem-hog replicas=${mem_replicas}"
-  kubectl scale deployment/cpu-hog -n faults --replicas="$cpu_replicas"
-  kubectl scale deployment/mem-hog -n faults --replicas="$mem_replicas"
+  log "Sizing faults from live capacity: cores=${cores} cpu%=${cur_cpu} mem%=${cur_mem} memTotal=${mem_total_bytes}B (cpu-hog sizing ignores cpu% -- see comment above; mem-hog sizing subtracts mem% and caps at a 90% ceiling) -> cpu-hog replicas=${cpu_replicas}, mem-hog replicas=${mem_replicas}"
+  kubectl_retry scale deployment/cpu-hog -n faults --replicas="$cpu_replicas" \
+    || { log "FAIL: could not scale cpu-hog to ${cpu_replicas} replicas"; return 1; }
+  kubectl_retry scale deployment/mem-hog -n faults --replicas="$mem_replicas" \
+    || { log "FAIL: could not scale mem-hog to ${mem_replicas} replicas"; return 1; }
 
   # Let the (now much larger) fault fleet actually schedule and start
   # BEFORE pulling a node out from under the scheduler. A live run showed
@@ -189,16 +229,23 @@ deploy_faults() {
   # Prometheus itself (it OOM/CPU-starved and restarted mid-run), burning
   # most of check_alert_delivery's 600s budget on cluster self-recovery
   # instead of alert evaluation. Waiting here keeps the two disruptions
-  # sequential instead of compounding.
-  kubectl rollout status deployment/cpu-hog -n faults --timeout=120s || true
-  kubectl rollout status deployment/mem-hog -n faults --timeout=120s || true
+  # sequential instead of compounding. A rollout that doesn't finish inside
+  # its timeout is tolerated (`|| true`) by design -- it's a best-effort
+  # wait, not a gate -- but it still goes through kubectl_retry so a
+  # transient API-server blip gets retried instead of just giving up on
+  # the first failed poll.
+  kubectl_retry rollout status deployment/cpu-hog -n faults --timeout=120s || true
+  kubectl_retry rollout status deployment/mem-hog -n faults --timeout=120s || true
 
   # break-node.sh defaults to worker2; if webhook-app landed there, stopping
   # its kubelet would take down the alert-delivery target, so break the
   # other worker instead.
   local break_node=lab-kps-worker2
   local webhook_node
-  webhook_node=$(kubectl get pod -n webhook-app -l app=webhook-app -o jsonpath='{.items[0].spec.nodeName}')
+  webhook_node=$(kubectl_retry get pod -n webhook-app -l app=webhook-app -o jsonpath='{.items[0].spec.nodeName}') \
+    || { log "FAIL: could not determine webhook-app's node after retries"; return 1; }
+  [[ -n "$webhook_node" ]] \
+    || { log "FAIL: webhook-app pod not found when checking its node"; return 1; }
   if [[ "$webhook_node" == "lab-kps-worker2" ]]; then
     log "webhook-app is running on lab-kps-worker2; breaking lab-kps-worker instead"
     break_node=lab-kps-worker
@@ -237,8 +284,9 @@ deploy_faults() {
     local cpu_replicas_settle=$(( cpu_replicas / 4 ))
     (( cpu_replicas_settle < 1 )) && cpu_replicas_settle=1
     log "Easing cpu-hog to ${cpu_replicas_settle} replicas so individual pods can reach their own CPU limit..."
-    kubectl scale deployment/cpu-hog -n faults --replicas="$cpu_replicas_settle"
-    kubectl rollout status deployment/cpu-hog -n faults --timeout=120s || true
+    kubectl_retry scale deployment/cpu-hog -n faults --replicas="$cpu_replicas_settle" \
+      || { log "FAIL: could not ease cpu-hog to ${cpu_replicas_settle} replicas"; return 1; }
+    kubectl_retry rollout status deployment/cpu-hog -n faults --timeout=120s || true
   else
     log "WARN: node CPU never crossed 80% within 300s -- keeping full cpu-hog fleet"
   fi
