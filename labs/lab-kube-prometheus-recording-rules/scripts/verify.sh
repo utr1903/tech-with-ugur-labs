@@ -185,10 +185,13 @@ deploy_faults() {
   # window can elapse independently of what happens next -- this poll runs
   # on deploy_faults' own time, not check_alert_delivery's 600s budget.
   log "Waiting for node CPU utilization to cross 80% (up to 300s)..."
-  local node_cpu_deadline=$((SECONDS + 300)) node_cpu=0
+  local node_cpu_deadline=$((SECONDS + 300)) node_cpu=0 node_cpu_crossed=0
   while (( SECONDS < node_cpu_deadline )); do
     node_cpu=$(prom_query 'max(node:cpu_utilization:percent)' | jq -r '.data.result[0].value[1] // 0')
-    awk -v v="$node_cpu" 'BEGIN { exit !(v + 0 > 80) }' && break
+    if awk -v v="$node_cpu" 'BEGIN { exit !(v + 0 > 80) }'; then
+      node_cpu_crossed=1
+      break
+    fi
     sleep 15
   done
   log "Node CPU utilization: ${node_cpu}%"
@@ -198,14 +201,22 @@ deploy_faults() {
   # same limited cores) keeps CFS from letting any single pod reach its
   # OWN 200m ceiling -- a live run showed LabPodCpuHigh (own-limit-
   # relative) never fires under that contention even with the node
-  # aggregate sitting at 86%+. Ease off now that the node threshold has
-  # been crossed (it's already latched in Prometheus/Grafana, doesn't
-  # need sustained load) so at least one pod can reach its own limit.
-  local cpu_replicas_settle=$(( cpu_replicas / 4 ))
-  (( cpu_replicas_settle < 1 )) && cpu_replicas_settle=1
-  log "Easing cpu-hog to ${cpu_replicas_settle} replicas so individual pods can reach their own CPU limit..."
-  kubectl scale deployment/cpu-hog -n faults --replicas="$cpu_replicas_settle"
-  kubectl rollout status deployment/cpu-hog -n faults --timeout=120s || true
+  # aggregate sitting at 86%+. Ease off ONLY once the node threshold has
+  # actually been crossed (it's latched in Prometheus/Grafana at that
+  # point and doesn't need sustained load) so at least one pod can reach
+  # its own limit. If the poll above timed out instead, easing off now
+  # would cut the fault footprint at exactly the moment it should keep
+  # pushing -- keep the full fleet and let check_alert_delivery's 600s
+  # window give LabNodeCpuHigh the best remaining chance.
+  if (( node_cpu_crossed )); then
+    local cpu_replicas_settle=$(( cpu_replicas / 4 ))
+    (( cpu_replicas_settle < 1 )) && cpu_replicas_settle=1
+    log "Easing cpu-hog to ${cpu_replicas_settle} replicas so individual pods can reach their own CPU limit..."
+    kubectl scale deployment/cpu-hog -n faults --replicas="$cpu_replicas_settle"
+    kubectl rollout status deployment/cpu-hog -n faults --timeout=120s || true
+  else
+    log "WARN: node CPU never crossed 80% within 300s -- keeping full cpu-hog fleet"
+  fi
 
   log "Waiting for a cpu-hog pod to cross 80% of its own CPU limit (up to 300s)..."
   local pod_cpu_deadline=$((SECONDS + 300)) pod_cpu=0
