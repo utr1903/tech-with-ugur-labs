@@ -11,3 +11,11 @@ else
   log "Creating kind cluster ${CLUSTER}..."
   kind create cluster --name "$CLUSTER" --config kind/cluster.yaml
 fi
+
+log "Installing the vanilla kube-prometheus-stack (control group)..."
+helm repo add prometheus-community https://prometheus-community.github.io/helm-charts --force-update
+helm upgrade --install kps-vanilla prometheus-community/kube-prometheus-stack \
+  --version 88.5.4 \
+  --namespace monitoring-vanilla --create-namespace \
+  -f helm/values-vanilla.yaml \
+  --wait --timeout 10m

@@ -1,0 +1,37 @@
+# kube-prometheus-stack 88.5.4 — the control group: exactly what most teams
+# start with. One Prometheus, no Thanos, nothing shared with the other install.
+fullnameOverride: kps-vanilla
+defaultRules:
+  create: false          # no rule noise — this lab is about the query path
+alertmanager:
+  enabled: false
+grafana:
+  enabled: false         # the comparison Grafana lives in the thanos install
+kubeControllerManager:
+  enabled: false         # unreachable targets in kind — keep the target list clean
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeProxy:
+  enabled: false
+prometheusOperator:
+  namespaces:
+    releaseNamespace: true   # this operator only watches monitoring-vanilla
+    additional: []
+  admissionWebhooks:
+    enabled: false
+  tls:
+    enabled: false
+prometheus:
+  service:
+    type: NodePort
+    nodePort: 30900
+  prometheusSpec:
+    scrapeInterval: 15s
+    evaluationInterval: 15s
+    retention: 2h
+    resources:
+      requests:
+        cpu: 100m
+        memory: 400Mi
