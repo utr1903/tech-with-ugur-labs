@@ -59,12 +59,14 @@ async function pollOnce(ctx: Ctx): Promise<OutagePoll> {
 // terminates. Wait for the outage to actually start before watching for
 // restoration, or the poll loop below can exit on its very first check
 // and record zero polls even though nothing was actually proven.
-async function waitUntilDown(
-  untilRestored: () => Promise<boolean>,
+export async function waitUntilDown(
+  isStillUp: () => Promise<boolean>,
+  timeoutSeconds = DOWN_WAIT_SECONDS,
+  intervalSeconds = 1,
 ): Promise<void> {
-  const deadline = Date.now() + DOWN_WAIT_SECONDS * 1000;
-  while (Date.now() < deadline && (await untilRestored())) {
-    await sleep(1);
+  const deadline = Date.now() + timeoutSeconds * 1000;
+  while (Date.now() < deadline && (await isStillUp())) {
+    await sleep(intervalSeconds);
   }
 }
 
@@ -108,7 +110,7 @@ async function killQuerier(ctx: Ctx): Promise<void> {
   );
   if (pods.length !== 2)
     throw new Error(`expected 2 thanos-query pods, found ${pods.length}`);
-  const victim = pods[0] as string;
+  const victim = pods[0];
   logger.info({ pod: victim }, "Killing one Thanos Query replica...");
   await ctx.kube.deletePod(ns, victim);
   const polls = await runOutage(ctx, () => ctx.kube.isPodReady(ns, victim));
