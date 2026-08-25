@@ -141,13 +141,19 @@ than `ContainerCreating` (i.e. actually broken, not just starting).
 `recorded-metrics.json` (`lab-recorded-metrics`), six matching panels
 each: worst-N nodes by CPU%, worst-N nodes by memory%, worst-N pods by
 CPU% of limit, worst-N pods by memory% of limit, unhealthy nodes,
-unhealthy pods. The recorded-metrics dashboard adds `$node` and
-`$namespace` template variables (backed by `label_values()` queries
-against the recorded metrics' own `node`/`namespace` labels) plus
-`$worst_x`, `$cpu_threshold`, and `$mem_threshold` custom variables for
-the topk count and the panel color thresholds — none of which the raw
-dashboard can offer, because there's no clean `node=` label to
-template against until a recording rule creates one.
+unhealthy pods. Both dashboards define the identical five template
+variables (`$node`, `$namespace`, `$worst_x`, `$cpu_threshold`,
+`$mem_threshold`) — that's deliberate, not an oversight: it's what makes
+the two dashboards comparable panel-for-panel. `$worst_x` drives the
+`topk()` count on every panel in both; `$node` and `$namespace` filter
+both dashboards' queries, just at different cost. The recorded-metrics
+dashboard filters on the recorded metric's own clean `node=`/`namespace=`
+label directly (`node:cpu_utilization:percent{node=~"$node"}`); the
+raw dashboard reaches the same filter through the underlying join —
+`node_uname_info{nodename=~"$node"}` for nodes,
+`namespace=~"$namespace"` inlined into the raw metric selectors for
+pods. Both work; the difference the twin dashboards exist to show is
+query complexity and readability, not which variables are available.
 
 **`alerting/`** — three provisioning files, each imported by the
 Grafana alerts sidecar as its own labeled `ConfigMap`:
@@ -168,6 +174,8 @@ payload Grafana webhooks send and logs one structured line per alert
 (`pino`, via `src/logger.ts`). `make verify` greps those logs for every
 alert name it expects. Built into an image and side-loaded into kind
 with `kind load docker-image` — nothing is pulled from a registry.
+`manifests/webhook-app.yaml` is the Deployment/Service that runs it
+(`imagePullPolicy: Never`, since the image only ever exists inside kind).
 
 **`faults/`** — three Deployments in a dedicated `faults` namespace:
 `cpu-hog` (`yes > /dev/null`, capped at 200m CPU), `mem-hog` (`dd`
@@ -188,14 +196,21 @@ systemctl stop kubelet`) on whichever worker `verify.sh` tells it to.
 
 ## Caveats
 
-- **Alert thresholds are literals, dashboard thresholds are
-  variables.** The recorded-metrics dashboard's panel coloring is
-  driven by the `$cpu_threshold` / `$mem_threshold` template variables
-  — change them in the dashboard UI and the panels recolor instantly.
-  The alert rules in `alerting/alert-rules.yaml` can't reference those
-  variables at all; Grafana alerting has no mechanism to read a
-  dashboard variable into an alert condition, so `80` is hardcoded
-  twice, once per surface. Changing one does not change the other.
+- **Alert thresholds are literals; the dashboards' threshold
+  variables aren't wired to anything.** `alerting/alert-rules.yaml`
+  hardcodes `80` as the trigger for the four percent-based alerts —
+  Grafana alerting has no way to read a dashboard variable into an
+  alert condition, so there's no alternative. Both dashboards also
+  define `$cpu_threshold` / `$mem_threshold` custom variables (default
+  `80`, same literal, kept in sync by hand), but neither dashboard
+  actually references them anywhere: every panel's `fieldConfig`
+  threshold is its own separate hardcoded `80`, identical in both
+  files. Changing `$cpu_threshold` in the Grafana UI does nothing to
+  panel coloring — it's the same Grafana limitation (no templating
+  fieldConfig thresholds from dashboard variables) stated from the
+  dashboard side instead of the alert side. Of the five template
+  variables, only `$worst_x` (the topk count) and `$node`/`$namespace`
+  (query filters) actually do anything.
 - **Pod utilization panels only cover pods with resource limits.**
   `pod:cpu_utilization_vs_limit:percent` and its memory equivalent are
   usage *as a percentage of the pod's own limit* — a pod with no CPU or
