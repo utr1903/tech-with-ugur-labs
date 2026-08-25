@@ -19,3 +19,10 @@ helm upgrade --install kps-vanilla prometheus-community/kube-prometheus-stack \
   --namespace monitoring-vanilla --create-namespace \
   -f helm/values-vanilla.yaml \
   --wait --timeout 10m
+
+log "Installing the sharded + replicated kube-prometheus-stack with Thanos sidecars..."
+helm upgrade --install kps-thanos prometheus-community/kube-prometheus-stack \
+  --version 88.5.4 \
+  --namespace monitoring-thanos --create-namespace \
+  -f helm/values-thanos.yaml \
+  --wait --timeout 10m

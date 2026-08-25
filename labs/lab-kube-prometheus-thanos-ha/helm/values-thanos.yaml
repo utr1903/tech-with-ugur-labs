@@ -1,0 +1,47 @@
+# kube-prometheus-stack 88.5.4 — the scaled install: 2 shards × 2 replicas,
+# each pod carrying a Thanos sidecar. Compare with values-vanilla.yaml: the
+# interesting difference is just shards/replicas/thanos + port dodges.
+fullnameOverride: kps-thanos
+crds:
+  enabled: false         # the vanilla release already installed the CRDs
+defaultRules:
+  create: false
+alertmanager:
+  enabled: false
+grafana:
+  enabled: false         # switched on later, together with the comparison dashboard
+kubeControllerManager:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeProxy:
+  enabled: false
+prometheusOperator:
+  namespaces:
+    releaseNamespace: true   # this operator only watches monitoring-thanos
+    additional: []
+  admissionWebhooks:
+    enabled: false
+  tls:
+    enabled: false
+prometheus-node-exporter:
+  service:
+    port: 9101           # the vanilla install owns 9100 on every host
+    targetPort: 9101
+prometheus:
+  thanosService:
+    enabled: true        # headless gRPC service across all 4 sidecars
+  prometheusSpec:
+    shards: 2            # each scrape target lands on exactly one shard
+    replicas: 2          # each shard is stored twice
+    scrapeInterval: 15s
+    evaluationInterval: 15s
+    retention: 2h
+    resources:
+      requests:
+        cpu: 100m
+        memory: 400Mi
+    thanos:
+      image: quay.io/thanos/thanos:v0.42.4
