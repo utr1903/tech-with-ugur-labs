@@ -4,12 +4,12 @@ export type InstantSample = {
   metric: Record<string, string>;
   value: [number, string];
 };
-export type RangeSeries = {
+type RangeSeries = {
   metric: Record<string, string>;
   values: [number, string][];
 };
-export type StoreInfo = { name: string; lastError: string | null };
-export type QueryOpts = {
+type StoreInfo = { name: string; lastError: string | null };
+type QueryOpts = {
   time?: number;
   dedup?: boolean;
   partialResponse?: boolean;
