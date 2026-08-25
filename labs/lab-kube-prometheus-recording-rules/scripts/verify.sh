@@ -167,15 +167,14 @@ deploy_faults() {
   kubectl rollout status deployment/cpu-hog -n faults --timeout=120s || true
   kubectl rollout status deployment/mem-hog -n faults --timeout=120s || true
 
-  # break-node.sh defaults to lab-kps-worker2; if webhook-app landed there,
-  # stopping its kubelet would take the delivery target down too, so break
-  # the other worker instead. (Judgment call, not brief text -- the brief's
-  # break-node.sh call is unconditional.)
+  # break-node.sh defaults to worker2; if webhook-app landed there, stopping
+  # its kubelet would take down the alert-delivery target, so break the
+  # other worker instead.
   local break_node=lab-kps-worker2
   local webhook_node
   webhook_node=$(kubectl get pod -n webhook-app -l app=webhook-app -o jsonpath='{.items[0].spec.nodeName}')
   if [[ "$webhook_node" == "lab-kps-worker2" ]]; then
-    log "DEVIATION: webhook-app is on lab-kps-worker2; breaking lab-kps-worker instead"
+    log "webhook-app is running on lab-kps-worker2; breaking lab-kps-worker instead"
     break_node=lab-kps-worker
   fi
   scripts/break-node.sh "$break_node"
