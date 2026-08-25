@@ -58,7 +58,10 @@ export async function seedDatabase(
       "Seeding the database succeeded.",
     );
   } catch (err) {
-    logger.error({ err }, "Seeding the database failed.");
+    logger.error(
+      { err, orderCount: orders.length },
+      "Seeding the database failed.",
+    );
     throw err;
   }
 }

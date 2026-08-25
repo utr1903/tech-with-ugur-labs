@@ -26,9 +26,15 @@ export async function applyFaultyMigration(
     for (const statement of FAULTY_MIGRATION_STATEMENTS) {
       await client.query(statement);
     }
-    logger.info("Applying the faulty migration succeeded.");
+    logger.info(
+      { statementCount: FAULTY_MIGRATION_STATEMENTS.length },
+      "Applying the faulty migration succeeded.",
+    );
   } catch (err) {
-    logger.error({ err }, "Applying the faulty migration failed.");
+    logger.error(
+      { err, statementCount: FAULTY_MIGRATION_STATEMENTS.length },
+      "Applying the faulty migration failed.",
+    );
     throw err;
   }
 }
