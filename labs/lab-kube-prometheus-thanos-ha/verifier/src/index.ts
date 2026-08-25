@@ -1,9 +1,11 @@
 import { runDedup } from "./commands/dedup.js";
 import { runEquivalence } from "./commands/equivalence.js";
+import { runFailover } from "./commands/failover.js";
 import { runPartiality } from "./commands/partiality.js";
 import { runReadiness } from "./commands/readiness.js";
 import { loadConfig } from "./config.js";
 import type { Ctx } from "./context.js";
+import { Kubectl } from "./kube/kubectl.js";
 import { createLogger, installGlobalErrorHandlers } from "./logger.js";
 import { PromClient } from "./prom/client.js";
 
@@ -18,6 +20,7 @@ const ctx: Ctx = {
   thanos: new PromClient({ baseUrl: cfg.thanosQueryUrl, logger }),
   shard0: new PromClient({ baseUrl: cfg.shard0PromUrl, logger }),
   shard1: new PromClient({ baseUrl: cfg.shard1PromUrl, logger }),
+  kube: new Kubectl({ logger }),
 };
 
 const commands: [string, (ctx: Ctx) => Promise<void>][] = [
@@ -25,6 +28,7 @@ const commands: [string, (ctx: Ctx) => Promise<void>][] = [
   ["equivalence", runEquivalence],
   ["partiality", runPartiality],
   ["dedup", runDedup],
+  ["failover", runFailover],
 ];
 
 const requested = process.argv[2] ?? "all";
