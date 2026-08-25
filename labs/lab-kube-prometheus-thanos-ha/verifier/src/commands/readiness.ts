@@ -1,8 +1,7 @@
+import { NODE_COUNT } from "../constants.js";
 import type { Ctx } from "../context.js";
 import { pollUntil } from "../lib/poll.js";
 import { singleValue } from "../prom/compare.js";
-
-const NODE_COUNT = 3;
 
 // Proof 0: both stacks answer, Thanos sees all 4 sidecars, and every raw
 // series carries the replica label that dedup relies on.

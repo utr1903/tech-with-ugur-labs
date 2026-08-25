@@ -1,3 +1,4 @@
+import { NODE_COUNT } from "../constants.js";
 import type { Ctx } from "../context.js";
 import { sleep } from "../lib/poll.js";
 import { singleValue } from "../prom/compare.js";
@@ -6,7 +7,6 @@ import { singleValue } from "../prom/compare.js";
 // exported-but-unused type otherwise).
 type OutagePoll = { ok: boolean; complete: boolean };
 
-const NODE_COUNT = 3;
 const OUTAGE_WINDOW_SECONDS = 90;
 const DOWN_WAIT_SECONDS = 60;
 

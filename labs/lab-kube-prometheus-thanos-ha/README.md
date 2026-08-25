@@ -45,8 +45,8 @@ host ports, mapped straight through by kind:
              | kps-vanilla Prometheus |   | shard 0: 2 replicas     |   +--------------+   +---------+
              | (1 pod, no sidecar)    |   |   each + Thanos sidecar |
              +------------------------+   | shard 1: 2 replicas     |
-                                           |   each + Thanos sidecar |
-                                           +-------------------------+
+                                          |   each + Thanos sidecar |
+                                          +-------------------------+
 
                                            gRPC StoreAPI (all 4 sidecars) ---->
                                            re-resolved via DNS-SD every 5s
@@ -56,8 +56,9 @@ host ports, mapped straight through by kind:
 sharding, no replication, no Thanos — the setup most teams start with.
 `monitoring-thanos` runs the same workload split across 2 shards × 2
 replicas (4 Prometheus pods, each with a Thanos sidecar exporting its data
-over gRPC), fronted by a 2-replica Thanos Query deployment that talks to
-all four sidecars and presents them as one logical Prometheus API.
+over gRPC), fronted by a 2-replica Thanos Query deployment — also in
+`monitoring-thanos` — that talks to all four sidecars and presents them as
+one logical Prometheus API. Grafana lives in that same namespace too.
 
 ## Prerequisites
 
@@ -88,7 +89,10 @@ make verify   # readiness, equivalence, partiality, dedup, failover, Grafana che
 make down     # delete the cluster (a few seconds)
 ```
 
-`make e2e` chains all three, so a fresh clone only needs one command.
+`make e2e` chains all three, so a fresh clone only needs one command. If
+`make verify` fails, `make e2e` stops before `down` and leaves the cluster
+running — useful for poking at it while debugging; run `make down`
+yourself when you're done.
 
 | Port    | What's there                                    |
 |---------|--------------------------------------------------|
@@ -226,7 +230,8 @@ Both datasources are provisioned explicitly (`vanilla-prom`,
 usual auto-provisioned default datasource is turned off
 (`grafana.sidecar.datasources.defaultDatasourceEnabled: false`). That's
 deliberate: the chart's default `kps-thanos-prometheus` Service selects
-on `operator.prometheus.io/name` alone, with no shard in the selector —
+on `app.kubernetes.io/name` and `operator.prometheus.io/name`, neither of
+which is shard-specific —
 it load-balances across all 4 raw Prometheus pods from both shards at
 once, so the auto-datasource would silently send each dashboard query to
 a different, unpredictable one of them and return whichever shard's

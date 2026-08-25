@@ -12,6 +12,9 @@ else
   kind create cluster --name "$CLUSTER" --config kind/cluster.yaml
 fi
 
+log "Pinning kubectl context to kind-${CLUSTER}..."
+kubectl config use-context "kind-${CLUSTER}"
+
 log "Installing the vanilla kube-prometheus-stack (control group)..."
 helm repo add prometheus-community https://prometheus-community.github.io/helm-charts --force-update
 helm upgrade --install kps-vanilla prometheus-community/kube-prometheus-stack \

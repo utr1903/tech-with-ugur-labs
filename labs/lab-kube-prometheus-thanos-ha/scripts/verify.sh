@@ -3,6 +3,8 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 source scripts/lib.sh
 
+require_context
+
 wait_pods_ready monitoring-vanilla
 wait_pods_ready monitoring-thanos
 

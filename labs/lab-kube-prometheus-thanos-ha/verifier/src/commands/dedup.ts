@@ -1,3 +1,4 @@
+import { NODE_COUNT } from "../constants.js";
 import type { Ctx } from "../context.js";
 import { pollUntil } from "../lib/poll.js";
 import type { InstantSample } from "../prom/client.js";
@@ -15,6 +16,11 @@ export function analyzeDedup(
     const set = replicasByInstance.get(instance) ?? new Set<string>();
     set.add(replica);
     replicasByInstance.set(instance, set);
+  }
+  if (replicasByInstance.size !== NODE_COUNT) {
+    throw new Error(
+      `raw view covers ${replicasByInstance.size} instances, expected exactly ${NODE_COUNT}`,
+    );
   }
   for (const [instance, replicas] of replicasByInstance) {
     if (replicas.size !== 2) {
@@ -53,10 +59,11 @@ export async function runDedup(ctx: Ctx): Promise<void> {
       attempt: async () => {
         const raw = await ctx.thanos.instantQuery('up{job="node-exporter"}', {
           dedup: false,
+          partialResponse: false,
         });
         const deduped = await ctx.thanos.instantQuery(
           'up{job="node-exporter"}',
-          { dedup: true },
+          { dedup: true, partialResponse: false },
         );
         logger.info(
           { raw: raw.length, deduped: deduped.length },
