@@ -1,0 +1,15 @@
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+crash.log
+*.tfplan
+
+# Node
+node_modules/
+
+# Local configuration (generated from terraform outputs, contains the DB password)
+.env
