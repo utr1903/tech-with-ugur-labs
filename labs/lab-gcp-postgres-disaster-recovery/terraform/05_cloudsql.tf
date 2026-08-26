@@ -25,9 +25,17 @@ resource "google_sql_database_instance" "postgres" {
   depends_on = [google_project_service.sqladmin]
 }
 
+# The database and user are abandoned on destroy instead of deleted:
+# the drill's tables are owned by the app user, and Cloud SQL refuses
+# to drop a Postgres role that still owns objects, which made the
+# first destroy attempt fail. The instance deletion right after wipes
+# both anyway, so skipping their individual deletes makes teardown
+# succeed in a single pass.
 resource "google_sql_database" "app" {
   name     = var.db_name
   instance = google_sql_database_instance.postgres.name
+
+  deletion_policy = "ABANDON"
 }
 
 resource "random_password" "db_user" {
@@ -39,6 +47,8 @@ resource "google_sql_user" "app" {
   name     = var.db_user
   instance = google_sql_database_instance.postgres.name
   password = random_password.db_user.result
+
+  deletion_policy = "ABANDON"
 }
 
 output "project_id" {
