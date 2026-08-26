@@ -13,6 +13,8 @@ triggers an automatic restore from an on-demand backup, and then proves —
 by comparing table checksums, not by assuming the restore worked — that the
 restored data is identical to the pre-migration baseline.
 
+Companion post: [The Rollback That Never Comes: an automated disaster-recovery drill on Cloud SQL for PostgreSQL](https://techwithugur.dev/posts/gcp-postgres-disaster-recovery/).
+
 ## What the drill does
 
 The drill runs as a single Node.js process (`npm run drill`) against a
