@@ -1,0 +1,9 @@
+project_id      = "your-gcp-project-id"
+authorized_cidr = "203.0.113.7/32" # your public IP: curl -4 -s ifconfig.me
+
+# Optional overrides (defaults shown):
+# region           = "europe-west3"
+# tier             = "db-f1-micro"
+# database_version = "POSTGRES_17"
+# db_name          = "shop"
+# db_user          = "drill"
