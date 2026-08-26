@@ -112,6 +112,37 @@ IAP tunnels and SSHes into two VMs fast to start and simple to run.
 - `jq` (merges Terraform outputs into the verifier's config file).
 - `make`.
 
+### Don't have an organization?
+
+A personal Gmail account never has one — GCP only materializes an
+Organization resource for accounts managed under **Cloud Identity** or
+**Google Workspace**, and both require a domain you own. There is no way
+to create an organization directly, but the free path is straightforward:
+
+1. Own a domain (any registrar; a throwaway domain costs a few dollars a
+   year — this is the only money involved).
+2. Sign up for [Cloud Identity Free](https://cloud.google.com/identity/docs/set-up-cloud-identity-admin)
+   with that domain and verify ownership by adding the TXT record it gives
+   you at your DNS provider. This creates a new admin identity like
+   `admin@your-domain.tld` — no Workspace subscription, free for up to 50
+   users, and it does not touch your domain's website or mail.
+3. Sign in to the [Cloud Console](https://console.cloud.google.com) as that
+   new user once — the Organization resource for your domain is created
+   automatically at first sign-in.
+4. As that user (it is the domain's super admin, so it can grant itself
+   IAM roles), grant it the four organization-level roles listed above,
+   and **Billing Account User** on your billing account. A billing account
+   created under a different Google account works too — open its
+   permissions in the Billing console and add the new user there.
+5. Run both `gcloud auth login` and
+   `gcloud auth application-default login` **as the new domain user** —
+   the lab's org-level Terraform must run under an identity that belongs
+   to the organization. `verifier_principal` in `terraform/02_iam` is then
+   `user:admin@your-domain.tld`.
+
+Expect the whole detour to take 30–60 minutes, one time. `gcloud
+organizations list` printing your domain is the sign you're ready.
+
 The lab creates three GCP projects (one host, two service) and deletes all
 three when you run `make destroy`.
 
