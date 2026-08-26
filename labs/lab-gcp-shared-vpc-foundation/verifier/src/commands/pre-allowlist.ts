@@ -1,10 +1,11 @@
 import type { VerifierConfig } from "../config/config";
 import type { Logger } from "../logger";
+import { proveIngressDenied } from "../proofs/ingress";
 import type { ProofResult } from "../proofs/result";
 
-export async function runPreAllowlist(_args: {
+export async function runPreAllowlist(args: {
 	config: VerifierConfig;
 	logger: Logger;
 }): Promise<ProofResult[]> {
-	return []; // Filled in by the ingress proof task.
+	return [await proveIngressDenied(args)];
 }
