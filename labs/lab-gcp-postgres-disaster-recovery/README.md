@@ -100,7 +100,7 @@ destroy the instance afterward with the last command below.
 
 ```bash
 cd terraform && cp terraform.tfvars.example terraform.tfvars   # fill in project_id + your IP
-cd .. && ./scripts/deploy_cloud.sh                             # ~10 min
+cd .. && ./scripts/deploy_cloud.sh                             # ~10-20 min
 ./scripts/generate_env.sh
 npm install
 npm run drill                                                  # ~15-30 min
@@ -185,6 +185,11 @@ The Cloud SQL instance name carries a random hex suffix
 reserves a deleted instance's name for about a week — a fixed name would
 make re-running this lab shortly after a previous `--destroy` fail with a
 naming conflict.
+
+The drill's connection to Postgres is TLS-encrypted, but the client does
+not verify the server certificate (`rejectUnauthorized: false`) — fine for
+a disposable lab instance, but a production setup should verify against
+the instance's CA cert instead.
 
 ## Troubleshooting
 

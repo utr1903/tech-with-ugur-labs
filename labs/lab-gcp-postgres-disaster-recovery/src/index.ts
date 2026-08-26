@@ -1,4 +1,7 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+
+dotenv.config({ quiet: true });
+
 import { loadConfig } from "./config.js";
 import { runDrill } from "./drill/runDrill.js";
 import { createLogger, installGlobalErrorHandlers } from "./logger.js";
