@@ -5,6 +5,11 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 tf="$root/terraform"
 stages=(01_foundation 02_iam 03_network 04_ingress 05_egress 06_workloads)
 
+if [[ ! -f "$tf/01_foundation/terraform.tfstate" ]]; then
+  echo "run 'make deploy' first — no Terraform state found" >&2
+  exit 1
+fi
+
 tunnel_pids=()
 cleanup() {
   for pid in "${tunnel_pids[@]:-}"; do

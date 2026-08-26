@@ -4,18 +4,56 @@ import type { Logger } from "../logger";
 import type { ProofResult } from "./result";
 import { execOverSsh } from "./ssh";
 
-export async function proveEgressOnlyViaProxy({
+type EgressCheck = {
+	expectation: string;
+	command: string;
+	timeoutMs: number;
+	passWhen: (code: number) => boolean;
+};
+
+function buildChecks(
+	config: VerifierConfig,
+	proxy: string,
+	vmLabel: string,
+): EgressCheck[] {
+	return [
+		{
+			expectation: `direct internet access from ${vmLabel} fails (default-deny egress)`,
+			command: `curl -sS -m 8 -o /dev/null https://${config.allowedDomain}`,
+			timeoutMs: 30000,
+			passWhen: (code) => code !== 0,
+		},
+		{
+			expectation: `the allowlisted domain succeeds through the host's proxy from ${vmLabel}`,
+			command: `curl -sS -m 20 -o /dev/null -w '%{http_code}' -x ${proxy} https://${config.allowedDomain}`,
+			timeoutMs: 40000,
+			passWhen: (code) => code === 0,
+		},
+		{
+			expectation: `a non-allowlisted domain is denied by the host's proxy from ${vmLabel}`,
+			command: `curl -sS -m 20 -o /dev/null -x ${proxy} https://${config.deniedDomain}`,
+			timeoutMs: 40000,
+			passWhen: (code) => code !== 0,
+		},
+	];
+}
+
+async function proveEgressOnVm({
 	config,
 	logger,
+	tunnelPort,
+	vmLabel,
 }: {
 	config: VerifierConfig;
 	logger: Logger;
+	tunnelPort: number;
+	vmLabel: string;
 }): Promise<ProofResult[]> {
-	const proofLogger = logger.child({ proof: "egress" });
+	const proofLogger = logger.child({ proof: "egress", vm: vmLabel });
 	const results: ProofResult[] = [];
 	const ssh = (command: string, timeoutMs: number) =>
 		execOverSsh({
-			port: config.tunnelPortA,
+			port: tunnelPort,
 			privateKeyPath: config.sshKeyPath,
 			command,
 			timeoutMs,
@@ -28,29 +66,7 @@ export async function proveEgressOnlyViaProxy({
 		if (code !== 0) throw new Error(`ssh probe exited ${code}`);
 	});
 
-	const checks = [
-		{
-			expectation:
-				"direct internet access from the VM fails (default-deny egress)",
-			command: `curl -sS -m 8 -o /dev/null https://${config.allowedDomain}`,
-			timeoutMs: 30000,
-			passWhen: (code: number) => code !== 0,
-		},
-		{
-			expectation: "the allowlisted domain succeeds through the host's proxy",
-			command: `curl -sS -m 20 -o /dev/null -w '%{http_code}' -x ${proxy} https://${config.allowedDomain}`,
-			timeoutMs: 40000,
-			passWhen: (code: number) => code === 0,
-		},
-		{
-			expectation: "a non-allowlisted domain is denied by the host's proxy",
-			command: `curl -sS -m 20 -o /dev/null -x ${proxy} https://${config.deniedDomain}`,
-			timeoutMs: 40000,
-			passWhen: (code: number) => code !== 0,
-		},
-	];
-
-	for (const check of checks) {
+	for (const check of buildChecks(config, proxy, vmLabel)) {
 		try {
 			proofLogger.info({ command: check.command }, "Proving egress rule...");
 			const { code, stdout, stderr } = await ssh(
@@ -63,7 +79,7 @@ export async function proveEgressOnlyViaProxy({
 				proof: "egress",
 				expectation: check.expectation,
 				passed,
-				detail: `exit=${code} stdout=${stdout.slice(0, 200)} stderr=${stderr.slice(0, 200)}`,
+				detail: `vm=${vmLabel} exit=${code} stdout=${stdout.slice(0, 200)} stderr=${stderr.slice(0, 200)}`,
 			});
 		} catch (err) {
 			proofLogger.error(
@@ -74,9 +90,34 @@ export async function proveEgressOnlyViaProxy({
 				proof: "egress",
 				expectation: check.expectation,
 				passed: false,
-				detail: String(err),
+				detail: `vm=${vmLabel} ${String(err)}`,
 			});
 		}
+	}
+	return results;
+}
+
+export async function proveEgressOnlyViaProxy({
+	config,
+	logger,
+}: {
+	config: VerifierConfig;
+	logger: Logger;
+}): Promise<ProofResult[]> {
+	const vms = [
+		{ tunnelPort: config.tunnelPortA, vmLabel: "vm-service-a" },
+		{ tunnelPort: config.tunnelPortB, vmLabel: "vm-service-b" },
+	];
+	const results: ProofResult[] = [];
+	for (const vm of vms) {
+		results.push(
+			...(await proveEgressOnVm({
+				config,
+				logger,
+				tunnelPort: vm.tunnelPort,
+				vmLabel: vm.vmLabel,
+			})),
+		);
 	}
 	return results;
 }

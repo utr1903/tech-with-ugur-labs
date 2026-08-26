@@ -105,10 +105,13 @@ IAP tunnels and SSHes into two VMs fast to start and simple to run.
 - `terraform`, pinned to exactly **1.14.8** (every stage's
   `required_version` enforces this).
 - `bun` (runs the verifier).
+- `curl` (used by `scripts/verify.sh` to detect your runner's public IP for
+  the ingress allowlist).
 - `gcloud`, authenticated twice: `gcloud auth login` (your user
-  credentials, used to impersonate the lab's service accounts) and
+  credentials, used to open the IAP tunnels to the VMs) and
   `gcloud auth application-default login` (Application Default Credentials,
-  used by the verifier's GCP client libraries).
+  used by the verifier's GCP client libraries to impersonate the lab's
+  service accounts).
 - `jq` (merges Terraform outputs into the verifier's config file).
 - `make`.
 
@@ -155,7 +158,7 @@ cp terraform/01_foundation/terraform.tfvars.example terraform/01_foundation/terr
 # edit: org_id, billing_account
 
 cp terraform/02_iam/terraform.tfvars.example terraform/02_iam/terraform.tfvars
-# edit: verifier_principal = "user:<the account you ran gcloud auth login as>"
+# edit: verifier_principal = "user:<the account you ran gcloud auth application-default login as>"
 ```
 
 No other stage takes a tfvars file — `03_network` through `06_workloads`
