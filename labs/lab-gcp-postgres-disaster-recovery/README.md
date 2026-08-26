@@ -108,7 +108,7 @@ npm run drill                                                  # ~15-30 min
 ```
 
 `terraform.tfvars` needs at least `project_id` and `authorized_cidr` (your
-public IP in CIDR notation, e.g. `203.0.113.7/32` — `curl -s ifconfig.me`
+public IP in CIDR notation, e.g. `203.0.113.7/32` — `curl -4 -s ifconfig.me`
 will print it); region, tier, Postgres version, database name, and database
 user all have working defaults and only need overriding if you want
 something different. `./scripts/deploy_cloud.sh` runs `terraform init` and
@@ -191,7 +191,7 @@ naming conflict.
   your project.
 - **Connection refused when the drill tries to connect** — your public IP
   likely changed since you set `authorized_cidr`. Re-check it against
-  `curl -s ifconfig.me` and update `terraform.tfvars`, then re-apply.
+  `curl -4 -s ifconfig.me` and update `terraform.tfvars`, then re-apply.
 - **Re-running `npm run drill`** — safe to do as many times as you like.
   The seed stage drops and recreates `orders` and `control_totals` on every
   run, so each run starts from the same known-good state.
