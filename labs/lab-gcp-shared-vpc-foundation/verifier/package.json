@@ -1,0 +1,25 @@
+{
+  "name": "verifier",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "bun src/index.ts",
+    "test": "bun test",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src",
+    "knip": "knip"
+  },
+  "dependencies": {
+    "@google-cloud/compute": "7.1.0",
+    "google-auth-library": "11.0.2",
+    "pino": "10.3.1",
+    "ssh2": "1.17.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.10",
+    "@types/bun": "1.4.0",
+    "@types/ssh2": "1.15.5",
+    "knip": "6.32.3",
+    "typescript": "7.0.2"
+  }
+}
