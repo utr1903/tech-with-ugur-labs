@@ -19,6 +19,12 @@ function probeFirewall(config: VerifierConfig) {
 	};
 }
 
+function isNotFound(err: unknown): boolean {
+	if (typeof err !== "object" || err === null) return false;
+	const candidate = err as { code?: unknown };
+	return candidate.code === 404 || candidate.code === 5;
+}
+
 async function waitForGlobalOp(
 	auth: Awaited<ReturnType<typeof impersonatedAuth>>,
 	project: string,
@@ -26,6 +32,31 @@ async function waitForGlobalOp(
 ) {
 	const operations = new GlobalOperationsClient({ auth });
 	await operations.wait({ project, operation });
+}
+
+// Best-effort cleanup of the probe firewall: swallows a not-found error
+// (nothing to clean up) silently, and swallows any other error after
+// logging it, so a cleanup failure never masks or replaces the proof's
+// own result.
+async function bestEffortDeleteProbe({
+	firewalls,
+	auth,
+	project,
+	proofLogger,
+}: {
+	firewalls: FirewallsClient;
+	auth: Awaited<ReturnType<typeof impersonatedAuth>>;
+	project: string;
+	proofLogger: Logger;
+}): Promise<void> {
+	try {
+		const [op] = await firewalls.delete({ project, firewall: PROBE_NAME });
+		await waitForGlobalOp(auth, project, op.name as string);
+	} catch (err) {
+		if (!isNotFound(err)) {
+			proofLogger.warn({ err }, "Best-effort probe firewall delete failed.");
+		}
+	}
 }
 
 export async function proveNetworkAuthority({
@@ -46,22 +77,35 @@ export async function proveNetworkAuthority({
 		const hostAuth = await impersonatedAuth(config.hostSaEmail);
 		const hostFirewalls = new FirewallsClient({ auth: hostAuth });
 
-		await retryUntilSuccess(async () => {
-			const [op] = await hostFirewalls.insert({
-				project: config.hostProjectId,
-				firewallResource: probeFirewall(config),
-			});
-			await waitForGlobalOp(hostAuth, config.hostProjectId, op.name as string);
-		});
-		const [deleteOp] = await hostFirewalls.delete({
+		// Self-heal a leftover from a previous run before probing.
+		await bestEffortDeleteProbe({
+			firewalls: hostFirewalls,
+			auth: hostAuth,
 			project: config.hostProjectId,
-			firewall: PROBE_NAME,
+			proofLogger,
 		});
-		await waitForGlobalOp(
-			hostAuth,
-			config.hostProjectId,
-			deleteOp.name as string,
-		);
+
+		try {
+			await retryUntilSuccess(async () => {
+				const [op] = await hostFirewalls.insert({
+					project: config.hostProjectId,
+					firewallResource: probeFirewall(config),
+				});
+				await waitForGlobalOp(
+					hostAuth,
+					config.hostProjectId,
+					op.name as string,
+				);
+			});
+		} finally {
+			// Guaranteed cleanup regardless of whether the insert succeeded.
+			await bestEffortDeleteProbe({
+				firewalls: hostFirewalls,
+				auth: hostAuth,
+				project: config.hostProjectId,
+				proofLogger,
+			});
+		}
 
 		results.push({
 			proof: "network-authority",
@@ -104,6 +148,18 @@ export async function proveNetworkAuthority({
 			},
 			{ isExpectedDenial: isPermissionDenied },
 		);
+
+		if (!denial.deniedConsistently) {
+			// The insert may have unexpectedly succeeded; clean up so a
+			// leftover doesn't poison the next run. Harmless no-op (404,
+			// silently swallowed) if it never got created.
+			await bestEffortDeleteProbe({
+				firewalls: serviceFirewalls,
+				auth: serviceAuth,
+				project: config.hostProjectId,
+				proofLogger,
+			});
+		}
 
 		results.push({
 			proof: "network-authority",
