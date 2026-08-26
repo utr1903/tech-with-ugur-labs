@@ -1,0 +1,17 @@
+# Terraform (terraform-structure standard)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+crash.log
+*.tfplan
+
+# Lab-generated secrets and artifacts
+terraform/06_workloads/ssh_key
+verifier-config.json
+
+# Verifier
+node_modules/
+.env
