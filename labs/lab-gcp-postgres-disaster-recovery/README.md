@@ -140,8 +140,9 @@ Watching them in order should show:
   cleanly; nothing here reports an error.
 - `Computing table checksums...` / `succeeded` again, right after the
   migration — this is the evidence that the corrupted state measurably
-  differs from the baseline; these checksums will not match the previous
-  pair.
+  differs from the baseline; the `orders` checksum will not match the
+  previous pair (`control_totals` is only read, never modified, by the
+  migration, so its checksum stays the same).
 - `Checking post-migration invariants...` / `succeeded` — with
   `corruptedRows` and `grandTotalDriftCents` both **non-zero**, confirming
   the migration actually corrupted data (a run where both are zero aborts
@@ -152,11 +153,13 @@ Watching them in order should show:
   `... succeeded.` pair while the restore operation runs, then
   `Restoring instance from backup succeeded.`, followed by
   `Waiting for instance to be RUNNABLE...` / `succeeded`.
-- One or more rounds of `Connecting to Postgres...` / `Connecting to
-  Postgres failed.` / `Connecting to Postgres failed; retrying...` (a
-  warning) before a final `Connecting to Postgres...` / succeeded pair
-  goes through — the restored instance takes a little while to accept
-  connections again even after it reports `RUNNABLE`.
+- Possibly one or more rounds of `Connecting to Postgres...` /
+  `Connecting to Postgres failed.` / `Connecting to Postgres failed;
+  retrying...` (a warning) before a `Connecting to Postgres...` /
+  succeeded pair goes through — a freshly restored instance can take a
+  little while to accept connections again even after it reports
+  `RUNNABLE`, though a run that waits out a long restore may well
+  reconnect on the first try.
 - `Computing table checksums...` / `succeeded` again, on the restored
   instance — compared against the baseline for the final proof.
 - `Running the disaster-recovery drill succeeded.` — the final line, with
