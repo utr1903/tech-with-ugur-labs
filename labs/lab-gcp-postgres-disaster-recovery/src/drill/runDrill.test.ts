@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { DrillConfig } from "../config.js";
 import type { Logger } from "../logger.js";
 import { type DrillStages, runDrill } from "./runDrill.js";
@@ -44,7 +44,11 @@ function happyStages(): DrillStages {
   };
 }
 
-describe("runDrill", () => {
+beforeEach(() => {
+  fakeClient.end.mockClear();
+});
+
+describe("runDrill - happy path", () => {
   it("runs detect -> restore -> verify and reports the proof", async () => {
     const stages = happyStages();
     const summary = await runDrill(config, silentLogger, stages);
@@ -55,8 +59,13 @@ describe("runDrill", () => {
       grandTotalDriftCents: 61_000,
       tablesVerified: ["control_totals", "orders"],
     });
+    // Once for the pre-restore client, once for the restored client
+    // (both are the same fakeClient object in this test double).
+    expect(fakeClient.end).toHaveBeenCalledTimes(2);
   });
+});
 
+describe("runDrill - failure paths", () => {
   it("aborts without restoring when the migration fails to corrupt", async () => {
     const stages = happyStages();
     stages.invariants = vi.fn().mockResolvedValue({
@@ -68,6 +77,7 @@ describe("runDrill", () => {
       "unexpectedly holds",
     );
     expect(stages.restore).not.toHaveBeenCalled();
+    expect(fakeClient.end).toHaveBeenCalledTimes(1);
   });
 
   it("fails when the restored checksums differ from the baseline", async () => {
@@ -98,5 +108,6 @@ describe("runDrill", () => {
     await expect(runDrill(config, silentLogger, stages)).rejects.toThrow(
       "did not change",
     );
+    expect(fakeClient.end).toHaveBeenCalledTimes(1);
   });
 });

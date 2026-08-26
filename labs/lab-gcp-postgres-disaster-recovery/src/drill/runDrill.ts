@@ -67,15 +67,20 @@ function realStages(config: DrillConfig, logger: Logger): DrillStages {
   };
 }
 
-export async function runDrill(
-  config: DrillConfig,
-  logger: Logger,
-  overrides?: Partial<DrillStages>,
-): Promise<DrillSummary> {
-  const stages = { ...realStages(config, logger), ...overrides };
+type PreRestoreResult = {
+  baseline: TableChecksums;
+  backupRunId: string;
+  invariant: InvariantResult;
+};
 
+// Stages 1-4: seed, checksum + backup, corrupt, detect. Run against the
+// caller's client; the caller owns connecting and closing it.
+async function runPreRestoreStages(
+  stages: DrillStages,
+  client: DbClient,
+  logger: Logger,
+): Promise<PreRestoreResult> {
   // Stage 1: seed a known-good dataset.
-  const client = await stages.connect();
   await stages.seed(client);
 
   // Stage 2: record ground truth, then take the pre-migration backup.
@@ -98,14 +103,38 @@ export async function runDrill(
       "Checksums did not change after the faulty migration; corruption evidence is missing",
     );
   }
-
-  // Stage 5: recover. The restore replaces the whole instance state,
-  // killing our connection — reconnect from scratch afterwards.
   logger.warn(
     { corruptedRows: invariant.corruptedRows, backupRunId },
     "Invariant violated; triggering automatic restore...",
   );
-  await client.end();
+  return { baseline, backupRunId, invariant };
+}
+
+export async function runDrill(
+  config: DrillConfig,
+  logger: Logger,
+  overrides?: Partial<DrillStages>,
+): Promise<DrillSummary> {
+  const stages = { ...realStages(config, logger), ...overrides };
+
+  // Stages 1-4 run on this connection; always close it before moving on
+  // to restore, whether they succeeded or threw.
+  const client = await stages.connect();
+  let preRestore: PreRestoreResult;
+  try {
+    preRestore = await runPreRestoreStages(stages, client, logger);
+  } finally {
+    try {
+      await client.end();
+    } catch (cleanupErr) {
+      logger.warn({ cleanupErr }, "Closing the database connection failed.");
+    }
+  }
+  const { baseline, backupRunId, invariant } = preRestore;
+
+  // Stage 5: recover. The connection is already closed (above); the
+  // restore replaces the whole instance state, so reconnect from scratch
+  // afterwards.
   await stages.restore(backupRunId);
   const restoredClient = await stages.connectWithRetry();
 
