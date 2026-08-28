@@ -78,8 +78,11 @@ services:
   # (9001). Reachable only on lab_net, no published ports. Writes evidence.
   attacker:
     build: ./attacker
+    # Evidence is bind-mounted to ./tmp/evidence on your host so you can watch
+    # the attacks land in real time: attacker_http.log (the exfil) and
+    # attacker_shell.log (the reverse shell).
     volumes:
-      - evidence:/evidence
+      - ./tmp/evidence:/evidence
     networks: [lab_net]
 
   # Runs the four attacks and asserts on the evidence. Started on demand
@@ -92,7 +95,7 @@ services:
       HARD_URL: http://app-hardened:3000
       EVIDENCE_DIR: /evidence
     volumes:
-      - evidence:/evidence
+      - ./tmp/evidence:/evidence
     depends_on:
       app-vulnerable:
         condition: service_healthy
@@ -105,6 +108,7 @@ networks:
     internal: true
   egress: {}
 
+# The model cache stays a named volume (a large, opaque blob store, not
+# something you read); the attack evidence is a host bind mount (see `attacker`).
 volumes:
   ollama_models: {}
-  evidence: {}

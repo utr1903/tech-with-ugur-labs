@@ -37,6 +37,8 @@ real.
 
 ## Run it
 ```bash
+mkdir -p tmp/evidence   # where the attacker's captured evidence lands on your host
+
 # build images, start the model + both apps + the attacker, wait until healthy
 docker compose up -d --build --wait ollama app-vulnerable app-hardened attacker
 
@@ -63,6 +65,28 @@ Because a small model does not answer identically every time, the runner
 retries each attack against the vulnerable app a few times — an attacker simply
 re-sends, and the app runs whatever comes back. The attacks against the
 hardened app are checked by confirming the attacker's evidence never grows.
+
+## Watch the outcomes
+Each component's output is inspectable while the lab runs, so you can see the
+attacks land rather than just trust a green check. The attacker's evidence is
+bind-mounted into this lab's gitignored `tmp/` directory on your host; the
+runner truncates it at the start of every run, so what you see is always the
+current run:
+
+| Path | What it holds |
+|------|---------------|
+| `tmp/evidence/attacker_http.log` | every request the exfil collector received — the leaked `CANARY-EXFIL-…` shows up here in the URL when the vulnerable app is attacked |
+| `tmp/evidence/attacker_shell.log` | whatever the reverse shell sent back — `uid=0(root)…` and `RCE-CANARY-…` when the vulnerable process endpoint is attacked |
+
+The apps log structured JSON to stdout, so you can watch each one make its
+decisions:
+```bash
+docker compose logs app-vulnerable   # fetches the exfil URL; runs the generated command
+docker compose logs app-hardened     # summarizes without leaking; classifies instead of executing
+```
+Compare the two side by side against the same attack and the fix is obvious:
+the vulnerable app logs `Fetching image URL...` and `Running generated
+command...`; the hardened app never does.
 
 ## How it works
 Both failures are the same mistake in two places: **trusting model I/O across a
@@ -115,5 +139,7 @@ two trust-boundary mistakes and the fixes for them.
 
 ## Clean up
 ```bash
-make clean      # or: docker compose down -v --remove-orphans --rmi local
+make clean      # or: docker compose down -v --remove-orphans --rmi local && rm -rf tmp
 ```
+`make clean` also removes the `tmp/` evidence directory; a plain `make down`
+keeps it so you can read the last run's outcomes.
