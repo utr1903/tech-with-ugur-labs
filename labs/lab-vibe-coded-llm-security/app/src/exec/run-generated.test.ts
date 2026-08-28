@@ -64,4 +64,18 @@ describe("runGeneratedCommand", () => {
       runGeneratedCommand({ logger, execFn }, "sleep 100"),
     ).resolves.toBe("");
   });
+
+  it("rethrows a normal non-zero-exit error (killed:false, signal:null) instead of swallowing it as a timeout", async () => {
+    const execFn = vi.fn(async () => {
+      throw Object.assign(new Error("Command failed"), {
+        code: 1,
+        signal: null,
+        stdout: "",
+      });
+    });
+
+    await expect(
+      runGeneratedCommand({ logger, execFn }, "false"),
+    ).rejects.toThrow("Command failed");
+  });
 });

@@ -29,11 +29,14 @@ interface ExecError extends Error {
 }
 
 function isTimeoutError(err: unknown): err is ExecError {
-  return (
-    err instanceof Error &&
-    (Boolean((err as ExecError).killed) ||
-      (err as ExecError).signal !== undefined)
-  );
+  // Node's child_process.exec sets `signal: null` for an ordinary non-zero
+  // exit, so `signal !== undefined` is NOT a valid timeout test — it would
+  // misclassify every exec failure as a timeout. A real timeout kills the
+  // child, so `killed === true` (optionally paired with our killSignal) is
+  // the actual signal Node gives us.
+  if (!(err instanceof Error)) return false;
+  const execErr = err as ExecError;
+  return execErr.killed === true || execErr.signal === "SIGKILL";
 }
 
 // DELIBERATELY VULNERABLE: executing model-generated text as a shell command is remote code execution by design.
