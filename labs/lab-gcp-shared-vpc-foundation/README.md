@@ -25,6 +25,8 @@ host-owned, that only lets traffic out to a domain allowlist. Both halves
 of the perimeter are controlled centrally; nothing a service project does
 can widen either one.
 
+Companion post: [The Host Owns the Wires: a GCP Shared-VPC landing zone that proves its own guardrails](https://techwithugur.dev/posts/gcp-shared-vpc-foundation/).
+
 ```
 organization
 │
