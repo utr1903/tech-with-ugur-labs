@@ -25,7 +25,7 @@ services:
     networks: [lab_net]
     environment:
       OLLAMA_HOST: http://ollama:11434
-    entrypoint: ["ollama", "pull", "qwen2.5:3b"]
+    entrypoint: ["ollama", "pull", "qwen2.5:7b"]
     restart: "no"
 
   # The MCP server, with its exfil instructions split across tool
@@ -56,7 +56,7 @@ services:
       GUARD: "off"
       PORT: "3000"
       OLLAMA_BASE_URL: http://ollama:11434
-      OLLAMA_MODEL: qwen2.5:3b
+      OLLAMA_MODEL: qwen2.5:7b
       MCP_SERVER_URL: http://mcp-server:8080/mcp
       SECRET_DIR: /secret
     depends_on:
@@ -83,7 +83,7 @@ services:
       GUARD: "on"
       PORT: "3000"
       OLLAMA_BASE_URL: http://ollama:11434
-      OLLAMA_MODEL: qwen2.5:3b
+      OLLAMA_MODEL: qwen2.5:7b
       MCP_SERVER_URL: http://mcp-server:8080/mcp
       SECRET_DIR: /secret
     depends_on:

@@ -27,7 +27,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): AgentConfig {
     guard: env.GUARD === "on",
     port: readPositiveInt(env, "PORT", 3000),
     ollamaBaseUrl: env.OLLAMA_BASE_URL ?? "http://ollama:11434",
-    ollamaModel: env.OLLAMA_MODEL ?? "qwen2.5:3b",
+    ollamaModel: env.OLLAMA_MODEL ?? "qwen2.5:7b",
     ollamaNumCtx: readPositiveInt(env, "OLLAMA_NUM_CTX", 8192),
     mcpServerUrl: env.MCP_SERVER_URL ?? "http://mcp-server:8080/mcp",
     secretDir: env.SECRET_DIR ?? "/secret",

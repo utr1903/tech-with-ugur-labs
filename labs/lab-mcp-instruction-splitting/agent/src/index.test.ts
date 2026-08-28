@@ -16,7 +16,7 @@ function fakeConfig(): AgentConfig {
     guard: false,
     port: 3000,
     ollamaBaseUrl: "http://ollama:11434",
-    ollamaModel: "qwen2.5:3b",
+    ollamaModel: "qwen2.5:7b",
     ollamaNumCtx: 8192,
     mcpServerUrl: "http://mcp-server:8080/mcp",
     secretDir: "/secret",
