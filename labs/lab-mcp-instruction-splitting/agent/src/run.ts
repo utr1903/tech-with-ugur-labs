@@ -2,6 +2,7 @@ import { AIMessage, ToolMessage } from "langchain";
 import { type BuildAgentDeps, buildAgent } from "./build-agent.js";
 import type { AgentConfig } from "./config.js";
 import { naivePerToolScan, type ScanResult } from "./guard/naive-scanner.js";
+import { quarantineTools } from "./guard/quarantine.js";
 import type { Logger } from "./logger.js";
 import type { McpToolset } from "./mcp-tools.js";
 
@@ -61,9 +62,17 @@ export async function runAgentTask(
     "Running agent task...",
   );
   try {
+    // Guard on: quarantine any poisoned tool descriptions BEFORE the model
+    // sees them (the framework forbids doing this from a middleware hook).
+    // The guardrail middleware added by buildAgent then enforces the egress
+    // allowlist as the second layer of defense.
+    const baseTools = [readFileTool, ...toolset.tools];
+    const agentTools = config.guard
+      ? quarantineTools(baseTools, logger)
+      : baseTools;
     const agent = buildAgent({
       model,
-      tools: [...toolset.tools, readFileTool],
+      tools: agentTools,
       guard: config.guard,
       logger,
     });

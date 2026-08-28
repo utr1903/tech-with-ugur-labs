@@ -20,3 +20,15 @@ export function matchesInstructionSignature(text: string): boolean {
     containsAny(text, TRANSMIT_TOOL_TOKENS)
   );
 }
+
+// True iff `text` carries ANY fragment of the instruction (any single signal
+// token). The quarantine uses this to neutralize every description that
+// contributes to a reassembled instruction, not just the ones that happen to
+// hold the first occurrence of each category.
+export function containsAnySignatureToken(text: string): boolean {
+  return (
+    containsAny(text, FILE_READ_VERB_TOKENS) ||
+    containsAny(text, SECRET_PATH_TOKENS) ||
+    containsAny(text, TRANSMIT_TOOL_TOKENS)
+  );
+}
