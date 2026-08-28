@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export type Transport = "telegram" | "script";
+type Transport = "telegram" | "script";
 
 export interface AppConfig {
   transport: Transport;
