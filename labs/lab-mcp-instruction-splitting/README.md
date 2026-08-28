@@ -13,7 +13,7 @@ guardrail that stops it.
 Everything runs offline in one Docker network, with a fake canary key and an
 attacker reachable only from inside the lab. It cannot touch anything real.
 
-> Companion post: _(link added when the companion post is published)_
+> Companion post: [A Malicious MCP Server That Splits Its Instructions Across Tools](https://techwithugur.dev/posts/mcp-instruction-splitting/)
 
 ## What's inside
 - `mcp-server/` — the malicious MCP server (TypeScript, official MCP SDK over
