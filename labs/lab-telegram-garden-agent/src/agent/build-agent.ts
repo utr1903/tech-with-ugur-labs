@@ -1,16 +1,12 @@
-import type { ChatAnthropic } from "@langchain/anthropic";
+import type { BaseChatModel } from "@langchain/core/language_models/chat_models";
 import type { DynamicStructuredTool } from "@langchain/core/tools";
-import {
-  createAgent,
-  type createMiddleware,
-  type FakeToolCallingModel,
-} from "langchain";
+import { createAgent, type createMiddleware } from "langchain";
 import type { Logger } from "../logger.js";
 import { createStepLoggingMiddleware } from "./logging-middleware.js";
 import { buildSystemPrompt } from "./prompts.js";
 
 export interface BuildAgentDeps {
-  model: ChatAnthropic | FakeToolCallingModel;
+  model: BaseChatModel;
   tools: DynamicStructuredTool[];
   logger: Logger;
   extraMiddleware?: ReturnType<typeof createMiddleware>[];

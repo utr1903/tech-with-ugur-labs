@@ -4,6 +4,10 @@ import type { Logger } from "../logger.js";
 
 // One in-memory conversation: the bot serves a single allow-listed chat,
 // so a single history array is the whole session state.
+//
+// This history grows without bound for the life of the process. That's
+// fine for a lab that gets restarted often; a real deployment would trim
+// or summarize old turns instead of keeping every message forever.
 export class GardenChatSession {
   private readonly agent: ReturnType<typeof createAgent>;
   private readonly logger: Logger;

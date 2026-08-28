@@ -1,4 +1,4 @@
-import { DynamicStructuredTool } from "langchain";
+import { DynamicStructuredTool } from "@langchain/core/tools";
 import { z } from "zod";
 import type { GardenSimulator } from "../garden/simulator.js";
 import type { Logger } from "../logger.js";

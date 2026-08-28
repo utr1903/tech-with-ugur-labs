@@ -8,6 +8,7 @@
   },
   "scripts": {
     "start": "tsx src/index.ts",
+    "dev": "tsx --env-file-if-exists=.env src/index.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "lint": "biome check .",
@@ -16,6 +17,7 @@
   },
   "dependencies": {
     "@langchain/anthropic": "1.5.8",
+    "@langchain/core": "1.2.9",
     "grammy": "1.46.0",
     "langchain": "1.5.10",
     "pino": "10.3.1",

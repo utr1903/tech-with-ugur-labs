@@ -24,18 +24,18 @@ network connections at all: it only dials out to Telegram and Anthropic.
 ```
                     ┌──────────────┐
    your phone  ───► │  Telegram    │
-                     │  (cloud)     │
+                    │  (cloud)     │
                     └──────┬───────┘
                            │ long poll (outbound only)
                            ▼
-                 ┌───────────────────────────────────────────┐
-                 │ container                                  │
+                 ┌─────────────────────────────────────────────┐
+                 │ container                                   │
                  │                                             │
                  │  grammY ──► agent ──► 4 tools ──► garden    │
                  │               │                  simulator  │
                  │               │                             │
                  └───────────────┼─────────────────────────────┘
-                                  ▼
+                                 ▼
                           Anthropic API
 ```
 
@@ -142,9 +142,15 @@ real hardware.
 
 ## Development without Docker
 
+Compose passes `.env` to the container for you; outside Docker nothing
+loads it automatically, so `npm start` alone will fail on missing config.
+Use `npm run dev` instead — it runs the app with Node's
+`--env-file-if-exists=.env` flag (Node 22+), which loads `.env` before
+`src/index.ts` runs:
+
 ```bash
 npm install
-npm start
+npm run dev
 npm test
 npm run lint
 npm run knip
