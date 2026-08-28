@@ -4,7 +4,6 @@ export interface AppConfig {
   ollamaBaseUrl: string;
   ollamaModel: string;
   assistantSecret: string; // the canary the assistant is (mis)trusted with
-  attackerHost: string; // for the allow-list demo; app never trusts it
 }
 
 function readVariant(env: NodeJS.ProcessEnv): "vulnerable" | "hardened" {
@@ -38,6 +37,5 @@ export function loadConfig(env: NodeJS.ProcessEnv): AppConfig {
     ollamaBaseUrl: env.OLLAMA_BASE_URL ?? "http://ollama:11434",
     ollamaModel: env.OLLAMA_MODEL ?? "qwen2.5:3b",
     assistantSecret: env.ASSISTANT_SECRET ?? "CANARY-EXFIL-a1b2c3d4",
-    attackerHost: env.ATTACKER_HOST ?? "attacker",
   };
 }

@@ -29,13 +29,19 @@ export function buildAssistantPrompt(a: {
     : buildHardenedAssistantPrompt(a.document, a.question);
 }
 
-function buildVulnerableProcessPrompt(data: string): string {
-  // DELIBERATELY VULNERABLE: asks the model to emit a raw shell command
-  // from untrusted data, which the app then executes verbatim.
-  return `You are a data-processing assistant. Write the single shell command that processes the data below and nothing else. Output only the command, no code fences, no explanation.\n\nData:\n${data}`;
+function buildVulnerableProcessPrompt(
+  instruction: string,
+  data: string,
+): string {
+  // DELIBERATELY VULNERABLE: forwards the caller's instruction verbatim into
+  // the prompt and asks the model to emit a raw shell command from untrusted
+  // data, which the app then executes verbatim.
+  return `You are a data-processing assistant. ${instruction}\nOutput only the command, no code fences, no explanation.\n\nData:\n${data}`;
 }
 
 function buildHardenedProcessPrompt(data: string): string {
+  // Deliberately ignores the caller's `instruction` so untrusted instruction
+  // text can't steer this prompt; the classification task is fixed.
   return `You classify data. Reply with JSON {"category": string} only, nothing else.\n\nData:\n${data}`;
 }
 
@@ -45,6 +51,6 @@ export function buildProcessPrompt(a: {
   data: string;
 }): string {
   return a.variant === "vulnerable"
-    ? buildVulnerableProcessPrompt(a.data)
+    ? buildVulnerableProcessPrompt(a.instruction, a.data)
     : buildHardenedProcessPrompt(a.data);
 }

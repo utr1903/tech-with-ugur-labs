@@ -5,6 +5,7 @@ import {
   postProcess,
   readEvidence,
   sleep,
+  truncateEvidence,
   waitForHealth,
 } from "../src/client.js";
 import {
@@ -28,6 +29,11 @@ const SHELL_POLL_TIMEOUT_MS = 5_000;
 const SHELL_POLL_INTERVAL_MS = 250;
 
 beforeAll(async () => {
+  // Evidence lives on a persistent volume across `make e2e` runs; truncate it
+  // first so a stale canary from a previous run can't make this run pass
+  // without the exploit actually firing again.
+  truncateEvidence(HTTP_LOG);
+  truncateEvidence(SHELL_LOG);
   await waitForHealth(VULN_URL);
   await waitForHealth(HARD_URL);
 }, TEST_TIMEOUT_MS);

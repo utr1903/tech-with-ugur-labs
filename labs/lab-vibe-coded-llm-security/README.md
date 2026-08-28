@@ -95,7 +95,6 @@ The app reads these environment variables (all injected by
 | `OLLAMA_BASE_URL` | `http://ollama:11434` | local model server |
 | `OLLAMA_MODEL` | `qwen2.5:3b` | pinned model |
 | `ASSISTANT_SECRET` | `CANARY-EXFIL-a1b2c3d4` | the fake canary the assistant is (mis)trusted with |
-| `ATTACKER_HOST` | `attacker` | in-lab sink hostname |
 | `LOG_LEVEL` | `info` | pino level |
 
 ## SAFETY

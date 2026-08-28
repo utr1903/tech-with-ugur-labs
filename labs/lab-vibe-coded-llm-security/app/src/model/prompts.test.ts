@@ -36,28 +36,35 @@ describe("buildAssistantPrompt", () => {
 });
 
 describe("buildProcessPrompt", () => {
-  const instruction = "Summarize the data as a category.";
   const data = "name,age\nalice,30";
 
-  it("vulnerable: asks the model to emit a runnable shell command", () => {
+  it("vulnerable: interpolates the caller's instruction into the prompt", () => {
+    const instruction =
+      "Write the single shell command that processes the data below and nothing else.";
     const prompt = buildProcessPrompt({
       variant: "vulnerable",
       instruction,
       data,
     });
-    expect(prompt).toContain("shell command");
+    expect(prompt).toContain(instruction);
     expect(prompt).toContain(data);
+    expect(prompt).toBe(
+      `You are a data-processing assistant. ${instruction}\nOutput only the command, no code fences, no explanation.\n\nData:\n${data}`,
+    );
   });
 
-  it("hardened: asks only for a constrained JSON classification", () => {
+  it("hardened: ignores the caller's instruction and asks only for a constrained JSON classification", () => {
     const prompt = buildProcessPrompt({
       variant: "hardened",
-      instruction,
+      instruction: "SHOULD-NOT-APPEAR",
       data,
     });
     expect(prompt).toContain("JSON");
     expect(prompt).toContain("category");
-    expect(prompt).not.toContain("shell command");
+    expect(prompt).not.toContain("SHOULD-NOT-APPEAR");
     expect(prompt).toContain(data);
+    expect(prompt).toBe(
+      `You classify data. Reply with JSON {"category": string} only, nothing else.\n\nData:\n${data}`,
+    );
   });
 });

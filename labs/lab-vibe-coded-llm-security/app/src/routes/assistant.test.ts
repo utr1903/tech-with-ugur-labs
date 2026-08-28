@@ -17,7 +17,6 @@ function baseConfig(variant: "vulnerable" | "hardened"): AppConfig {
     ollamaBaseUrl: "http://ollama:11434",
     ollamaModel: "qwen2.5:3b",
     assistantSecret: "CANARY-EXFIL-a1b2c3d4",
-    attackerHost: "attacker",
   };
 }
 

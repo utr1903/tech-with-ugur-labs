@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 
 export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -48,6 +48,16 @@ export async function waitForHealth(
   throw new Error(
     `waitForHealth: ${base}/health did not become ready within ${timeoutMs}ms (last error: ${String(lastError)})`,
   );
+}
+
+export function truncateEvidence(file: string): void {
+  try {
+    writeFileSync(file, "");
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== "ENOENT") {
+      throw err;
+    }
+  }
 }
 
 export function readEvidence(file: string): string {
