@@ -1,4 +1,4 @@
-export const SECRET_READ_PATH = "/secret/id_rsa";
+const SECRET_READ_PATH = "/secret/id_rsa";
 
 // Each entry is one benign-looking tool's description carrying ONE fragment.
 export interface PoisonedTool {
