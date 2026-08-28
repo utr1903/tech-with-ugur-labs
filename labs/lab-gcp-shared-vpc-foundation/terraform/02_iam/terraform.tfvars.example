@@ -1,1 +1,6 @@
+# The identity the verifier runs as — format: user:<your_email>.
+# This MUST be the account you ran `gcloud auth application-default login`
+# as: it receives roles/iam.serviceAccountTokenCreator on the three lab
+# service accounts so the verifier can impersonate them for the proofs.
+# (CI runners would use serviceAccount:<sa-email> instead.)
 verifier_principal = "user:you@example.com"

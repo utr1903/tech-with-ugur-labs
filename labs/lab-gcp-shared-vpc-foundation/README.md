@@ -158,8 +158,18 @@ cp terraform/01_foundation/terraform.tfvars.example terraform/01_foundation/terr
 # edit: org_id, billing_account
 
 cp terraform/02_iam/terraform.tfvars.example terraform/02_iam/terraform.tfvars
-# edit: verifier_principal = "user:<the account you ran gcloud auth application-default login as>"
+# edit: verifier_principal = "user:<your_email>"
 ```
+
+`verifier_principal` is the identity the verifier runs as. Set it to
+`user:<your_email>`, where the email is **the account you ran
+`gcloud auth application-default login` as** — the IAM stage grants that
+principal `roles/iam.serviceAccountTokenCreator` on the three lab service
+accounts, which is what lets the verifier impersonate them for the proofs.
+The `user:` prefix is required (it's an IAM member string; a CI runner
+would use `serviceAccount:<sa-email>` instead). If the value doesn't match
+your Application Default Credentials, every proof fails at the
+impersonation step with `PERMISSION_DENIED` before testing anything real.
 
 No other stage takes a tfvars file — `03_network` through `06_workloads`
 read everything they need from the earlier stages' Terraform outputs.
