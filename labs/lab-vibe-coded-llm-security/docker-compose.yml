@@ -1,0 +1,112 @@
+# One offline lab network. The attack path (apps, attacker, runner) sits on an
+# `internal` network with no route to the internet — nothing can phone home to a
+# real destination. Only `ollama` is also attached to `egress`, and only so it
+# can pull the model once. No service publishes a port to the host.
+services:
+  # Local model server. Offline after the one-time pull; no API keys.
+  ollama:
+    image: ollama/ollama:0.33.1
+    networks: [lab_net, egress]
+    volumes:
+      - ollama_models:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 3s
+      timeout: 5s
+      retries: 40
+
+  # One-shot: pull the pinned model, then exit 0. Everything else waits on it.
+  model-init:
+    image: ollama/ollama:0.33.1
+    depends_on:
+      ollama:
+        condition: service_healthy
+    networks: [lab_net]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    entrypoint: ["ollama", "pull", "qwen2.5:3b"]
+    restart: "no"
+
+  # The vibe-coded app, naive build: secret in context, auto-fetches model URLs,
+  # executes model-generated commands.
+  app-vulnerable:
+    build: ./app
+    environment:
+      APP_VARIANT: vulnerable
+      PORT: "3000"
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: qwen2.5:3b
+      ASSISTANT_SECRET: CANARY-EXFIL-a1b2c3d4
+      ATTACKER_HOST: attacker
+    depends_on:
+      model-init:
+        condition: service_completed_successfully
+    networks: [lab_net]
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 3s
+      timeout: 5s
+      retries: 40
+
+  # The same app, fixed: no secret in context, default-deny egress, no exec sink.
+  app-hardened:
+    build: ./app
+    environment:
+      APP_VARIANT: hardened
+      PORT: "3000"
+      OLLAMA_BASE_URL: http://ollama:11434
+      OLLAMA_MODEL: qwen2.5:3b
+      ASSISTANT_SECRET: CANARY-EXFIL-a1b2c3d4
+      ATTACKER_HOST: attacker
+    depends_on:
+      model-init:
+        condition: service_completed_successfully
+    networks: [lab_net]
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://localhost:3000/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
+      interval: 3s
+      timeout: 5s
+      retries: 40
+
+  # The attacker's sink: HTTP exfil collector (9000) + reverse-shell listener
+  # (9001). Reachable only on lab_net, no published ports. Writes evidence.
+  attacker:
+    build: ./attacker
+    volumes:
+      - evidence:/evidence
+    networks: [lab_net]
+
+  # Runs the four attacks and asserts on the evidence. Started on demand
+  # (`docker compose run --rm runner` or `make e2e`), not by `docker compose up`.
+  runner:
+    build: ./runner
+    profiles: [runners]
+    environment:
+      VULN_URL: http://app-vulnerable:3000
+      HARD_URL: http://app-hardened:3000
+      EVIDENCE_DIR: /evidence
+    volumes:
+      - evidence:/evidence
+    depends_on:
+      app-vulnerable:
+        condition: service_healthy
+      app-hardened:
+        condition: service_healthy
+    networks: [lab_net]
+
+networks:
+  lab_net:
+    internal: true
+  egress: {}
+
+volumes:
+  ollama_models: {}
+  evidence: {}
