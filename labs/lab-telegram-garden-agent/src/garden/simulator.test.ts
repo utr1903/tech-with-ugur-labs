@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { GardenSimulator, MOISTURE_PERCENT_PER_ML } from "./simulator.js";
 
-describe("GardenSimulator", () => {
+describe("GardenSimulator readings", () => {
   it("lists exactly four plants with IDs 1-4", () => {
     const garden = new GardenSimulator({ seed: 42 });
     const plants = garden.listPlants();
@@ -46,6 +46,15 @@ describe("GardenSimulator", () => {
     }
   });
 
+  it("throws RangeError for unknown plant IDs", () => {
+    const garden = new GardenSimulator({ seed: 42 });
+    expect(() => garden.measureTemperature(9)).toThrow(RangeError);
+    expect(() => garden.measureHumidity(0)).toThrow(RangeError);
+    expect(() => garden.putWater(5, 10)).toThrow(RangeError);
+  });
+});
+
+describe("GardenSimulator watering", () => {
   it("raises moisture by exactly amountMl * MOISTURE_PERCENT_PER_ML", () => {
     const garden = new GardenSimulator({ seed: 42 });
     const before = garden.getMoisturePercent(2);
@@ -64,12 +73,5 @@ describe("GardenSimulator", () => {
     const garden = new GardenSimulator({ seed: 42 });
     garden.putWater(1, 100000);
     expect(garden.getMoisturePercent(1)).toBe(100);
-  });
-
-  it("throws RangeError for unknown plant IDs", () => {
-    const garden = new GardenSimulator({ seed: 42 });
-    expect(() => garden.measureTemperature(9)).toThrow(RangeError);
-    expect(() => garden.measureHumidity(0)).toThrow(RangeError);
-    expect(() => garden.putWater(5, 10)).toThrow(RangeError);
   });
 });

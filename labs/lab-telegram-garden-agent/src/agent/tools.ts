@@ -26,14 +26,11 @@ async function runTool(
   }
 }
 
-export function createGardenTools({
-  garden,
-  logger,
-}: {
-  garden: GardenSimulator;
-  logger: Logger;
-}): DynamicStructuredTool[] {
-  const listPlants = new DynamicStructuredTool({
+function createListPlantsTool(
+  garden: GardenSimulator,
+  logger: Logger,
+): DynamicStructuredTool {
+  return new DynamicStructuredTool({
     name: "list_plants",
     description:
       "List every plant in the indoor garden with its numeric ID, name, and " +
@@ -42,8 +39,13 @@ export function createGardenTools({
     schema: z.object({}),
     func: () => runTool(logger, "list_plants", () => garden.listPlants()),
   });
+}
 
-  const measureTemperature = new DynamicStructuredTool({
+function createMeasureTemperatureTool(
+  garden: GardenSimulator,
+  logger: Logger,
+): DynamicStructuredTool {
+  return new DynamicStructuredTool({
     name: "measure_temperature",
     description:
       "Read the current temperature sensor of one plant, in degrees " +
@@ -56,8 +58,13 @@ export function createGardenTools({
         temperatureCelsius: garden.measureTemperature(plantId),
       })),
   });
+}
 
-  const measureHumidity = new DynamicStructuredTool({
+function createMeasureHumidityTool(
+  garden: GardenSimulator,
+  logger: Logger,
+): DynamicStructuredTool {
+  return new DynamicStructuredTool({
     name: "measure_humidity",
     description:
       "Read the current air-humidity sensor of one plant, in percent. Use " +
@@ -70,8 +77,13 @@ export function createGardenTools({
         humidityPercent: garden.measureHumidity(plantId),
       })),
   });
+}
 
-  const putWater = new DynamicStructuredTool({
+function createPutWaterTool(
+  garden: GardenSimulator,
+  logger: Logger,
+): DynamicStructuredTool {
+  return new DynamicStructuredTool({
     name: "put_water",
     description:
       "Water one plant with a given amount of water in milliliters. Use " +
@@ -89,6 +101,19 @@ export function createGardenTools({
     func: ({ plantId, amountMl }) =>
       runTool(logger, "put_water", () => garden.putWater(plantId, amountMl)),
   });
+}
 
-  return [listPlants, measureTemperature, measureHumidity, putWater];
+export function createGardenTools({
+  garden,
+  logger,
+}: {
+  garden: GardenSimulator;
+  logger: Logger;
+}): DynamicStructuredTool[] {
+  return [
+    createListPlantsTool(garden, logger),
+    createMeasureTemperatureTool(garden, logger),
+    createMeasureHumidityTool(garden, logger),
+    createPutWaterTool(garden, logger),
+  ];
 }

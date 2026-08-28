@@ -9,21 +9,21 @@ function silentLogger() {
   return logger;
 }
 
+let garden: GardenSimulator;
+let tools: ReturnType<typeof createGardenTools>;
+
+beforeEach(() => {
+  garden = new GardenSimulator({ seed: 42 });
+  tools = createGardenTools({ garden, logger: silentLogger() });
+});
+
+function toolByName(name: string) {
+  const tool = tools.find((candidate) => candidate.name === name);
+  if (!tool) throw new Error(`missing tool ${name}`);
+  return tool;
+}
+
 describe("createGardenTools", () => {
-  let garden: GardenSimulator;
-  let tools: ReturnType<typeof createGardenTools>;
-
-  beforeEach(() => {
-    garden = new GardenSimulator({ seed: 42 });
-    tools = createGardenTools({ garden, logger: silentLogger() });
-  });
-
-  function toolByName(name: string) {
-    const tool = tools.find((candidate) => candidate.name === name);
-    if (!tool) throw new Error(`missing tool ${name}`);
-    return tool;
-  }
-
   it("exposes exactly the four garden tools", () => {
     expect(tools.map((tool) => tool.name).sort()).toEqual([
       "list_plants",
