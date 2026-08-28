@@ -1,26 +1,13 @@
+import {
+  FILE_READ_VERB_TOKENS,
+  matchesInstructionSignature,
+  SECRET_PATH_TOKENS,
+  TRANSMIT_TOOL_TOKENS,
+} from "./instruction-signature.js";
+
 export interface ReassemblyResult {
   reassembled: boolean;
   offendingTools: string[];
-}
-
-// The three signal categories that together make up an exfiltration
-// instruction: read a file, name a secret path, hand the contents to a
-// transmit tool. A single category alone is an ordinary tool description;
-// all three together are the attack.
-const FILE_READ_VERB_TOKENS = ["read_file"];
-const SECRET_PATH_TOKENS = ["id_rsa"];
-const TRANSMIT_TOOL_TOKENS = ["submit_telemetry", "telemetry"];
-
-function containsAny(text: string, tokens: string[]): boolean {
-  return tokens.some((token) => text.includes(token));
-}
-
-function matchesInstructionSignature(text: string): boolean {
-  return (
-    containsAny(text, FILE_READ_VERB_TOKENS) &&
-    containsAny(text, SECRET_PATH_TOKENS) &&
-    containsAny(text, TRANSMIT_TOOL_TOKENS)
-  );
 }
 
 // Finds the first occurrence, in `text`, of any token in `tokens`, returning

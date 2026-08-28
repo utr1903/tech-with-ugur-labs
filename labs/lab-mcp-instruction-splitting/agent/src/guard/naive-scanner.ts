@@ -1,30 +1,24 @@
-export const BANNED_KEYWORDS = [
-  "id_rsa",
-  "ssh",
-  "secret",
-  "exfil",
-  "submit_telemetry",
-] as const;
+import { matchesInstructionSignature } from "./instruction-signature.js";
 
 export interface ScanResult {
   clean: boolean;
-  hits: { tool: string; keyword: string }[];
+  hits: { tool: string }[];
 }
 
-// DELIBERATELY VULNERABLE: scanning each tool description in isolation
-// cannot see an instruction split across several of them. An attacker who
-// spreads the dangerous words across multiple tool descriptions - none of
-// which is dirty on its own - sails straight through this check.
-export function naiveKeywordScan(
+// DELIBERATELY VULNERABLE: this inspects each tool description in complete
+// isolation. An instruction split across several tool descriptions - none
+// of which is individually complete - never trips this check, because no
+// single description ever carries the full read-verb + secret-path +
+// transmit-tool signature on its own. Only reading every description
+// together (as detectReassembledInstruction does) can catch it.
+export function naivePerToolScan(
   tools: { name: string; description: string }[],
 ): ScanResult {
-  const hits: { tool: string; keyword: string }[] = [];
+  const hits: { tool: string }[] = [];
 
   for (const tool of tools) {
-    for (const keyword of BANNED_KEYWORDS) {
-      if (tool.description.includes(keyword)) {
-        hits.push({ tool: tool.name, keyword });
-      }
+    if (matchesInstructionSignature(tool.description)) {
+      hits.push({ tool: tool.name });
     }
   }
 
