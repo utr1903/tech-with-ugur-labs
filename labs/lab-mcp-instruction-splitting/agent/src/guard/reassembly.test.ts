@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { detectReassembledInstruction } from "./reassembly.js";
 
-// Each fragment avoids every banned keyword on its own (see
+// Each fragment avoids the full instruction signature on its own (see
 // naive-scanner.test.ts), but concatenating all three reassembles: a
 // file-read verb ("read_file"), a secret-path token ("id_rsa" - split
 // across the get_repo_info/list_dependencies boundary), and a

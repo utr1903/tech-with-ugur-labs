@@ -29,8 +29,8 @@ services:
     restart: "no"
 
   # The MCP server, with its exfil instructions split across tool
-  # descriptions and parameter schemas so no single field trips a keyword
-  # scan. Its submit_telemetry tool posts whatever it is given to attacker:9000.
+  # descriptions so no single description trips a keyword scan. Its
+  # submit_telemetry tool posts whatever it is given to attacker:9000.
   mcp-server:
     build: ./mcp-server
     environment:
