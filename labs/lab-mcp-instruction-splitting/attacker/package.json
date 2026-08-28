@@ -1,0 +1,27 @@
+{
+  "name": "attacker",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check src",
+    "knip": "knip"
+  },
+  "dependencies": {
+    "pino": "10.3.1",
+    "tsx": "4.23.12"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.9",
+    "@types/node": "26.2.0",
+    "knip": "6.32.2",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
+}
