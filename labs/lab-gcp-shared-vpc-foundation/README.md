@@ -34,7 +34,7 @@ organization
 │       │   ├── snet-host        10.10.0.0/24  (host resources, incl. SWP IP)
 │       │   ├── snet-service-a   10.10.1.0/24  (networkUser: sa-service-a, not sa-service-b)
 │       │   ├── snet-service-b   10.10.2.0/24  (networkUser: sa-service-b, not sa-service-a)
-│       │   └── snet-proxy-only  10.10.4.0/23  (REGIONAL_MANAGED_PROXY, for the ALB)
+│       │   └── snet-proxy-only  10.10.4.0/23  (REGIONAL_MANAGED_PROXY, required for the SWP)
 │       ├── Global external ALB + Cloud Armor (edge-allowlist policy)
 │       │   └── hybrid NEGs → VM IPs in the service projects
 │       └── Secure Web Proxy (swp, TCP 443 on the host subnet)
@@ -95,6 +95,152 @@ the test runner (`bun test`) — one fast startup, one lockfile, no separate
 repo's usual Node.js default. Nothing about the proofs depends on a
 Bun-specific API; the choice is purely about keeping a script that spins up
 IAP tunnels and SSHes into two VMs fast to start and simple to run.
+
+## What each stage deploys
+
+### 01_foundation — folders, projects, APIs (`make foundation`)
+
+This is the org-level bedrock: two folders separate the network team's
+scope from the workload teams', three projects get created under those
+folders (one host, two service), and each project's API surface is turned
+on to exactly what it needs. It has to come first because every later
+stage reads this one's outputs for project IDs, and a Shared VPC can't be
+established between projects that don't exist yet.
+
+| Resource | What it's for |
+|---|---|
+| `google_folder` ×2 | Splits the org into a `networking` folder (host project) and a `workloads` folder (both service projects) — the organizational shape the security story sits on top of. |
+| `random_id.suffix` | A 3-byte hex suffix appended to every project ID so a fresh run never collides with a soft-deleted project from a previous one. |
+| `google_project` ×3 | Creates the Shared VPC host project and the two service projects, each with `deletion_policy = "DELETE"` so `make destroy` actually removes them rather than just soft-deleting. |
+| `google_project_service` ×14 | Enables the six APIs the host project needs (compute, IAM, IAM credentials, Network Security, Network Services, Certificate Manager) and the four each service project needs (compute, IAM, IAM credentials, IAP) — nothing later in the lab can call an API that isn't switched on here. |
+
+Exports `host_project_id`, `service_a_project_id`, `service_b_project_id`,
+`service_a_project_number`, and `service_b_project_number` — read by
+every stage from `02_iam` onward.
+
+### 02_iam — service accounts and role bindings (`make iam`)
+
+This stage creates the identities that stand in for "the host team" and
+"each service team," then grants each one only the roles it needs on only
+its own project. It's the actual enforcement behind the lab's central
+claim, not just a diagram label, and it has to land before `03_network`
+because the subnet-level IAM bindings built there name these service
+accounts by email.
+
+| Resource | What it's for |
+|---|---|
+| `google_service_account` ×3 | Creates `sa-host`, `sa-service-a`, `sa-service-b` — one identity per project, later impersonated by the verifier to prove what each project's identity can and cannot do. |
+| `google_project_iam_member` ×6 | Grants the host SA `compute.networkAdmin` and `compute.securityAdmin` on the host project (2 bindings), and grants each service SA `compute.instanceAdmin.v1` and `iam.serviceAccountUser` on its own project only (2 each) — no service SA holds any role on the host project or on the other service project. |
+| `google_service_account_iam_member` ×3 | Grants `var.verifier_principal` `roles/iam.serviceAccountTokenCreator` on all three service accounts, purely so the verifier script can impersonate them for the proofs — this binding is lab tooling, not part of the landing zone pattern itself. |
+
+Exports `host_sa_email`, `service_a_sa_email`, and `service_b_sa_email` —
+consumed by `03_network`'s per-subnet IAM bindings.
+
+### 03_network — Shared VPC, subnets, firewall baseline (`make network`)
+
+This is where the "Shared" in Shared VPC actually happens: the host
+project is turned into a Shared VPC host, the two service projects attach
+to it, and one VPC with its subnets is created — all inside the host
+project, so the network fabric lives in exactly one place no matter how
+many service projects join it. It comes after `01_foundation`/`02_iam`
+(there's nothing to attach yet otherwise) and before every remaining
+stage, which all consume its subnet self-links, its precomputed VM IPs,
+or the default-deny baseline every later firewall rule has to punch a
+hole through.
+
+| Resource | What it's for |
+|---|---|
+| `google_compute_shared_vpc_host_project` | Enables Shared VPC hosting on the host project — the prerequisite for any project to attach as a service project. |
+| `google_compute_shared_vpc_service_project` ×2 | Attaches service-a and service-b to the host's Shared VPC, letting their VMs use host-owned subnets without either project owning any network resources itself. |
+| `google_compute_network` | The single VPC (`svpc`, custom-mode) every subnet, firewall rule, and load balancer resource in the lab attaches to. |
+| `google_compute_subnetwork` ×3 | Regional subnets for host resources, service-a, and service-b (`10.10.0.0/24`, `.1.0/24`, `.2.0/24`) — separate ranges per project so the per-subnet IAM below can scope access precisely. |
+| `google_compute_subnetwork` (proxy-only) | A `REGIONAL_MANAGED_PROXY` range (`10.10.4.0/23`) required by GCP for regional Envoy-based load balancing — that's what the Secure Web Proxy in `05_egress` runs on. The global external ALB built in `04_ingress` uses Google Front Ends instead and never touches this subnet. |
+| `google_compute_subnetwork_iam_member` ×4 | Grants `compute.networkUser` on `snet-service-a` to `sa-service-a` and service-a's Google APIs service agent, and the same on `snet-service-b` to `sa-service-b` and service-b's agent — the mechanism that makes "service-A can't attach a VM to service-B's subnet" actually true. |
+| `google_compute_firewall` ×2 | Default-deny-all in both directions at priority 65534 — the closed state every allow rule added in `04_ingress`/`05_egress` has to explicitly punch a hole through. |
+
+Exports `network_self_link`/`network_id` (read by `04_ingress`'s NEGs and
+firewall, and `05_egress`'s gateway and firewall), `subnet_host_id` (the
+subnet the SWP gateway attaches to in `05_egress`),
+`subnet_service_a_self_link`/`subnet_service_b_self_link`
+(the VMs' NICs in `06_workloads`), and the deterministic
+`vm_ip_a`/`vm_ip_b`/`swp_ip` addresses that `04_ingress`, `05_egress`, and
+`06_workloads` all read before the VMs or the proxy actually exist.
+
+### 04_ingress — global external ALB, Cloud Armor, hybrid NEGs (`make ingress`)
+
+This builds the public front door: hybrid NEGs let a host-owned backend
+service point at IP:port pairs sitting in other projects (see the "Hybrid
+NEGs" design note above), Cloud Armor's default-deny policy attaches to
+those backend services, and a global external ALB — IP, forwarding rule,
+target proxy, URL map — fans `/a` and `/b` out to the two VMs. It needs
+`03_network`'s VPC self-link and precomputed VM IPs, and it applies before
+`06_workloads` in `make deploy` even though nothing here strictly depends
+on a VM existing yet — a `NON_GCP_PRIVATE_IP_PORT` NEG happily registers
+an IP:port pair with nothing listening there, which is exactly what
+happens here until the workloads stage runs.
+
+| Resource | What it's for |
+|---|---|
+| `google_compute_health_check` | One HTTP health check (port 80, path `/`) shared by both backend services. |
+| `google_compute_network_endpoint_group` ×2 | One NEG per service, type `NON_GCP_PRIVATE_IP_PORT`, created in the host project but addressing the workload VMs as bare IP:port endpoints rather than instance references. |
+| `google_compute_network_endpoint` ×2 | Registers each VM's precomputed IP (`10.10.1.10` / `10.10.2.10`) into its NEG on port 80 — what lets the host project route to a service-project VM without owning it. |
+| `google_compute_security_policy` (`edge-allowlist`) | The Cloud Armor policy: a default rule that denies everything with `403` at the lowest possible priority (`2147483647`), plus one dynamic `allow` rule per CIDR in `var.allowlist_cidrs` — closed until the operator explicitly opens it during `make verify`. |
+| `google_compute_backend_service` ×2 | One `EXTERNAL_MANAGED` backend service per VM NEG, each with the Cloud Armor policy attached — the resource Cloud Armor actually enforces on. |
+| `google_compute_url_map` | Routes `/a` and `/a/*` to service-a's backend and `/b` and `/b/*` to service-b's, rewriting the path prefix to `/` on the way, and defaults to service-a. |
+| `google_compute_global_address` | Reserves the load balancer's public IP. |
+| `google_compute_target_http_proxy` | Binds the URL map to plain HTTP on port 80 — this front door is intentionally unencrypted, since the proof here is IP allowlisting, not TLS. |
+| `google_compute_global_forwarding_rule` | Terminates client traffic on the reserved IP, port 80, and hands it to the target proxy — the literal entry point for `client --80--> ALB` in the architecture diagram. |
+| `google_compute_firewall` ×2 | Allows Google's health-check ranges in on port 80 and the IAP TCP-forwarding range in on port 22, both scoped to `target_tags = ["web"]` — the only two ingress holes punched through `03_network`'s default-deny. |
+
+Exports `lb_ip` — not read by a later Terraform stage; it's the address
+`scripts/verify.sh` (and a human with `curl`) uses to reach the workloads.
+
+### 05_egress — Secure Web Proxy and its domain allowlist (`make egress`)
+
+This builds the host-owned egress path: a certificate the proxy is
+required to present even though this lab does no TLS inspection, a
+gateway security policy with one allow rule per permitted domain, and the
+Secure Web Proxy gateway itself, bound to the host subnet's precomputed
+IP. Its Terraform inputs come only from `01_foundation` and `03_network` —
+nothing here reads `04_ingress`'s state, so the two stages could apply in
+either order — but it lands before `06_workloads` in `make deploy` so the
+egress path a VM will try to use already exists before that VM boots.
+
+| Resource | What it's for |
+|---|---|
+| `tls_private_key` (swp) | An RSA keypair generated locally, purely to back the self-signed certificate below. |
+| `tls_self_signed_cert` (swp) | A self-signed certificate for `swp.lab.internal` — the Secure Web Proxy requires a certificate to terminate its listener even though nothing here inspects TLS content; it only enforces which domains are reachable at all. |
+| `google_certificate_manager_certificate` | Uploads that self-signed cert/key pair into Certificate Manager so the gateway resource can reference it by ID. |
+| `google_network_security_gateway_security_policy` | The named policy container the domain-allow rules attach to. |
+| `google_network_security_gateway_security_policy_rule` ×1 (one per entry in `var.allowed_domains`, default: `github.com`) | Each rule matches `host() == '<domain>'` with `basic_profile = "ALLOW"` — any domain not named here has no matching rule, so it's denied. |
+| `google_network_services_gateway` | The Secure Web Proxy itself, type `SECURE_WEB_GATEWAY`, bound to the host subnet's IP on TCP 443, referencing the certificate and security policy above. |
+| `google_compute_firewall` | Allows egress from `web`-tagged VMs to the SWP's IP on port 443 only — the single hole punched through `03_network`'s default-deny-egress; anything not headed to the proxy on 443 is still blocked at the VPC level. |
+
+Exports nothing — this stage terminates the egress chain rather than
+feeding a later one.
+
+### 06_workloads — the VMs the perimeter protects (`make workloads`)
+
+Last on purpose: it needs the subnets and deterministic IPs from
+`03_network`, and it's the stage that finally puts something behind the
+ingress and egress paths built in `04_ingress` and `05_egress` for the
+proofs to exercise. Each VM gets a startup script serving a one-line page
+identifying itself and its project, an SSH keypair for the verifier's IAP
+tunnel, and deliberately nothing else — no attached service account (so
+API-level identity has to come from an impersonated SA, never from the
+instance itself) and no external IP (so the load balancer on 80 or an IAP
+tunnel on 22, both opened explicitly in `04_ingress`, are the only ways
+in).
+
+| Resource | What it's for |
+|---|---|
+| `tls_private_key` (ssh) | An ED25519 keypair used to SSH into both VMs — separate from any of the lab's IAM service accounts. |
+| `local_sensitive_file` | Writes the private half to `terraform/06_workloads/ssh_key` (mode `0600`) so `scripts/verify.sh` can open IAP tunnels with it. |
+| `google_compute_instance` ×2 | One `e2-micro` VM per service project, attached to that project's own subnet at its precomputed IP, tagged `web` so the firewall rules from `04_ingress`/`05_egress` apply, with no service account and no external IP; a startup script installs a systemd unit serving a one-line web page on port 80. |
+
+Exports `vm_name_a`, `vm_name_b`, and `vm_zone` — read by
+`scripts/verify.sh`, not by a later Terraform stage, to target the IAP SSH
+tunnels used in the subnet-borrowing and egress proofs.
 
 ## Prerequisites
 
