@@ -98,6 +98,19 @@ Then, from your phone, message your bot:
 - "How warm is plant 3?"
 - "Give plant 2 150 ml of water"
 
+Here's a real session against the four simulated plants:
+
+![Telegram chat with the garden bot: asking for the temperature lists all
+four plants, then reads 21.4°C for the basil and 60% humidity; two watering
+requests move the chili to 65% and the fern to 45% soil moisture; a final
+"how are my plants?" returns a full status table for all
+four.](images/telegram-chat.png)
+
+Note how "what about humidity?" carries over the plant from the previous
+turn, and how "water plant 4 50ml" reaches the same tool as the more formal
+"Water plant3" — the model resolves both to a `putWater` call, so you never
+have to remember a command syntax.
+
 Messages from any chat other than the one in `TELEGRAM_ALLOWED_CHAT_ID` get
 a fixed refusal reply instead of reaching the agent.
 
@@ -129,6 +142,55 @@ The Pi path isn't covered by the automated verification above — it's an
 extension, not a requirement, for anyone who wants to see this running on
 real hardware.
 
+## Clean up when you're done
+
+This lab leaves three live things behind: a container, a Telegram bot that
+anyone can find by name, and an API key that bills you. None of them expire
+on their own — tear them down when you're finished.
+
+**1. Stop the container.**
+
+```bash
+docker compose down
+```
+
+**2. Delete the bot.** Message [@BotFather](https://t.me/BotFather), send
+`/mybots`, pick your bot, then **Delete Bot**. BotFather asks you to send the
+bot's username back and then confirm — it deliberately makes this hard to do
+by accident. Deleting revokes the token at the same time, so anyone holding a
+copy of it loses access immediately.
+
+If you'd rather keep the bot and only rotate its credentials — say you pasted
+the token somewhere you shouldn't have — send `/revoke` instead. The old token
+stops working and BotFather hands you a new one to put in `.env`.
+
+**3. Delete the Anthropic API key.** Go to
+[console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys)
+and delete the key you created for this lab. If it's a key you use elsewhere,
+leave it alone and just clear it out of this checkout in the next step.
+
+**4. Remove your local `.env`.**
+
+```bash
+rm .env
+```
+
+It's gitignored, so it never left your machine — but it's still a bot token
+and an API key sitting in plaintext in a folder you might zip up, sync, or
+hand to someone later.
+
+### Don't leak the token on the way in
+
+One trap in the setup above: the chat-ID lookup URL,
+`https://api.telegram.org/bot<TOKEN>/getUpdates`, contains your **full bot
+token**. That URL ends up in shell history, and it's exactly the kind of thing
+people paste verbatim into a GitHub issue or a forum post when the lookup
+doesn't work. Redact the token before you share it anywhere. If you've already
+posted one, `/revoke` in BotFather makes it worthless in about ten seconds.
+
+The same goes for screenshots: the chat window is safe to share (it never
+shows the token), but a terminal or browser tab with that URL in it is not.
+
 ## Security notes
 
 - The container makes no inbound connections and publishes no ports —
@@ -138,7 +200,8 @@ real hardware.
   chat that isn't yours gets refused before it reaches the agent or any
   tool.
 - Your bot token and API key live only in the untracked `.env` file,
-  never in the image or in git.
+  never in the image or in git. They stay valid until you revoke them
+  yourself — see [Clean up when you're done](#clean-up-when-youre-done).
 
 ## Development without Docker
 
