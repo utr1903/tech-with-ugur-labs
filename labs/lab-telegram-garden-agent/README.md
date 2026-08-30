@@ -6,6 +6,8 @@ Telegram bot. A LangGraph agent backed by the Anthropic API reads and
 controls four plants over four typed tools. The container makes no inbound
 network connections at all: it only dials out to Telegram and Anthropic.
 
+> Companion post: [Talk to Your Raspberry Pi From Anywhere, Without Opening a Single Port](https://techwithugur.dev/posts/telegram-garden-agent/)
+
 ## What you'll learn
 
 - Running a Telegram bot as a private assistant: a chat-ID allow-list is the
