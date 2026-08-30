@@ -1,0 +1,7 @@
+# One container, outbound HTTPS only (Telegram + Anthropic). No ports are
+# published and none are needed: long polling means the bot dials out.
+services:
+  garden-agent:
+    build: .
+    env_file: .env
+    restart: unless-stopped
