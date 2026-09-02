@@ -45,6 +45,13 @@ export function requestViaProxy(args: {
             bodyPreview: preview.slice(0, PREVIEW_LIMIT),
           });
         });
+        // A stream that fails after the headers arrived - the destination or the
+        // gateway dropping the connection mid-body - is a failed request, not an
+        // unhandled 'error' event that would take the whole workload down.
+        res.on("error", (err: NodeJS.ErrnoException) => {
+          req.destroy();
+          resolve({ ok: false, error: err.code ?? err.message });
+        });
       },
     );
     req.on("timeout", () => req.destroy(new Error("ETIMEDOUT")));

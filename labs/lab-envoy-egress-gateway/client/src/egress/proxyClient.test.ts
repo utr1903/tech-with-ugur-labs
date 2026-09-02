@@ -67,6 +67,27 @@ describe("requestViaProxy", () => {
       expect.stringContaining("egress denied"),
     );
   });
+});
+
+describe("requestViaProxy when the exchange breaks", () => {
+  it("reports a body that stops mid-stream as a failure", async () => {
+    // The write callback fires once the bytes are on the wire, so the client has
+    // its headers and a partial body before the connection is torn out from
+    // under it: the failure arrives on the response stream, not the request.
+    const port = await startFakeProxy((_req, res) => {
+      res.writeHead(200, { "content-length": "1024" });
+      res.write("xxxx", () => res.socket?.destroy());
+    });
+
+    const result = await requestViaProxy({
+      proxyHost: "127.0.0.1",
+      proxyPort: port,
+      url: "http://assets.cdn.example.com/bundle.js",
+      timeoutMs: 2000,
+    });
+
+    expect(result).toMatchObject({ ok: false });
+  });
 
   it("reports an unreachable proxy as a failure with its error code", async () => {
     const result = await requestViaProxy({

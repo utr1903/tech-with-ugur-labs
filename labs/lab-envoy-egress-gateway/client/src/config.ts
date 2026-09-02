@@ -46,6 +46,22 @@ function parseProxy(raw: string): { proxyHost: string; proxyPort: number } {
   return { proxyHost: url.hostname, proxyPort: Number(url.port) };
 }
 
+// The off-list destination is requested through the gateway exactly like a plan
+// entry is, so it is held to the same standard as one - and, like the proxy url,
+// it is parsed here at startup rather than five seconds into the run.
+function parseDeniedUrl(raw: string): string {
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error(`DENIED_URL must be a url (got "${raw}").`);
+  }
+  if (url.protocol !== "http:") {
+    throw new Error(`DENIED_URL must use plain http (got "${raw}").`);
+  }
+  return raw;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv): ClientConfig {
   return {
     clientName: required(env, "CLIENT_NAME"),
@@ -53,7 +69,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): ClientConfig {
     runSeconds: positiveInt(env, "RUN_SECONDS", 120),
     requestTimeoutMs: positiveInt(env, "REQUEST_TIMEOUT_MS", 10000),
     plan: parsePlan(required(env, "REQUEST_PLAN")),
-    deniedUrl: required(env, "DENIED_URL"),
+    deniedUrl: parseDeniedUrl(required(env, "DENIED_URL")),
     bypassHost: required(env, "BYPASS_HOST"),
     bypassPort: positiveInt(env, "BYPASS_PORT", 8080),
   };

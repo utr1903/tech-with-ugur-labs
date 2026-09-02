@@ -43,4 +43,19 @@ describe("loadConfig", () => {
       loadConfig({ ...baseEnv, HTTP_PROXY: "http://egress-proxy" }),
     ).toThrow(/port/);
   });
+
+  it("rejects a malformed denied url at startup", () => {
+    expect(() => loadConfig({ ...baseEnv, DENIED_URL: "exfil" })).toThrow(
+      /DENIED_URL must be a url/,
+    );
+  });
+
+  it("rejects a denied url that is not plain http", () => {
+    expect(() =>
+      loadConfig({
+        ...baseEnv,
+        DENIED_URL: "https://exfil.example.com/collect",
+      }),
+    ).toThrow(/plain http/);
+  });
 });
