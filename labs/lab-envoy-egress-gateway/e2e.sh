@@ -30,6 +30,12 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Start from zero. This gate reconciles the gateway's cumulative counters against
+# a single run's totals, so a stack left running from a previous `docker compose
+# up` would carry its request counts forward and fail that comparison.
+echo "==> Removing any stack left over from a previous run..."
+docker compose down -v >/dev/null 2>&1 || true
+
 echo "==> Bringing up the workload network, the gateway, the destinations and the dashboard..."
 docker compose up -d --build
 
