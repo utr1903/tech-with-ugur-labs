@@ -1,0 +1,162 @@
+{
+  "uid": "envoy-egress",
+  "title": "Egress gateway",
+  "schemaVersion": 39,
+  "time": { "from": "now-15m", "to": "now" },
+  "refresh": "5s",
+  "panels": [
+    {
+      "type": "stat",
+      "title": "Requests through the gateway",
+      "id": 1,
+      "gridPos": { "h": 4, "w": 6, "x": 0, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+          "expr": "sum(envoy_cluster_upstream_rq_total)"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Bytes received from destinations",
+      "id": 2,
+      "gridPos": { "h": 4, "w": 6, "x": 6, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+          "expr": "sum(envoy_cluster_upstream_cx_rx_bytes_total)"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Distinct destinations",
+      "id": 3,
+      "gridPos": { "h": 4, "w": 6, "x": 12, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+          "expr": "count(count by (envoy_cluster_name) (envoy_cluster_upstream_rq_total))"
+        }
+      ]
+    },
+    {
+      "type": "stat",
+      "title": "Denied egress attempts",
+      "id": 4,
+      "gridPos": { "h": 4, "w": 6, "x": 18, "y": 0 },
+      "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+          "expr": "sum(envoy_http_downstream_rq_xx{envoy_http_conn_manager_prefix=\"egress\",envoy_response_code_class=\"4\"})"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests per second by destination",
+      "id": 5,
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "reqps" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+          "expr": "sum by (envoy_cluster_name) (rate(envoy_cluster_upstream_rq_total[1m]))",
+          "legendFormat": "{{envoy_cluster_name}}"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Bytes per second by destination",
+      "id": 6,
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 4 },
+      "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "Bps" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+          "expr": "sum by (envoy_cluster_name) (rate(envoy_cluster_upstream_cx_rx_bytes_total[1m]))",
+          "legendFormat": "{{envoy_cluster_name}} in"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+          "expr": "sum by (envoy_cluster_name) (rate(envoy_cluster_upstream_cx_tx_bytes_total[1m]))",
+          "legendFormat": "{{envoy_cluster_name}} out"
+        }
+      ]
+    },
+    {
+      "type": "bargauge",
+      "title": "Share of egress volume",
+      "id": 7,
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+          "expr": "sum by (envoy_cluster_name) (envoy_cluster_upstream_cx_rx_bytes_total)",
+          "legendFormat": "{{envoy_cluster_name}}",
+          "instant": true
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Response body size by destination (p50 / p95)",
+      "id": 8,
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+          "expr": "histogram_quantile(0.5, sum by (envoy_cluster_name, le) (rate(envoy_cluster_upstream_rs_body_size_bucket[5m])))",
+          "legendFormat": "{{envoy_cluster_name}} p50"
+        },
+        {
+          "refId": "B",
+          "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+          "expr": "histogram_quantile(0.95, sum by (envoy_cluster_name, le) (rate(envoy_cluster_upstream_rs_body_size_bucket[5m])))",
+          "legendFormat": "{{envoy_cluster_name}} p95"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Denied egress attempts over time",
+      "id": 9,
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 12 },
+      "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "datasource": { "type": "prometheus", "uid": "egress-prometheus" },
+          "expr": "sum(rate(envoy_http_downstream_rq_xx{envoy_http_conn_manager_prefix=\"egress\",envoy_response_code_class=\"4\"}[1m]))",
+          "legendFormat": "denied"
+        }
+      ]
+    }
+  ]
+}

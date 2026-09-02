@@ -1,0 +1,127 @@
+# The egress gateway. It is the only container attached to both the workload
+# network and the network the destinations live on, so it is the only path out
+# of the workload subnet - and because every request passes through it, it is
+# also the only place that can count them.
+admin:
+  # Bound to the gateway's ops_net address, not 0.0.0.0: only Prometheus, which
+  # is attached to ops_net, can reach this unauthenticated interface. The
+  # workload network has no route here at all. In production you go one step
+  # further and bind admin to localhost, shipping statistics out through a
+  # stats sink instead.
+  address:
+    socket_address: { address: 10.30.0.10, port_value: 9901 }
+
+stats_config:
+  # Envoy's default histogram buckets are far too coarse to tell a 2 KB API
+  # response apart from a 512 KB telemetry upload. These buckets bracket each of
+  # the three payload archetypes exactly.
+  histogram_bucket_settings:
+    - match:
+        prefix: "cluster."
+      buckets: [512, 1024, 2048, 4096, 8192, 16384, 32768, 65536, 131072, 262144, 524288, 1048576]
+
+static_resources:
+  listeners:
+    - name: egress
+      address:
+        socket_address: { address: 0.0.0.0, port_value: 3128 }
+      filter_chains:
+        - filters:
+            - name: envoy.filters.network.http_connection_manager
+              typed_config:
+                "@type": type.googleapis.com/envoy.extensions.filters.network.http_connection_manager.v3.HttpConnectionManager
+                stat_prefix: egress
+                # The per-request ledger. Aggregate statistics are keyed by
+                # destination and cannot tell you *which workload* made a
+                # request; this can, via the downstream address.
+                access_log:
+                  - name: envoy.access_loggers.stdout
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.access_loggers.stream.v3.StdoutAccessLog
+                      log_format:
+                        json_format:
+                          authority: "%REQ(:AUTHORITY)%"
+                          route_name: "%ROUTE_NAME%"
+                          upstream_cluster: "%UPSTREAM_CLUSTER%"
+                          response_code: "%RESPONSE_CODE%"
+                          bytes_sent: "%BYTES_SENT%"
+                          bytes_received: "%BYTES_RECEIVED%"
+                          duration_ms: "%DURATION%"
+                          downstream: "%DOWNSTREAM_REMOTE_ADDRESS%"
+                route_config:
+                  name: egress_routes
+                  # The allow-list. One virtual host per destination we permit,
+                  # matched on the request's authority. Add a destination by
+                  # adding a virtual host and a cluster - nothing else.
+                  virtual_hosts:
+                    - name: payments
+                      domains: ["api.payments.example.com", "api.payments.example.com:*"]
+                      routes:
+                        - name: payments_route
+                          match: { prefix: "/" }
+                          route: { cluster: payments }
+                    - name: cdn
+                      domains: ["assets.cdn.example.com", "assets.cdn.example.com:*"]
+                      routes:
+                        - name: cdn_route
+                          match: { prefix: "/" }
+                          route: { cluster: cdn }
+                    - name: telemetry
+                      domains: ["telemetry.metrics.example.com", "telemetry.metrics.example.com:*"]
+                      routes:
+                        - name: telemetry_route
+                          match: { prefix: "/" }
+                          route: { cluster: telemetry }
+                    # Default deny. Anything that did not match a virtual host
+                    # above is answered here by the gateway itself and never
+                    # reaches any upstream.
+                    - name: denied
+                      domains: ["*"]
+                      routes:
+                        - name: denied_route
+                          match: { prefix: "/" }
+                          direct_response:
+                            status: 403
+                            body:
+                              inline_string: "egress denied: destination not in allow-list\n"
+                http_filters:
+                  - name: envoy.filters.http.router
+                    typed_config:
+                      "@type": type.googleapis.com/envoy.extensions.filters.http.router.v3.Router
+
+  clusters:
+    # track_cluster_stats.request_response_sizes is what makes Envoy emit the
+    # per-destination request/response body-size histograms.
+    - name: payments
+      type: STRICT_DNS
+      connect_timeout: 2s
+      track_cluster_stats: { request_response_sizes: true }
+      load_assignment:
+        cluster_name: payments
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: api.payments.example.com, port_value: 8080 }
+    - name: cdn
+      type: STRICT_DNS
+      connect_timeout: 2s
+      track_cluster_stats: { request_response_sizes: true }
+      load_assignment:
+        cluster_name: cdn
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: assets.cdn.example.com, port_value: 8080 }
+    - name: telemetry
+      type: STRICT_DNS
+      connect_timeout: 2s
+      track_cluster_stats: { request_response_sizes: true }
+      load_assignment:
+        cluster_name: telemetry
+        endpoints:
+          - lb_endpoints:
+              - endpoint:
+                  address:
+                    socket_address: { address: telemetry.metrics.example.com, port_value: 8080 }

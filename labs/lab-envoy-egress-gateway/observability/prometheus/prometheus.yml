@@ -1,0 +1,11 @@
+global:
+  scrape_interval: 5s
+  evaluation_interval: 5s
+
+scrape_configs:
+  # Envoy's admin interface renders its own statistics in Prometheus exposition
+  # format. There is no exporter and no sidecar: the gateway is the source.
+  - job_name: egress-proxy
+    metrics_path: /stats/prometheus
+    static_configs:
+      - targets: ["egress-proxy:9901"]
