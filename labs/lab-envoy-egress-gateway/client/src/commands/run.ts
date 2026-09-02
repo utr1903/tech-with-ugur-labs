@@ -26,25 +26,6 @@ export async function runEgressWorkload(
   const tally = createTally();
   const inFlight = new Set<Promise<void>>();
 
-  const fetchThroughGateway = (url: string): void => {
-    const task = (async () => {
-      const result = await requestViaProxy({
-        proxyHost: cfg.proxyHost,
-        proxyPort: cfg.proxyPort,
-        url,
-        timeoutMs: cfg.requestTimeoutMs,
-      });
-      if (result.ok && result.status === 200) {
-        recordSuccess(tally, url, result.bytes);
-        return;
-      }
-      recordFailure(tally);
-      logger.warn({ url, result }, "Requesting an allowed destination failed.");
-    })();
-    inFlight.add(task);
-    task.finally(() => inFlight.delete(task));
-  };
-
   logger.info(
     {
       client: cfg.clientName,
@@ -54,7 +35,9 @@ export async function runEgressWorkload(
     "Running the egress workload...",
   );
 
-  const stop = startSchedule(cfg.plan, fetchThroughGateway);
+  const stop = startSchedule(cfg.plan, (url) =>
+    fetchThroughGateway({ cfg, logger, tally, inFlight, url }),
+  );
   const denied = scheduleDeniedAttempt(cfg, logger, tally);
   const bypass = scheduleBypassAttempt(cfg, logger);
 
@@ -75,6 +58,48 @@ export async function runEgressWorkload(
     },
     "Egress run summary.",
   );
+}
+
+// One scheduled request through the gateway, started and left to finish in the
+// background. Only the failures are logged: the scheduled requests are the bulk
+// of a run - one a second for its whole length - and an entry and a success line
+// for each would bury everything else. The per-destination totals in the run
+// summary are where the successful path is accounted for.
+function fetchThroughGateway(args: {
+  cfg: ClientConfig;
+  logger: Logger;
+  tally: Tally;
+  inFlight: Set<Promise<void>>;
+  url: string;
+}): void {
+  const { cfg, logger, tally, inFlight, url } = args;
+  const task = (async () => {
+    try {
+      const result = await requestViaProxy({
+        proxyHost: cfg.proxyHost,
+        proxyPort: cfg.proxyPort,
+        url,
+        timeoutMs: cfg.requestTimeoutMs,
+      });
+      if (result.ok && result.status === 200) {
+        recordSuccess(tally, url, result.bytes);
+        return;
+      }
+      recordFailure(tally);
+      logger.warn(
+        { url, result },
+        "Fetching an allow-listed destination failed.",
+      );
+    } catch (err) {
+      recordFailure(tally);
+      logger.warn({ err, url }, "Fetching an allow-listed destination failed.");
+    }
+  })();
+  inFlight.add(task);
+  // The task swallows its own failures, so neither it nor the promise that
+  // `finally` derives from it can reject - which matters, because nothing awaits
+  // that derived one.
+  task.finally(() => inFlight.delete(task));
 }
 
 // A request through the gateway to a destination that is not on the allow-list.
@@ -103,7 +128,7 @@ async function scheduleDeniedAttempt(
   if (!result.ok) {
     logger.warn(
       { url: cfg.deniedUrl, error: result.error },
-      "Requesting a denied destination failed to reach the gateway.",
+      "Requesting a destination that is not on the allow-list failed.",
     );
     return {
       url: cfg.deniedUrl,
@@ -144,11 +169,19 @@ async function scheduleBypassAttempt(
     port: cfg.bypassPort,
     timeoutMs: cfg.requestTimeoutMs,
   });
-  logger.info(
-    { host: cfg.bypassHost, ...outcome },
-    outcome.blocked
-      ? "Attempting to reach a destination without the gateway failed, as it must."
-      : "Attempting to reach a destination without the gateway SUCCEEDED - the workload network has a route it should not have.",
-  );
-  return { host: cfg.bypassHost, ...outcome };
+  const fields = { host: cfg.bypassHost, ...outcome };
+  if (outcome.blocked) {
+    logger.info(
+      fields,
+      "Attempting to reach a destination without the gateway failed, as it must.",
+    );
+  } else {
+    // The alarming case: the workload got out. It carries the alarm in its
+    // level rather than in its wording.
+    logger.error(
+      fields,
+      "Attempting to reach a destination without the gateway succeeded - the workload network has a route out that it must not have.",
+    );
+  }
+  return fields;
 }
