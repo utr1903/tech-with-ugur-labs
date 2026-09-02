@@ -4,14 +4,6 @@ import type { Logger } from "./logger.js";
 import { createLogger, installGlobalErrorHandlers } from "./logger.js";
 import { createServer } from "./server.js";
 
-const logger = createLogger({ appName: "upstream" });
-installGlobalErrorHandlers(logger);
-
-const cfg = loadConfig(process.env);
-const server = createServer(cfg, logger);
-
-startServer(server, cfg, logger);
-
 function startServer(
   server: ReturnType<typeof createServer>,
   cfg: UpstreamConfig,
@@ -31,3 +23,11 @@ function startServer(
     logger.info(fields, "Starting the destination server succeeded.");
   });
 }
+
+const logger = createLogger({ appName: "upstream" });
+installGlobalErrorHandlers(logger);
+
+const cfg = loadConfig(process.env);
+const server = createServer(cfg, logger);
+
+startServer(server, cfg, logger);
