@@ -128,16 +128,31 @@ check "$([ "$log_hits" = "0" ] && echo true || echo false)" \
   "the bypass attempt left no trace in the gateway's access log" "lines=$log_hits"
 
 # Same claim one layer lower: hand a workload the destination's raw IP address,
-# with no name resolution involved, and it still has no route to it.
+# with no name resolution involved, and it still has no route to it. The address
+# lookup is deliberately not allowed to abort the script: if it fails, that is a
+# failed assertion like any other, not a silent exit under `set -e`.
 direct_ip=$(docker inspect -f '{{ (index .NetworkSettings.Networks (printf "%s_egress_net" (index .Config.Labels "com.docker.compose.project"))).IPAddress }}' \
-  "$(docker compose ps -q upstream-payments)")
-if docker compose run --rm --no-deps -T client-checkout npm run bypass-probe -- "$direct_ip" 8080 > /tmp/egress-bypass-probe.log 2>&1; then
+  "$(docker compose ps -q upstream-payments)" 2>/dev/null) || direct_ip=""
+if [ -z "$direct_ip" ]; then
+  fail "a workload has no route to the destination's IP address (could not read the destination's address off egress_net)"
+elif docker compose run --rm --no-deps -T client-checkout npm run bypass-probe -- "$direct_ip" 8080 > /tmp/egress-bypass-probe.log 2>&1; then
   pass "a workload has no route to the destination's IP address ($direct_ip)"
 else
   fail "a workload has no route to the destination's IP address ($direct_ip)"
   cat /tmp/egress-bypass-probe.log
 fi
 rm -f /tmp/egress-bypass-probe.log
+
+# The admin interface is the meter, and it can do a great deal more than serve
+# statistics. It is bound to the ops network, which the workloads are not on, so
+# the same probe must fail against it too.
+if docker compose run --rm --no-deps -T client-checkout npm run bypass-probe -- 10.30.0.10 9901 > /tmp/egress-admin-probe.log 2>&1; then
+  pass "a workload cannot reach the gateway's admin interface on the ops network"
+else
+  fail "a workload cannot reach the gateway's admin interface on the ops network"
+  cat /tmp/egress-admin-probe.log
+fi
+rm -f /tmp/egress-admin-probe.log
 
 echo
 echo "5. The dashboard is real"

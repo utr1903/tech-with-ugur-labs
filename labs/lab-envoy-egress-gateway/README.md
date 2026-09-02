@@ -69,7 +69,7 @@ Then look at it:
 
 Or, instead of the walkthrough above, run the asserting end-to-end gate — the
 whole thing unattended. It resets to a clean stack first, waits out the full
-run, makes 21 assertions about the claims on this page that can be asserted, and
+run, makes 22 assertions about the claims on this page that can be asserted, and
 tears everything down again when it is finished.
 
 ```bash
@@ -519,10 +519,11 @@ perimeter is all of those layers together; this is the network one.
 **The admin interface is exposed on purpose.** Envoy's admin interface is
 unauthenticated and can do considerably more than serve statistics. This lab
 binds it to `10.30.0.10:9901` on `ops_net` so Prometheus can scrape it: it is
-unreachable from the workload network and unreachable from your host, but it is
-reachable by anything on the ops network. In production you bind admin to
-localhost and ship statistics out through a stats sink instead, so nothing on
-any network can reach it at all.
+unreachable from the workload network — `./e2e.sh` probes it from a workload and
+asserts exactly that — and unreachable from your host, but it is reachable by
+anything on the ops network. In production you bind admin to localhost and ship
+statistics out through a stats sink instead, so nothing on any network can reach
+it at all.
 
 ## Clean up
 
