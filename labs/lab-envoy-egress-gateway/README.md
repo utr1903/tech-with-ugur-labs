@@ -20,6 +20,8 @@ Everything is offline: the "internet" is three mock HTTP servers in containers,
 and every destination is a name under the reserved `example.com` documentation
 domain, so nothing in this lab can resolve to or reach anything real.
 
+> Companion post: [Where is your outbound traffic actually going? Build an Envoy egress gateway that routes and meters every request](https://techwithugur.dev/posts/envoy-egress-gateway/)
+
 ## Contents
 - [Prerequisites](#prerequisites)
 - [Run it](#run-it)
