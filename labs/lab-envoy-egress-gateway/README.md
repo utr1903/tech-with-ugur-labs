@@ -55,7 +55,7 @@ workloads finish — they run for 120 seconds and exit. The gateway, the three
 destinations, Prometheus and Grafana all stay up.
 
 Follow the run. This returns on its own the moment both workloads exit, which
-is the point at which the numbers below are final:
+is the point at which the gateway has counted everything it is going to count:
 
 ```bash
 docker compose logs -f client-checkout client-batch
@@ -96,6 +96,11 @@ have exited:
 RUN_SECONDS=600 docker compose up -d --build
 docker compose logs -f client-checkout client-batch
 ```
+
+That recreates the two workloads and nothing else: `egress-proxy` keeps running,
+carrying the counters and the access log of the run before it. Tear the stack
+down with `docker compose down -v` first if you want the counts further down
+this page to describe a single run.
 
 ## What you should see
 
@@ -206,6 +211,14 @@ The third network, `ops_net`, carries only the observability plane: Envoy's
 admin interface, Prometheus and Grafana. It exists so the gateway's statistics
 can be scraped without ever exposing that interface to the workloads — see
 [the honest limits](#the-honest-limits) for what that costs.
+
+That `10.30.0.0/24` is hardcoded, and if your machine already routes that range
+— a VPN, another Docker network — `docker compose up` stops with `Pool overlaps
+with other one on this address space`. Moving it means moving it everywhere it
+is written down, because all of them have to agree: the subnet and
+`egress-proxy`'s `ipv4_address` in `compose.yaml`, the address its healthcheck
+dials in the same file, the admin listener's bind address in `proxy/envoy.yaml`,
+and the probe in `e2e.sh`.
 
 ### The allow-list is route config
 
@@ -336,7 +349,10 @@ Envoy's admin interface renders its own statistics in Prometheus exposition
 format, so there is no exporter and no sidecar anywhere in this lab: Prometheus
 scrapes the gateway directly, every 5 seconds. Four statistics carry the whole
 story. Run these against Prometheus on the host, once the stack is up and both
-workloads have exited.
+workloads have exited — and give it five more seconds first. The gateway's
+counters are final the moment the workloads stop, but Prometheus only holds what
+it has scraped, so for one more interval its copy is a few requests short of
+theirs.
 
 **How many requests went where.** `envoy_cluster_upstream_rq_total` counts
 requests per cluster, and a cluster is a destination:
