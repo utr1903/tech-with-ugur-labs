@@ -8,9 +8,21 @@ resource "google_storage_bucket" "corpus" {
   depends_on = [google_project_service.storage]
 }
 
-resource "google_storage_bucket_iam_member" "discoveryengine_reader" {
+# The import runs as the Discovery Engine service agent, not as you, and it
+# needs two things on this bucket: to read the corpus and write its own error
+# log (objectAdmin), and to look the bucket up in the first place
+# (legacyBucketReader, which is what carries storage.buckets.get). Grant less
+# than this and the import fails — first by trying to create a staging bucket
+# of its own, then on the bucket lookup.
+resource "google_storage_bucket_iam_member" "discoveryengine_object_admin" {
   bucket = google_storage_bucket.corpus.name
-  role   = "roles/storage.objectViewer"
+  role   = "roles/storage.objectAdmin"
+  member = google_project_service_identity.discoveryengine.member
+}
+
+resource "google_storage_bucket_iam_member" "discoveryengine_bucket_reader" {
+  bucket = google_storage_bucket.corpus.name
+  role   = "roles/storage.legacyBucketReader"
   member = google_project_service_identity.discoveryengine.member
 }
 

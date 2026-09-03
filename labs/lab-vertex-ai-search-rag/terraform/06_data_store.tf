@@ -13,6 +13,15 @@ resource "google_discovery_engine_data_store" "corpus" {
   # The lab is disposable; let terraform destroy really destroy it.
   deletion_policy = "DELETE"
 
+  # The API fills this in for you at creation time. Leave it out of the
+  # configuration and the next plan reads it as drift and wants to replace the
+  # data store — which the API refuses while a search app still points at it.
+  document_processing_config {
+    default_parsing_config {
+      digital_parsing_config {}
+    }
+  }
+
   depends_on = [google_project_service.discoveryengine]
 }
 
