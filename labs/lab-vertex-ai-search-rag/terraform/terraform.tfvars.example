@@ -1,0 +1,7 @@
+# Copy to terraform.tfvars and fill in. terraform.tfvars is gitignored.
+project_id = "your-gcp-project-id"
+
+# Optional overrides:
+# region          = "europe-west1"
+# search_location = "global"
+# resource_prefix = "vertex-search-rag"
