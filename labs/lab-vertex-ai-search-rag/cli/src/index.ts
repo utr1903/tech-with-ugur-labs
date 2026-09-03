@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import { Command } from "commander";
 import { runAsk } from "./commands/ask.js";
 import { runUpload } from "./commands/upload.js";
+import { runVerify } from "./commands/verify.js";
 import { loadConfig } from "./config/config.js";
 import { createLogger, installGlobalErrorHandlers } from "./logger.js";
 
@@ -31,6 +32,13 @@ program
   .description("Ask the search app a question and show its answer, citations and grounding.")
   .action(async (question: string, options: { raw: boolean }) => {
     await runAsk(config, question, options, logger);
+  });
+
+program
+  .command("verify")
+  .description("Prove the answers come from the corpus: facts, citations, grounding, abstention.")
+  .action(async () => {
+    process.exitCode = await runVerify(config, logger);
   });
 
 await program.parseAsync(process.argv);
