@@ -105,8 +105,8 @@ npm run ask -- "What is the Frostvane-7 chunking benchmark?" --raw
 
 A quota note on `npm run verify`: the project-level limit on answer
 generation is **ten calls per minute** (`LlmRequestsPerMinutePerProject`),
-and a full verification run makes about twenty of them — ten positive
-probes, ten control probes, an abstention check and a cross-document check.
+and a full verification run makes 22 answer calls — ten positive
+probes, ten control probes, one abstention check and one cross-document check.
 The CLI backs off and retries automatically when it hits that ceiling
 (`withTransientRetry` in `cli/src/search/answer.ts`), so the run legitimately
 takes a few minutes and pauses partway through. That's expected, not a
@@ -140,24 +140,26 @@ The suite ran 45 checks against the live deployment, all passing. Grouped:
 ## Reading the output
 
 `npm run ask -- "..." --raw` prints the answer text, then this tail (trimmed
-from a real run; the answer body above it ran to about seven paragraphs):
+from a real run; the answer body above it ran to about seven paragraphs).
+The bucket name in these examples is a placeholder — yours will carry your
+own project id:
 
 ```
 grounding score: 0.943
 citations:
-  - gs://vertex-search-rag-master-charmer-506721-h1/corpus/chunking-strategies.md
+  - gs://vertex-search-rag-YOUR-PROJECT/corpus/chunking-strategies.md
 per-claim grounding:
-  - 0.996 from gs://vertex-search-rag-master-charmer-506721-h1/corpus/chunking-strategies.md
-  - 0.988 from gs://vertex-search-rag-master-charmer-506721-h1/corpus/chunking-strategies.md
-  - 0.991 from gs://vertex-search-rag-master-charmer-506721-h1/corpus/chunking-strategies.md
+  - 0.996 from gs://vertex-search-rag-YOUR-PROJECT/corpus/chunking-strategies.md
+  - 0.988 from gs://vertex-search-rag-YOUR-PROJECT/corpus/chunking-strategies.md
+  - 0.991 from gs://vertex-search-rag-YOUR-PROJECT/corpus/chunking-strategies.md
   ...
-  - 0.724 from gs://vertex-search-rag-master-charmer-506721-h1/corpus/chunking-strategies.md
-  - 0.992 from gs://vertex-search-rag-master-charmer-506721-h1/corpus/chunking-strategies.md
+  - 0.724 from gs://vertex-search-rag-YOUR-PROJECT/corpus/chunking-strategies.md
+  - 0.992 from gs://vertex-search-rag-YOUR-PROJECT/corpus/chunking-strategies.md
 
 retrieved chunks:
-  - [0.8999999761581421] gs://vertex-search-rag-master-charmer-506721-h1/corpus/chunking-strategies.md
+  - [0.8999999761581421] gs://vertex-search-rag-YOUR-PROJECT/corpus/chunking-strategies.md
     It's more expensive to compute at ingestion time, since every sentence needs an embedding call, but it produces chunks that map to actual ideas rather than arbitrary token counts. Overlap matters regardless of strategy. Without it, a fact that straddles a chunk boundary — a subject introduced in one
-  - [0.20000000298023224] gs://vertex-search-rag-master-charmer-506721-h1/corpus/chunking-strategies.md
+  - [0.20000000298023224] gs://vertex-search-rag-YOUR-PROJECT/corpus/chunking-strategies.md
     # Chunking Strategies for RAG When you build a retrieval-augmented system, the single decision with the most leverage over answer quality is how you split source documents into chunks. Get chunking wrong and no amount of prompt engineering downstream will save you — the retriever either returns frag
 ```
 
