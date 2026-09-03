@@ -68,7 +68,13 @@ export async function countDocuments(
   try {
     logger.info({ branch }, "Counting indexed documents...");
 
-    const [documents] = await client.listDocuments({ parent: branch, pageSize: 100 });
+    // autoPaginate: false keeps this to the one page we ask for; without it gax
+    // warns and pages through everything anyway. pageSize 100 comfortably covers
+    // this ten-document corpus and headroom for anyone who extends it in one page.
+    const [documents] = await client.listDocuments(
+      { parent: branch, pageSize: 100 },
+      { autoPaginate: false },
+    );
     const count = documents.length;
 
     logger.info({ branch, count }, "Counting indexed documents succeeded.");
@@ -97,7 +103,10 @@ export async function waitForDocuments(
     logger.info({ branch, expected }, "Waiting for indexing...");
 
     for (;;) {
-      const [documents] = await client.listDocuments({ parent: branch, pageSize: 100 });
+      const [documents] = await client.listDocuments(
+        { parent: branch, pageSize: 100 },
+        { autoPaginate: false },
+      );
       if (documents.length >= expected) {
         logger.info({ branch, count: documents.length }, "Waiting for indexing succeeded.");
         return documents.length;
