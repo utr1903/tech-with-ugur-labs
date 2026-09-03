@@ -1,7 +1,8 @@
+import type { GoogleAuth } from "google-auth-library";
 import { describe, expect, it } from "vitest";
 import type { CorpusDocument } from "../corpus/documents.js";
 import type { Logger } from "../logger.js";
-import { type ObjectWriter, uploadCorpus } from "./upload.js";
+import { bucketWriter, type ObjectWriter, uploadCorpus } from "./upload.js";
 
 const DOCS: CorpusDocument[] = [
   { id: "alpha", fileName: "alpha.md", title: "Alpha topic", body: "# Alpha topic\n\nBody.\n" },
@@ -39,5 +40,24 @@ describe("uploadCorpus", () => {
     expect(writes.at(-1)?.[0]).toBe("metadata/documents.jsonl");
     expect(writes.at(-1)?.[1]).toContain("gs://demo-bucket/corpus/alpha.md");
     expect(written).toEqual(["corpus/alpha.md", "metadata/documents.jsonl"]);
+  });
+});
+
+function stubAuth(token: string): GoogleAuth {
+  return { getAccessToken: async () => token } as unknown as GoogleAuth;
+}
+
+describe("bucketWriter", () => {
+  it("throws with the response status when the upload request fails", async () => {
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = (async () => new Response("access denied", { status: 403 })) as typeof fetch;
+
+    try {
+      const writer = bucketWriter(stubAuth("test-token"), "demo-bucket");
+
+      await expect(writer.save("corpus/alpha.md", "body", "text/markdown")).rejects.toThrow(/403/);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 });

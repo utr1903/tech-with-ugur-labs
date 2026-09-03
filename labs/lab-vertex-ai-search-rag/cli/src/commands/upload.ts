@@ -1,4 +1,4 @@
-import { Storage } from "@google-cloud/storage";
+import { GoogleAuth } from "google-auth-library";
 import { branchPath, type LabConfig } from "../config/config.js";
 import { loadCorpus, metadataUri } from "../corpus/documents.js";
 import type { Logger } from "../logger.js";
@@ -11,7 +11,8 @@ const INDEXING_POLL_INTERVAL_MS = 15 * 1000;
 
 export async function runUpload(config: LabConfig, logger: Logger): Promise<void> {
   const docs = await loadCorpus(config.corpusDir);
-  const writer = bucketWriter(new Storage({ projectId: config.projectId }), config.bucket);
+  const auth = new GoogleAuth({ scopes: "https://www.googleapis.com/auth/cloud-platform" });
+  const writer = bucketWriter(auth, config.bucket);
   await uploadCorpus(writer, docs, config.bucket, logger);
 
   const client = documentClient(config);

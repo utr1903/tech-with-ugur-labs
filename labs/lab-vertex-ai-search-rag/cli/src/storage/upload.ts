@@ -1,4 +1,4 @@
-import type { Storage } from "@google-cloud/storage";
+import type { GoogleAuth } from "google-auth-library";
 import {
   buildMetadataJsonl,
   type CorpusDocument,
@@ -11,10 +11,30 @@ export interface ObjectWriter {
   save(objectName: string, contents: string, contentType: string): Promise<void>;
 }
 
-export function bucketWriter(storage: Storage, bucket: string): ObjectWriter {
+/**
+ * The Cloud Storage client library still ships an auth stack built on
+ * node-fetch 2, which breaks on current Node. A single-object upload is one
+ * HTTP POST, so we make it ourselves with the auth the search client already uses.
+ */
+export function bucketWriter(auth: GoogleAuth, bucket: string): ObjectWriter {
   return {
     save: async (objectName, contents, contentType) => {
-      await storage.bucket(bucket).file(objectName).save(contents, { contentType });
+      const token = await auth.getAccessToken();
+      if (token === null || token === undefined) {
+        throw new Error(`No access token available to upload ${objectName} to ${bucket}.`);
+      }
+
+      const url = `https://storage.googleapis.com/upload/storage/v1/b/${bucket}/o?uploadType=media&name=${encodeURIComponent(objectName)}`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { authorization: `Bearer ${token}`, "content-type": contentType },
+        body: contents,
+      });
+      if (!response.ok) {
+        throw new Error(
+          `Uploading ${objectName} to ${bucket} failed: ${response.status} ${await response.text()}`,
+        );
+      }
     },
   };
 }
