@@ -1,9 +1,11 @@
+import type { ConversationalSearchServiceClient } from "@google-cloud/discoveryengine";
 import { branchPath, type LabConfig, servingConfigPath } from "../config/config.js";
 import { type CorpusDocument, corpusUri, loadCorpus } from "../corpus/documents.js";
 import { ABSTENTION_QUESTION, CROSS_DOCUMENT_PROBE, POSITIVE_PROBES } from "../corpus/probes.js";
 import type { Logger } from "../logger.js";
 import { askQuestion } from "../search/answer.js";
 import { conversationalClient, documentClient } from "../search/clients.js";
+import { countDocuments } from "../search/import.js";
 import {
   type Check,
   checkAbstains,
@@ -28,26 +30,34 @@ function uriFor(docs: CorpusDocument[], bucket: string, docId: string): string {
   return corpusUri(bucket, doc);
 }
 
-export async function runVerify(config: LabConfig, logger: Logger): Promise<number> {
-  const docs = await loadCorpus(config.corpusDir);
-  const [indexed] = await documentClient(config).listDocuments({
-    parent: branchPath(config),
-    pageSize: 100,
-  });
-  const client = conversationalClient(config);
-  const servingConfig = servingConfigPath(config);
-  const checks: Check[] = [checkDocumentCount("documents indexed", indexed.length, docs.length)];
-
+/** With retrieval: each probe's fact should come back, cited and grounded. */
+async function checkRetrievalProbes(
+  client: ConversationalSearchServiceClient,
+  servingConfig: string,
+  docs: CorpusDocument[],
+  bucket: string,
+  logger: Logger,
+): Promise<Check[]> {
+  const checks: Check[] = [];
   for (const probe of POSITIVE_PROBES) {
     const result = await askQuestion(client, servingConfig, probe.question, {}, logger);
-    const uri = uriFor(docs, config.bucket, probe.docId);
+    const uri = uriFor(docs, bucket, probe.docId);
     checks.push(
       checkContainsFact(`${probe.docId}: answer carries the invented fact`, result, probe.fact),
       checkCitesOnly(`${probe.docId}: cites its source document`, result, uri),
       checkGrounded(`${probe.docId}: answer is grounded`, result, GROUNDING_THRESHOLD),
     );
   }
+  return checks;
+}
 
+/** The control: with retrieval swapped for an unrelated passage, the fact must not come back. */
+async function checkControlProbes(
+  client: ConversationalSearchServiceClient,
+  servingConfig: string,
+  logger: Logger,
+): Promise<Check[]> {
+  const checks: Check[] = [];
   for (const probe of POSITIVE_PROBES) {
     const result = await askQuestion(
       client,
@@ -60,6 +70,19 @@ export async function runVerify(config: LabConfig, logger: Logger): Promise<numb
       checkOmitsFact(`${probe.docId}: the fact is unknown without retrieval`, result, probe.fact),
     );
   }
+  return checks;
+}
+
+export async function runVerify(config: LabConfig, logger: Logger): Promise<number> {
+  const docs = await loadCorpus(config.corpusDir);
+  const indexedCount = await countDocuments(documentClient(config), branchPath(config), logger);
+  const client = conversationalClient(config);
+  const servingConfig = servingConfigPath(config);
+
+  const checks: Check[] = [checkDocumentCount("documents indexed", indexedCount, docs.length)];
+
+  checks.push(...(await checkRetrievalProbes(client, servingConfig, docs, config.bucket, logger)));
+  checks.push(...(await checkControlProbes(client, servingConfig, logger)));
 
   const abstention = await askQuestion(client, servingConfig, ABSTENTION_QUESTION, {}, logger);
   checks.push(

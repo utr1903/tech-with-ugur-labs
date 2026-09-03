@@ -54,6 +54,25 @@ export async function importCorpus(
   }
 }
 
+export async function countDocuments(
+  client: DocumentServiceClient,
+  branch: string,
+  logger: Logger,
+): Promise<number> {
+  try {
+    logger.info({ branch }, "Counting indexed documents...");
+
+    const [documents] = await client.listDocuments({ parent: branch, pageSize: 100 });
+    const count = documents.length;
+
+    logger.info({ branch, count }, "Counting indexed documents succeeded.");
+    return count;
+  } catch (err) {
+    logger.error({ err, branch }, "Counting indexed documents failed.");
+    throw err;
+  }
+}
+
 /**
  * Import returns as soon as the documents are accepted; they are not queryable
  * until indexing finishes, which takes minutes. Polling here keeps that wait out
