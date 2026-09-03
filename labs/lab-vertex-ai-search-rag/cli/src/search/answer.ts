@@ -1,95 +1,8 @@
 import type { ConversationalSearchServiceClient, protos } from "@google-cloud/discoveryengine";
 import type { Logger } from "../logger.js";
+import { type AnswerResult, shapeAnswer } from "./shape.js";
 
-export interface AnswerChunk {
-  uri: string;
-  title: string;
-  content: string;
-  relevanceScore: number | null;
-}
-
-export interface AnswerSupport {
-  score: number | null;
-  uris: string[];
-}
-
-export interface AnswerResult {
-  text: string;
-  groundingScore: number | null;
-  skippedReasons: string[];
-  citedUris: string[];
-  supports: AnswerSupport[];
-  chunks: AnswerChunk[];
-}
-
-interface RawSource {
-  referenceId?: string | null;
-}
-
-interface RawReference {
-  unstructuredDocumentInfo?: {
-    uri?: string | null;
-    title?: string | null;
-    chunkContents?: Array<{ content?: string | null; relevanceScore?: number | null }> | null;
-  } | null;
-}
-
-interface RawAnswer {
-  answerText?: string | null;
-  groundingScore?: number | null;
-  citations?: Array<{ sources?: RawSource[] | null }> | null;
-  groundingSupports?: Array<{
-    groundingScore?: number | null;
-    sources?: RawSource[] | null;
-  }> | null;
-  references?: RawReference[] | null;
-  answerSkippedReasons?: string[] | null;
-}
-
-function uriOf(references: RawReference[], source: RawSource): string | null {
-  const index = Number(source.referenceId);
-  if (!Number.isInteger(index)) {
-    return null;
-  }
-  return references[index]?.unstructuredDocumentInfo?.uri ?? null;
-}
-
-function urisOf(references: RawReference[], sources: RawSource[] | null | undefined): string[] {
-  return (sources ?? [])
-    .map((source) => uriOf(references, source))
-    .filter((uri): uri is string => uri !== null);
-}
-
-export function shapeAnswer(answer: unknown): AnswerResult {
-  const raw = (answer ?? {}) as RawAnswer;
-  const references = raw.references ?? [];
-
-  const citedUris = [
-    ...new Set((raw.citations ?? []).flatMap((citation) => urisOf(references, citation.sources))),
-  ];
-
-  const chunks = references.flatMap((reference) => {
-    const info = reference.unstructuredDocumentInfo;
-    return (info?.chunkContents ?? []).map((chunk) => ({
-      uri: info?.uri ?? "",
-      title: info?.title ?? "",
-      content: chunk.content ?? "",
-      relevanceScore: chunk.relevanceScore ?? null,
-    }));
-  });
-
-  return {
-    text: raw.answerText ?? "",
-    groundingScore: raw.groundingScore ?? null,
-    skippedReasons: raw.answerSkippedReasons ?? [],
-    citedUris,
-    supports: (raw.groundingSupports ?? []).map((support) => ({
-      score: support.groundingScore ?? null,
-      uris: urisOf(references, support.sources),
-    })),
-    chunks,
-  };
-}
+export type { AnswerResult } from "./shape.js";
 
 /**
  * The control. Instead of letting the app search the corpus, hand the answer
@@ -115,6 +28,53 @@ export function unrelatedSearchSpec(): protos.google.cloud.discoveryengine.v1.An
   };
 }
 
+/** gRPC status code for RESOURCE_EXHAUSTED — what the answer-generation quota reports. */
+export const RESOURCE_EXHAUSTED_CODE = 8;
+/** Total attempts at one answerQuery call, including the first — 3 retries beyond it. */
+export const MAX_ANSWER_ATTEMPTS = 4;
+/** First retry waits this long; each further retry doubles it. */
+export const QUOTA_RETRY_BASE_DELAY_MS = 20_000;
+
+export type DelayFn = (ms: number) => Promise<void>;
+
+const defaultDelay: DelayFn = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export function isResourceExhausted(err: unknown): boolean {
+  return (
+    typeof err === "object" && err !== null && "code" in err && err.code === RESOURCE_EXHAUSTED_CODE
+  );
+}
+
+/**
+ * The per-minute answer-generation quota is well below the ~23 calls a full
+ * verification run makes, so a reader hits RESOURCE_EXHAUSTED on a normal run.
+ * Retries only that specific condition, with exponential backoff; anything
+ * else propagates immediately.
+ */
+export async function withQuotaRetry<T>(
+  call: () => Promise<T>,
+  logger: Logger,
+  delay: DelayFn = defaultDelay,
+): Promise<T> {
+  let attempt = 0;
+  for (;;) {
+    attempt += 1;
+    try {
+      return await call();
+    } catch (err) {
+      if (!isResourceExhausted(err) || attempt >= MAX_ANSWER_ATTEMPTS) {
+        throw err;
+      }
+      const waitMs = QUOTA_RETRY_BASE_DELAY_MS * 2 ** (attempt - 1);
+      logger.warn(
+        { err, attempt, maxAttempts: MAX_ANSWER_ATTEMPTS, waitMs },
+        `Answer quota exceeded, retrying (attempt ${attempt} of ${MAX_ANSWER_ATTEMPTS})...`,
+      );
+      await delay(waitMs);
+    }
+  }
+}
+
 export async function askQuestion(
   client: ConversationalSearchServiceClient,
   servingConfig: string,
@@ -127,19 +87,23 @@ export async function askQuestion(
   try {
     logger.info({ question, withoutRetrieval }, "Asking the search app...");
 
-    const [response] = await client.answerQuery({
-      servingConfig,
-      query: { text: question },
-      groundingSpec: { includeGroundingSupports: true },
-      answerGenerationSpec: {
-        includeCitations: true,
-        ignoreAdversarialQuery: false,
-        ignoreNonAnswerSeekingQuery: false,
-      },
-      searchSpec: withoutRetrieval
-        ? unrelatedSearchSpec()
-        : { searchParams: { maxReturnResults: 10 } },
-    });
+    const [response] = await withQuotaRetry(
+      () =>
+        client.answerQuery({
+          servingConfig,
+          query: { text: question },
+          groundingSpec: { includeGroundingSupports: true },
+          answerGenerationSpec: {
+            includeCitations: true,
+            ignoreAdversarialQuery: false,
+            ignoreNonAnswerSeekingQuery: false,
+          },
+          searchSpec: withoutRetrieval
+            ? unrelatedSearchSpec()
+            : { searchParams: { maxReturnResults: 10 } },
+        }),
+      logger,
+    );
     const result = shapeAnswer(response.answer);
 
     logger.info(

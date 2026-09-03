@@ -1,81 +1,16 @@
-import { describe, expect, it } from "vitest";
-import type { AnswerChunk, AnswerSupport } from "./answer.js";
-import { shapeAnswer, UNRELATED_CONTEXT, unrelatedSearchSpec } from "./answer.js";
+import pino from "pino";
+import { describe, expect, it, vi } from "vitest";
+import {
+  isResourceExhausted,
+  MAX_ANSWER_ATTEMPTS,
+  QUOTA_RETRY_BASE_DELAY_MS,
+  RESOURCE_EXHAUSTED_CODE,
+  UNRELATED_CONTEXT,
+  unrelatedSearchSpec,
+  withQuotaRetry,
+} from "./answer.js";
 
-const ANSWER = {
-  answerText: "Recursive splitting scored 41.8 points.",
-  groundingScore: 0.91,
-  citations: [{ startIndex: "0", endIndex: "38", sources: [{ referenceId: "0" }] }],
-  groundingSupports: [
-    { startIndex: "0", endIndex: "38", groundingScore: 0.88, sources: [{ referenceId: "0" }] },
-  ],
-  references: [
-    {
-      unstructuredDocumentInfo: {
-        uri: "gs://demo-bucket/corpus/chunking-strategies.md",
-        title: "Chunking strategies",
-        chunkContents: [{ content: "…scored 41.8 points…", relevanceScore: 0.77 }],
-      },
-    },
-  ],
-  answerSkippedReasons: ["NO_RELEVANT_CONTENT"],
-};
-
-describe("shapeAnswer", () => {
-  it("keeps the answer text and the aggregate grounding score", () => {
-    const result = shapeAnswer(ANSWER);
-
-    expect(result.text).toBe("Recursive splitting scored 41.8 points.");
-    expect(result.groundingScore).toBe(0.91);
-  });
-
-  it("resolves citations to the source documents they point at", () => {
-    expect(shapeAnswer(ANSWER).citedUris).toEqual([
-      "gs://demo-bucket/corpus/chunking-strategies.md",
-    ]);
-  });
-
-  it("resolves per-claim grounding supports to their sources", () => {
-    const [support] = shapeAnswer(ANSWER).supports;
-    const expected: AnswerSupport = {
-      score: 0.88,
-      uris: ["gs://demo-bucket/corpus/chunking-strategies.md"],
-    };
-
-    expect(support).toEqual(expected);
-  });
-
-  it("exposes the retrieved chunks behind the answer", () => {
-    const [chunk] = shapeAnswer(ANSWER).chunks;
-    const expected: AnswerChunk = {
-      uri: "gs://demo-bucket/corpus/chunking-strategies.md",
-      title: "Chunking strategies",
-      content: "…scored 41.8 points…",
-      relevanceScore: 0.77,
-    };
-
-    expect(chunk).toEqual(expected);
-  });
-
-  it("reports the reasons an answer was skipped", () => {
-    expect(shapeAnswer(ANSWER).skippedReasons).toEqual(["NO_RELEVANT_CONTENT"]);
-  });
-
-  it("survives an answer with nothing in it", () => {
-    const empty = shapeAnswer({});
-
-    expect(empty.text).toBe("");
-    expect(empty.citedUris).toEqual([]);
-    expect(empty.groundingScore).toBeNull();
-    expect(empty.skippedReasons).toEqual([]);
-  });
-
-  it("ignores a citation whose reference does not exist", () => {
-    const result = shapeAnswer({ ...ANSWER, citations: [{ sources: [{ referenceId: "7" }] }] });
-
-    expect(result.citedUris).toEqual([]);
-  });
-});
+const silentLogger = pino({ enabled: false });
 
 describe("unrelatedSearchSpec", () => {
   it("hands the answer generator one irrelevant passage instead of searching the corpus", () => {
@@ -96,5 +31,59 @@ describe("unrelatedSearchSpec", () => {
 
   it("carries a passage that has nothing to do with the corpus", () => {
     expect(UNRELATED_CONTEXT.toLowerCase()).toContain("tomatoes");
+  });
+});
+
+describe("isResourceExhausted", () => {
+  it("recognizes the quota error's gRPC status code", () => {
+    expect(isResourceExhausted({ code: RESOURCE_EXHAUSTED_CODE })).toBe(true);
+  });
+
+  it("rejects any other error shape", () => {
+    expect(isResourceExhausted({ code: 3 })).toBe(false);
+    expect(isResourceExhausted(new Error("boom"))).toBe(false);
+    expect(isResourceExhausted(null)).toBe(false);
+    expect(isResourceExhausted("boom")).toBe(false);
+  });
+});
+
+describe("withQuotaRetry", () => {
+  it("retries a quota error with exponential backoff, then returns the eventual result", async () => {
+    const quotaError = { code: RESOURCE_EXHAUSTED_CODE };
+    const call = vi
+      .fn<() => Promise<string>>()
+      .mockRejectedValueOnce(quotaError)
+      .mockRejectedValueOnce(quotaError)
+      .mockResolvedValueOnce("the answer");
+    const delay = vi.fn<(ms: number) => Promise<void>>().mockResolvedValue(undefined);
+
+    const result = await withQuotaRetry(call, silentLogger, delay);
+
+    expect(result).toBe("the answer");
+    expect(call).toHaveBeenCalledTimes(3);
+    expect(delay.mock.calls).toEqual([
+      [QUOTA_RETRY_BASE_DELAY_MS],
+      [QUOTA_RETRY_BASE_DELAY_MS * 2],
+    ]);
+  });
+
+  it("does not retry an error that is not a quota error", async () => {
+    const otherError = new Error("permission denied");
+    const call = vi.fn<() => Promise<string>>().mockRejectedValue(otherError);
+    const delay = vi.fn<(ms: number) => Promise<void>>().mockResolvedValue(undefined);
+
+    await expect(withQuotaRetry(call, silentLogger, delay)).rejects.toBe(otherError);
+    expect(call).toHaveBeenCalledTimes(1);
+    expect(delay).not.toHaveBeenCalled();
+  });
+
+  it("gives up and rethrows once the quota error persists past the attempt limit", async () => {
+    const quotaError = { code: RESOURCE_EXHAUSTED_CODE };
+    const call = vi.fn<() => Promise<string>>().mockRejectedValue(quotaError);
+    const delay = vi.fn<(ms: number) => Promise<void>>().mockResolvedValue(undefined);
+
+    await expect(withQuotaRetry(call, silentLogger, delay)).rejects.toBe(quotaError);
+    expect(call).toHaveBeenCalledTimes(MAX_ANSWER_ATTEMPTS);
+    expect(delay).toHaveBeenCalledTimes(MAX_ANSWER_ATTEMPTS - 1);
   });
 });
