@@ -49,6 +49,10 @@ export function metadataUri(bucket: string): string {
   return `gs://${bucket}/${METADATA_OBJECT_NAME}`;
 }
 
+export function importErrorPrefix(bucket: string): string {
+  return `gs://${bucket}/import-errors`;
+}
+
 /**
  * The `document` data schema: one JSON line per document, pointing at the real
  * file in Cloud Storage. This is what lets us choose the document ids instead of

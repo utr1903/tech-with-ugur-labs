@@ -1,6 +1,6 @@
 import { GoogleAuth } from "google-auth-library";
 import { branchPath, type LabConfig } from "../config/config.js";
-import { loadCorpus, metadataUri } from "../corpus/documents.js";
+import { importErrorPrefix, loadCorpus, metadataUri } from "../corpus/documents.js";
 import type { Logger } from "../logger.js";
 import { documentClient } from "../search/clients.js";
 import { importCorpus, waitForDocuments } from "../search/import.js";
@@ -17,7 +17,13 @@ export async function runUpload(config: LabConfig, logger: Logger): Promise<void
 
   const client = documentClient(config);
   const branch = branchPath(config);
-  await importCorpus(client, branch, metadataUri(config.bucket), logger);
+  await importCorpus(
+    client,
+    branch,
+    metadataUri(config.bucket),
+    importErrorPrefix(config.bucket),
+    logger,
+  );
   await waitForDocuments(
     client,
     branch,

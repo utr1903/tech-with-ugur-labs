@@ -27,15 +27,21 @@ export async function importCorpus(
   client: DocumentServiceClient,
   branch: string,
   metadataGcsUri: string,
+  errorGcsPrefix: string,
   logger: Logger,
 ): Promise<ImportOutcome> {
   try {
-    logger.info({ branch, metadataGcsUri }, "Importing documents...");
+    logger.info({ branch, metadataGcsUri, errorGcsPrefix }, "Importing documents...");
 
     const [operation] = await client.importDocuments({
       parent: branch,
       gcsSource: { inputUris: [metadataGcsUri], dataSchema: "document" },
       reconciliationMode: "INCREMENTAL",
+      // Without an errorConfig, the service tries to create its own staging
+      // bucket to hold the per-document error log, which needs project-wide
+      // storage.buckets.create rights the service agent should not have.
+      // Pointing it at a prefix in the bucket we already own avoids that.
+      errorConfig: { gcsPrefix: errorGcsPrefix },
     });
     const [, metadata] = await operation.promise();
     const outcome = readImportMetadata(metadata);

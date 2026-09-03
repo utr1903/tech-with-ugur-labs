@@ -2,7 +2,13 @@ import { mkdtemp, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { buildMetadataJsonl, corpusUri, loadCorpus, metadataUri } from "./documents.js";
+import {
+  buildMetadataJsonl,
+  corpusUri,
+  importErrorPrefix,
+  loadCorpus,
+  metadataUri,
+} from "./documents.js";
 
 async function fixtureDir(): Promise<string> {
   const dir = await mkdtemp(join(tmpdir(), "corpus-"));
@@ -42,6 +48,10 @@ describe("import metadata", () => {
       "gs://demo-bucket/corpus/beta.md",
     ]);
     expect(metadataUri("demo-bucket")).toBe("gs://demo-bucket/metadata/documents.jsonl");
+  });
+
+  it("prefixes import error logs under the same bucket", () => {
+    expect(importErrorPrefix("demo-bucket")).toBe("gs://demo-bucket/import-errors");
   });
 
   it("emits one JSON line per document with id, structData and content", async () => {
