@@ -37,8 +37,10 @@ describe("import metadata", () => {
   it("addresses each document by its Cloud Storage URI", async () => {
     const docs = await loadCorpus(await fixtureDir());
 
-    // biome-ignore lint/style/noNonNullAssertion: fixtureDir always writes alpha.md first alphabetically
-    expect(corpusUri("demo-bucket", docs[0]!)).toBe("gs://demo-bucket/corpus/alpha.md");
+    expect(docs.map((doc) => corpusUri("demo-bucket", doc))).toEqual([
+      "gs://demo-bucket/corpus/alpha.md",
+      "gs://demo-bucket/corpus/beta.md",
+    ]);
     expect(metadataUri("demo-bucket")).toBe("gs://demo-bucket/metadata/documents.jsonl");
   });
 
@@ -48,11 +50,17 @@ describe("import metadata", () => {
     const lines = buildMetadataJsonl(docs, "demo-bucket").trimEnd().split("\n");
 
     expect(lines).toHaveLength(2);
-    // biome-ignore lint/style/noNonNullAssertion: length just asserted to be 2, so index 0 exists
-    expect(JSON.parse(lines[0]!)).toEqual({
-      id: "alpha",
-      structData: { docId: "alpha", title: "Alpha topic" },
-      content: { mimeType: "text/markdown", uri: "gs://demo-bucket/corpus/alpha.md" },
-    });
+    expect(lines.map((line) => JSON.parse(line))).toEqual([
+      {
+        id: "alpha",
+        structData: { docId: "alpha", title: "Alpha topic" },
+        content: { mimeType: "text/markdown", uri: "gs://demo-bucket/corpus/alpha.md" },
+      },
+      {
+        id: "beta",
+        structData: { docId: "beta", title: "Beta topic" },
+        content: { mimeType: "text/markdown", uri: "gs://demo-bucket/corpus/beta.md" },
+      },
+    ]);
   });
 });
