@@ -100,6 +100,11 @@ npm run verify                     # the proof — a few minutes, see below
 npm run ask -- "What is the Frostvane-7 chunking benchmark?" --raw
 ```
 
+If this is not your first deploy in this project, set a fresh
+`resource_prefix` in `terraform.tfvars` first — a data store ID from a
+previous destroy is not immediately reusable (see
+[Tear it down](#tear-it-down)).
+
 `deploy_cloud.sh` writes `cli/.env` for you (see `terraform/08_cli_env.tf`)
 — there's nothing to copy by hand between Terraform and the CLI.
 
@@ -201,6 +206,24 @@ gcloud alpha discoveryengine data-stores list --project <your-project-id> --loca
 Neither should list anything from this lab. This step isn't optional —
 until you run it, the data store and search app keep existing (and keep
 costing you money, even if not much) in your project.
+
+Destroy is asynchronous: Terraform's `destroy` command returns as soon as
+the deletion is *accepted*, not once it's finished. Google keeps the data
+store ID reserved server-side for up to a couple of hours afterward. If you
+redeploy into the same project with the same `resource_prefix` before that
+window ends, `terraform apply` fails with:
+
+```
+Error: Error creating DataStore: googleapi: Error 400: DataStore projects/…/locations/global/collections/
+default_collection/dataStores/vertex-search-rag-datastore is being deleted, please wait for deletion to
+complete before recreating with the same ID. The deletion could take a couple of hours.
+```
+
+Two ways forward: wait out the reservation and redeploy with the same
+settings, or set `resource_prefix` in `terraform.tfvars` to a new value
+(it's already there in `terraform.tfvars.example`) — that changes the
+bucket, data store and search app names together, so the redeploy doesn't
+collide with anything still being deleted.
 
 ## What is deliberately missing
 
