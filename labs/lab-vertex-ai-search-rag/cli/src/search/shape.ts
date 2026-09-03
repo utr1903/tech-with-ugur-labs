@@ -103,6 +103,13 @@ function referenceChunks(reference: RawReference): AnswerChunk[] {
 }
 
 function uriOf(references: RawReference[], source: RawSource): string | null {
+  if (
+    source.referenceId === undefined ||
+    source.referenceId === null ||
+    source.referenceId === ""
+  ) {
+    return null;
+  }
   const index = Number(source.referenceId);
   if (!Number.isInteger(index)) {
     return null;

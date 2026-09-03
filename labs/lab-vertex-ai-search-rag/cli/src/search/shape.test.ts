@@ -111,6 +111,23 @@ describe("shapeAnswer", () => {
     expect(result.citedUris).toEqual([]);
   });
 
+  it("resolves an empty referenceId to no URI instead of the first reference", () => {
+    const result = shapeAnswer({ ...ANSWER, citations: [{ sources: [{ referenceId: "" }] }] });
+
+    expect(result.citedUris).toEqual([]);
+  });
+
+  it("skips a reference with neither unstructuredDocumentInfo nor chunkInfo", () => {
+    const result = shapeAnswer({
+      ...ANSWER,
+      references: [{}],
+      citations: [{ sources: [{ referenceId: "0" }] }],
+    });
+
+    expect(result.citedUris).toEqual([]);
+    expect(result.chunks).toEqual([]);
+  });
+
   it("resolves a citation through a chunkInfo reference's documentMetadata", () => {
     expect(shapeAnswer(CHUNK_INFO_ANSWER).citedUris).toEqual([
       "gs://demo-bucket/corpus/chunking-strategies.md",

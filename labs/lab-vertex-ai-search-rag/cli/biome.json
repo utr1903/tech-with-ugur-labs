@@ -12,10 +12,7 @@
   "linter": {
     "enabled": true,
     "rules": {
-      "recommended": true,
-      "complexity": {
-        "recommended": true
-      }
+      "preset": "recommended"
     }
   }
 }

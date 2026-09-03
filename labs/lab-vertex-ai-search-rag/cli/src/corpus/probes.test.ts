@@ -33,6 +33,12 @@ describe("the probe set", () => {
     }
   });
 
+  it("never echoes the fact back inside its own question", () => {
+    for (const probe of POSITIVE_PROBES) {
+      expect(probe.question, probe.docId).not.toContain(probe.fact);
+    }
+  });
+
   it("asks the abstention question about something absent from the corpus", async () => {
     const docs = await loadCorpus(CORPUS_DIR);
 

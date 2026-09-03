@@ -43,6 +43,24 @@ describe("fact checks", () => {
     );
     expect(checkOmitsFact("control", answer(), "41.8 points").passed).toBe(false);
   });
+
+  it("records the skip reasons and what text did come back, so a pass shows why", () => {
+    const skipped = checkOmitsFact(
+      "control",
+      answer({ text: "", skippedReasons: ["NO_RELEVANT_CONTENT"] }),
+      "41.8 points",
+    );
+    expect(skipped.detail).toContain("NO_RELEVANT_CONTENT");
+    expect(skipped.detail).toContain("(empty answer)");
+
+    const answered = checkOmitsFact(
+      "control",
+      answer({ text: "I don't have that figure.", skippedReasons: [] }),
+      "41.8 points",
+    );
+    expect(answered.detail).toContain("skipped: []");
+    expect(answered.detail).toContain("I don't have that figure.");
+  });
 });
 
 describe("citation checks", () => {

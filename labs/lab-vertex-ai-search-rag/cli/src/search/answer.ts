@@ -67,7 +67,7 @@ function retryReason(err: unknown): string {
 }
 
 /**
- * The per-minute answer-generation quota is well below the ~23 calls a full
+ * The per-minute answer-generation quota is well below the 22 calls a full
  * verification run makes, and the occasional answer call runs past a normal
  * deadline. Retries only those two specific conditions, with exponential
  * backoff; anything else propagates on the first failure.

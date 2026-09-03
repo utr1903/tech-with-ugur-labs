@@ -24,7 +24,7 @@ answer had to come from retrieval. There's nowhere else it could have come
 from.
 
 The lab's verification suite runs that logic as an automated check: ten
-positive probes (the canary number comes back, cited, grounded), ten control
+positive probes (the invented number comes back, cited, grounded), ten control
 probes (the same questions asked with retrieval disabled — the number does
 not come back), an abstention probe (a question about something the corpus
 doesn't cover), and a cross-document probe (a question that can only be
@@ -132,8 +132,10 @@ The suite ran 45 checks against the live deployment, all passing. Grouped:
 - **Control probes** (10 checks): the same ten questions, but with
   retrieval replaced by one irrelevant passage about tomatoes (see
   `UNRELATED_CONTEXT` in `cli/src/search/answer.ts`). None of the invented
-  numbers came back — confirming the model isn't guessing or recalling
-  them from pretraining.
+  numbers came back. That shows the number doesn't come back when the
+  corpus isn't retrieved — it doesn't by itself prove anything about
+  whether the model has the number memorized, since an app that abstains
+  or refuses under the control also passes this check.
 - **Abstention** (1 check): a question about Kubernetes pod disruption
   budgets, which the corpus never mentions. The app abstained rather than
   hallucinating an answer — the observed response carried
@@ -152,19 +154,19 @@ own project id:
 ```
 grounding score: 0.943
 citations:
-  - gs://vertex-search-rag-YOUR-PROJECT/corpus/chunking-strategies.md
+  - gs://vertex-search-rag-your-gcp-project-id/corpus/chunking-strategies.md
 per-claim grounding:
-  - 0.996 from gs://vertex-search-rag-YOUR-PROJECT/corpus/chunking-strategies.md
-  - 0.988 from gs://vertex-search-rag-YOUR-PROJECT/corpus/chunking-strategies.md
-  - 0.991 from gs://vertex-search-rag-YOUR-PROJECT/corpus/chunking-strategies.md
+  - 0.996 from gs://vertex-search-rag-your-gcp-project-id/corpus/chunking-strategies.md
+  - 0.988 from gs://vertex-search-rag-your-gcp-project-id/corpus/chunking-strategies.md
+  - 0.991 from gs://vertex-search-rag-your-gcp-project-id/corpus/chunking-strategies.md
   ...
-  - 0.724 from gs://vertex-search-rag-YOUR-PROJECT/corpus/chunking-strategies.md
-  - 0.992 from gs://vertex-search-rag-YOUR-PROJECT/corpus/chunking-strategies.md
+  - 0.724 from gs://vertex-search-rag-your-gcp-project-id/corpus/chunking-strategies.md
+  - 0.992 from gs://vertex-search-rag-your-gcp-project-id/corpus/chunking-strategies.md
 
 retrieved chunks:
-  - [0.8999999761581421] gs://vertex-search-rag-YOUR-PROJECT/corpus/chunking-strategies.md
+  - [0.8999999761581421] gs://vertex-search-rag-your-gcp-project-id/corpus/chunking-strategies.md
     It's more expensive to compute at ingestion time, since every sentence needs an embedding call, but it produces chunks that map to actual ideas rather than arbitrary token counts. Overlap matters regardless of strategy. Without it, a fact that straddles a chunk boundary — a subject introduced in one
-  - [0.20000000298023224] gs://vertex-search-rag-YOUR-PROJECT/corpus/chunking-strategies.md
+  - [0.20000000298023224] gs://vertex-search-rag-your-gcp-project-id/corpus/chunking-strategies.md
     # Chunking Strategies for RAG When you build a retrieval-augmented system, the single decision with the most leverage over answer quality is how you split source documents into chunks. Get chunking wrong and no amount of prompt engineering downstream will save you — the retriever either returns frag
 ```
 
@@ -181,9 +183,9 @@ retrieved chunks:
   where you'd find it.
 - **`--raw` adds `retrieved chunks`**: the actual passages the app pulled
   from the data store before generating the answer, each with its own
-  relevance score. Without `--raw`, `ask` shows you only the answer,
-  citations and grounding — this flag shows you the evidence the answer
-  was built from.
+  relevance score. Without `--raw`, `ask` shows you the answer, citations,
+  grounding score and per-claim grounding, but not the retrieved chunks —
+  this flag adds the evidence the answer was built from.
 
 Asking something the corpus doesn't cover — the Kubernetes example from the
 verify suite above — comes back with no answer text, `skipped:
@@ -200,10 +202,15 @@ Confirm the bucket and data store are actually gone:
 
 ```bash
 gcloud storage buckets list --project <your-project-id> --format="value(name)"
-gcloud alpha discoveryengine data-stores list --project <your-project-id> --location global
+curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  -H "X-Goog-User-Project: <your-project-id>" \
+  "https://discoveryengine.googleapis.com/v1/projects/<your-project-id>/locations/global/collections/default_collection/dataStores"
 ```
 
-Neither should list anything from this lab. This step isn't optional —
+There's no `gcloud` command group for Vertex AI Search data stores, so the
+second check is the REST call the CLI itself would use. A clean result
+looks like `{}` — an empty response body, no `dataStores` key at all.
+Neither command should list anything from this lab. This step isn't optional —
 until you run it, the data store and search app keep existing (and keep
 costing you money, even if not much) in your project.
 

@@ -73,13 +73,29 @@ async function checkControlProbes(
   return checks;
 }
 
+function reportAndSummarize(checks: Check[]): number {
+  for (const check of checks) {
+    writeLine(`${check.passed ? "PASS" : "FAIL"}  ${check.name} — ${check.detail}`);
+  }
+
+  const summary = summarize(checks);
+  writeLine("");
+  writeLine(`${summary.total - summary.failed}/${summary.total} checks passed.`);
+  return summary.ok ? 0 : 1;
+}
+
 export async function runVerify(config: LabConfig, logger: Logger): Promise<number> {
   const docs = await loadCorpus(config.corpusDir);
   const indexedCount = await countDocuments(documentClient(config), branchPath(config), logger);
   const client = conversationalClient(config);
   const servingConfig = servingConfigPath(config);
 
-  const checks: Check[] = [checkDocumentCount("documents indexed", indexedCount, docs.length)];
+  const documentCountCheck = checkDocumentCount("documents indexed", indexedCount, docs.length);
+  const checks: Check[] = [documentCountCheck];
+
+  if (!documentCountCheck.passed) {
+    return reportAndSummarize(checks);
+  }
 
   checks.push(...(await checkRetrievalProbes(client, servingConfig, docs, config.bucket, logger)));
   checks.push(...(await checkControlProbes(client, servingConfig, logger)));
@@ -107,12 +123,5 @@ export async function runVerify(config: LabConfig, logger: Logger): Promise<numb
     ),
   );
 
-  for (const check of checks) {
-    writeLine(`${check.passed ? "PASS" : "FAIL"}  ${check.name} — ${check.detail}`);
-  }
-
-  const summary = summarize(checks);
-  writeLine("");
-  writeLine(`${summary.total - summary.failed}/${summary.total} checks passed.`);
-  return summary.ok ? 0 : 1;
+  return reportAndSummarize(checks);
 }

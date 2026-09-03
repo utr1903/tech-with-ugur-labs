@@ -22,11 +22,13 @@ export function checkContainsFact(name: string, result: AnswerResult, fact: stri
 
 export function checkOmitsFact(name: string, result: AnswerResult, fact: string): Check {
   const passed = !result.text.includes(fact);
+  const skipped = `skipped: [${result.skippedReasons.join(", ")}]`;
+  const gotBack = `got back: ${excerpt(result.text)}`;
   return {
     name,
     passed,
     detail: passed
-      ? `no sign of "${fact}" without retrieval`
+      ? `no sign of "${fact}" without retrieval (${skipped}, ${gotBack})`
       : `"${fact}" appeared without retrieval: ${excerpt(result.text)}`,
   };
 }

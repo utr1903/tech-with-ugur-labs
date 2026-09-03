@@ -60,6 +60,17 @@ export async function importCorpus(
   }
 }
 
+// autoPaginate: false keeps this to the one page we ask for; without it gax
+// warns and pages through everything anyway. pageSize 100 comfortably covers
+// this ten-document corpus and headroom for anyone who extends it in one page.
+async function listIndexedDocuments(client: DocumentServiceClient, branch: string) {
+  const [documents] = await client.listDocuments(
+    { parent: branch, pageSize: 100 },
+    { autoPaginate: false },
+  );
+  return documents;
+}
+
 export async function countDocuments(
   client: DocumentServiceClient,
   branch: string,
@@ -68,13 +79,7 @@ export async function countDocuments(
   try {
     logger.info({ branch }, "Counting indexed documents...");
 
-    // autoPaginate: false keeps this to the one page we ask for; without it gax
-    // warns and pages through everything anyway. pageSize 100 comfortably covers
-    // this ten-document corpus and headroom for anyone who extends it in one page.
-    const [documents] = await client.listDocuments(
-      { parent: branch, pageSize: 100 },
-      { autoPaginate: false },
-    );
+    const documents = await listIndexedDocuments(client, branch);
     const count = documents.length;
 
     logger.info({ branch, count }, "Counting indexed documents succeeded.");
@@ -103,10 +108,7 @@ export async function waitForDocuments(
     logger.info({ branch, expected }, "Waiting for indexing...");
 
     for (;;) {
-      const [documents] = await client.listDocuments(
-        { parent: branch, pageSize: 100 },
-        { autoPaginate: false },
-      );
+      const documents = await listIndexedDocuments(client, branch);
       if (documents.length >= expected) {
         logger.info({ branch, count: documents.length }, "Waiting for indexing succeeded.");
         return documents.length;
@@ -116,7 +118,10 @@ export async function waitForDocuments(
           `Only ${documents.length} of ${expected} documents were listed before the timeout.`,
         );
       }
-      logger.info({ count: documents.length, expected }, "Waiting for indexing...");
+      logger.info(
+        { count: documents.length, expected },
+        "Waiting for indexing, not all documents listed yet.",
+      );
       await new Promise((resolve) => setTimeout(resolve, options.intervalMs));
     }
   } catch (err) {
