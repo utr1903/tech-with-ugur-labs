@@ -1,5 +1,6 @@
 import { resolve } from "node:path";
 import { Command } from "commander";
+import { runAsk } from "./commands/ask.js";
 import { runSeed } from "./commands/seed.js";
 import { runSync } from "./commands/sync.js";
 import { loadConfig } from "./config/config.js";
@@ -28,6 +29,15 @@ program
   .option("--incremental", "upsert by id instead of rebasing the whole data store", false)
   .action(async (options: { incremental: boolean }) => {
     await runSync(config, { mode: options.incremental ? "INCREMENTAL" : "FULL" }, logger);
+  });
+
+program
+  .command("ask")
+  .argument("<question>", "the question to ask the corpus")
+  .option("--raw", "also print the retrieved chunks the answer was built from", false)
+  .description("Ask the search app a question and show its answer, citations and grounding.")
+  .action(async (question: string, options: { raw: boolean }) => {
+    await runAsk(config, question, options, logger);
   });
 
 await program.parseAsync(process.argv);
