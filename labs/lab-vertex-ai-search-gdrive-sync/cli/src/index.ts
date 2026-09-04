@@ -1,6 +1,7 @@
 import { resolve } from "node:path";
 import { Command } from "commander";
 import { runAsk } from "./commands/ask.js";
+import { runChanges } from "./commands/changes.js";
 import { runSeed } from "./commands/seed.js";
 import { runSync } from "./commands/sync.js";
 import { loadConfig } from "./config/config.js";
@@ -38,6 +39,13 @@ program
   .description("Ask the search app a question and show its answer, citations and grounding.")
   .action(async (question: string, options: { raw: boolean }) => {
     await runAsk(config, question, options, logger);
+  });
+
+program
+  .command("changes")
+  .description("Print the Drive changes feed, to compare with what the manifest diff sees.")
+  .action(async () => {
+    await runChanges(config, logger);
   });
 
 await program.parseAsync(process.argv);
