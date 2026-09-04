@@ -4,11 +4,25 @@ import { GoogleAuth, Impersonated } from "google-auth-library";
 import type { LabConfig } from "../config/config.js";
 
 /**
- * `@googleapis/drive` and `@googleapis/docs` pull in their own nested copy of
- * `google-auth-library` (via `googleapis-common`), so their `auth` option's
- * `OAuth2Client` type is a structurally-identical but nominally distinct class
- * from the one `Impersonated` extends here. Widen through the clients' own
- * declared auth union rather than reaching for `any`.
+ * This cast gives NO compile-time guarantee — `as unknown as ClientAuth` is a
+ * deliberate bypass, not a verified widening. `ClientAuth` resolves to the
+ * `OAuth2Client` etc. of the nested `google-auth-library@10.5.0` that
+ * `googleapis-common` pulls in (via `@googleapis/drive`/`docs`), which is a
+ * different class identity from our pinned `google-auth-library@11.0.2`, so
+ * `Impersonated` is not a member of that union even nominally.
+ *
+ * It is safe at runtime only because `googleapis-common`'s
+ * `build/src/apirequest.js` dispatches on the auth client by duck-typing —
+ * `typeof authClient === "object"`, then `authClient.getRequestHeaders(url)`
+ * or `authClient.request(options)` — and never checks `instanceof`.
+ * `Impersonated` (extending the top-level `OAuth2Client`) provides both.
+ * `getUniverseDomain` is absent on it, but apirequest.js guards that call with
+ * `typeof ... === "function"`, so universe validation is skipped, not thrown.
+ *
+ * Tripwire: if a future `googleapis-common` starts using `instanceof` on the
+ * auth client, or requires `getUniverseDomain`, this breaks at runtime on the
+ * first Drive call. The fix then is an npm `overrides` entry deduplicating
+ * `google-auth-library`, not a wider cast.
  */
 type ClientAuth = GlobalOptions["auth"];
 
