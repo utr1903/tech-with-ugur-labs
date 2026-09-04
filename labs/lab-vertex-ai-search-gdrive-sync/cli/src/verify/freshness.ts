@@ -10,7 +10,7 @@ import {
   checkExactly,
   checkOmitsFact,
 } from "./checks.js";
-import { idOf, type VerifyContext } from "./stages.js";
+import { askUntil, idOf, type VerifyContext } from "./stages.js";
 
 /**
  * Assertion 4: an edit in Drive changes the answer.
@@ -35,11 +35,21 @@ export async function verifyFreshness(context: VerifyContext): Promise<Check[]> 
 
   try {
     const manifest = await context.resync("INCREMENTAL");
-    const result = await askQuestion(
-      context.conversational,
-      context.servingConfig,
-      FRESHNESS_PROBE.question,
-      {},
+    // The document count is unchanged across an edit, so waitForDocumentCount
+    // inside resync cannot tell whether the new content is actually
+    // searchable yet. Retry the ask itself until the replacement value shows
+    // up, or the attempt cap is spent — the checks below still fail for real
+    // if it never does.
+    const result = await askUntil(
+      () =>
+        askQuestion(
+          context.conversational,
+          context.servingConfig,
+          FRESHNESS_PROBE.question,
+          {},
+          context.logger,
+        ),
+      (candidate) => candidate.text.includes(FRESHNESS_PROBE.replacement),
       context.logger,
     );
 

@@ -14,7 +14,7 @@ import {
   ARCHIVE_FOLDER_NAME,
   CORPUS_FOLDER_NAME,
   childLister,
-  documentsOf,
+  DOC_MIME_TYPE,
   findChildFolder,
   walkTree,
 } from "../drive/tree.js";
@@ -70,7 +70,17 @@ export async function runSync(
     const nodes = await walkTree(childLister(drive, config.driveId), corpusId, CORPUS_FOLDER_NAME);
 
     const staged: StagedDocument[] = [];
-    for (const node of documentsOf(nodes)) {
+    for (const node of nodes) {
+      if (node.isFolder) {
+        continue;
+      }
+      if (node.mimeType !== DOC_MIME_TYPE) {
+        logger.warn(
+          { path: node.path, mimeType: node.mimeType },
+          "Skipping a non-Google-Doc file found in the corpus.",
+        );
+        continue;
+      }
       staged.push({
         driveFileId: node.id,
         path: node.path,

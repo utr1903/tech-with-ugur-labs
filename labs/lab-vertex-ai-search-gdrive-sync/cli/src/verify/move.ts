@@ -1,16 +1,33 @@
-import { MOVED_DOCUMENT_NAMES, MOVED_FOLDER_NAME } from "../corpus/probes.js";
+import { MOVED_DOCUMENT_NAMES, MOVED_FOLDER_NAME, POSITIVE_PROBES } from "../corpus/probes.js";
 import { listChanges, startPageToken } from "../drive/changes.js";
 import { moveFolder } from "../drive/mutate.js";
 import { childLister, findChildFolder } from "../drive/tree.js";
+import { askQuestion } from "../search/answer.js";
 import { listIndexedDocumentIds } from "../search/import.js";
-import { type Check, checkCount, checkIdsAbsent, checkIdsPresent } from "./checks.js";
-import { idOf, type VerifyContext } from "./stages.js";
+import {
+  type Check,
+  checkCount,
+  checkIdsAbsent,
+  checkIdsPresent,
+  checkOmitsFact,
+} from "./checks.js";
+import { askUntil, idOf, type VerifyContext } from "./stages.js";
 
 /** The folder the move test relocates, found by name among the corpus root's children. */
 async function findMovedFolderId(context: VerifyContext): Promise<string | null> {
   const list = childLister(context.drive, context.config.driveId);
   const folder = await findChildFolder(list, context.corpusId, MOVED_FOLDER_NAME);
   return folder?.id ?? null;
+}
+
+/** The question and invented fact belonging to one of the moved documents. */
+function movedDocumentProbe() {
+  const docName = MOVED_DOCUMENT_NAMES[0];
+  const probe = POSITIVE_PROBES.find((candidate) => candidate.docName === docName);
+  if (probe === undefined) {
+    throw new Error(`No probe defined for ${docName}.`);
+  }
+  return probe;
 }
 
 /**
@@ -28,6 +45,7 @@ export async function verifyMove(context: VerifyContext): Promise<Check[]> {
   if (folder === null) {
     throw new Error(`Could not find the ${MOVED_FOLDER_NAME}/ folder to move.`);
   }
+  const probe = movedDocumentProbe();
 
   const token = await startPageToken(context.drive, context.config.driveId);
   await moveFolder(context.drive, folder, context.corpusId, context.archiveId);
@@ -37,6 +55,24 @@ export async function verifyMove(context: VerifyContext): Promise<Check[]> {
     const { changes } = await listChanges(context.drive, context.config.driveId, token);
     const manifest = await context.resync("FULL");
     const indexed = await listIndexedDocumentIds(context.documents, context.branch);
+
+    // listIndexedDocumentIds can pass before the serving index catches up, so
+    // an answer could still cite an archived document while that check
+    // passes. Ask the moved document's own question and retry until its
+    // invented fact is actually gone from the answer, not just absent from
+    // listDocuments.
+    const answered = await askUntil(
+      () =>
+        askQuestion(
+          context.conversational,
+          context.servingConfig,
+          probe.question,
+          {},
+          context.logger,
+        ),
+      (result) => !result.text.includes(probe.fact),
+      context.logger,
+    );
 
     checks.push(
       checkIdsAbsent("the moved documents left the data store", indexed, movedIds),
@@ -54,6 +90,11 @@ export async function verifyMove(context: VerifyContext): Promise<Check[]> {
         "the changes feed said nothing about the files inside it",
         changes.map((change) => change.fileId),
         movedIds,
+      ),
+      checkOmitsFact(
+        "the moved document's fact no longer answers from the serving index",
+        answered,
+        probe.fact,
       ),
     );
   } finally {

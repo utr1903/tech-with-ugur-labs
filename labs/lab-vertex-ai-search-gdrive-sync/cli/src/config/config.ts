@@ -10,6 +10,7 @@ export interface LabConfig {
   syncServiceAccount: string;
   corpusDir: string;
   statePath: string;
+  changesTokenPath: string;
 }
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
@@ -32,6 +33,7 @@ export function loadConfig(env: NodeJS.ProcessEnv, cliDir: string): LabConfig {
     syncServiceAccount: required(env, "SYNC_SERVICE_ACCOUNT"),
     corpusDir: env.CORPUS_DIR ?? resolve(cliDir, "..", "corpus"),
     statePath: env.STATE_PATH ?? resolve(cliDir, ".state", "manifest.json"),
+    changesTokenPath: env.CHANGES_TOKEN_PATH ?? resolve(cliDir, ".state", "changes-token.json"),
   };
 }
 

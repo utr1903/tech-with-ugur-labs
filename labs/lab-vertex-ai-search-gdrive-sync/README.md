@@ -243,9 +243,11 @@ and retrieval is doing the work, not the model's pretraining:
   Drive file IDs from the manifest (no more, no fewer);
 - for each of the ten corpus documents, asking the question tied to its
   invented benchmark figure returns an answer that contains that figure,
-  cites that document's staged object and no other, and comes back with a
-  grounding score above the configured threshold (`GROUNDING_THRESHOLD`,
-  default `0.6`);
+  cites that document's staged object, and comes back with a grounding
+  score above the configured threshold (`GROUNDING_THRESHOLD`, default
+  `0.6`) — a grounded answer can legitimately draw on more than one
+  document, so this checks that the citation is present, not that it's the
+  only one;
 - asking those same ten questions again with retrieval disabled does
   *not* produce the invented figure — because it's invented, the only way
   it can appear in an answer is if it was actually retrieved.
@@ -281,6 +283,16 @@ Expect well under $1 for a full run. Vertex AI Search's free tier covers
 far more queries than this lab's seed/sync/verify cycle uses, the corpus
 is a handful of short Markdown files, and the Cloud Storage bucket holds
 only their staged exports.
+
+One thing that can look like a leak but isn't: every `npm run sync`
+writes a staged object per document and never deletes one for a document
+that has since left Drive, so the bucket can accumulate objects nothing
+points at anymore. This is harmless — the metadata JSONL written
+alongside them is what actually tells the data store what to import, so a
+stale object is just inert — but it can surprise anyone who looks in the
+bucket directly. `force_destroy` on the bucket
+(`terraform/06_bucket.tf`) means none of it lingers past teardown either
+way.
 
 ```bash
 ./scripts/deploy_cloud.sh --destroy

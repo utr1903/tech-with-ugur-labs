@@ -59,8 +59,14 @@ export async function walkTree(
   return nodes;
 }
 
+/**
+ * Only Google Docs export as Markdown. A PDF or image dropped into `corpus/`
+ * is a non-folder node too, but `files.export` fails on it with an opaque
+ * 403 — filtering here, on the mime type Docs actually use, keeps that file
+ * out of the staged set instead of failing the whole sync.
+ */
 export function documentsOf(nodes: DriveNode[]): DriveNode[] {
-  return nodes.filter((node) => !node.isFolder);
+  return nodes.filter((node) => node.mimeType === DOC_MIME_TYPE);
 }
 
 export async function findChildFolder(

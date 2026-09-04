@@ -10,6 +10,8 @@ import {
   walkTree,
 } from "./tree.js";
 
+const PDF_MIME_TYPE = "application/pdf";
+
 function entry(id: string, name: string, mimeType: string, parents: string[]): DriveEntry {
   return { id, name, mimeType, modifiedTime: "2026-09-01T10:00:00.000Z", parents };
 }
@@ -91,6 +93,26 @@ describe("documentsOf", () => {
     const docs = documentsOf(await walkTree(lister, "root", "corpus"));
 
     expect(docs.map((doc) => doc.id).sort()).toEqual(["d-alpha", "d-beta", "d-gamma"]);
+  });
+
+  it("keeps a Google Doc", () => {
+    const nodes = [
+      { ...entry("d-1", "doc", DOC_MIME_TYPE, []), path: "corpus/doc", isFolder: false },
+    ];
+
+    expect(documentsOf(nodes).map((node) => node.id)).toEqual(["d-1"]);
+  });
+
+  it("excludes a non-Doc file, such as a PDF someone dropped into corpus/", () => {
+    const nodes = [
+      {
+        ...entry("f-1", "notes.pdf", PDF_MIME_TYPE, []),
+        path: "corpus/notes.pdf",
+        isFolder: false,
+      },
+    ];
+
+    expect(documentsOf(nodes)).toEqual([]);
   });
 });
 

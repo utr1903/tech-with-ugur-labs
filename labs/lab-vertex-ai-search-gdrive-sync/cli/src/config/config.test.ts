@@ -31,11 +31,26 @@ describe("loadConfig", () => {
     expect(loadConfig(ENV, "/labs/lab/cli").statePath).toBe("/labs/lab/cli/.state/manifest.json");
   });
 
+  it("keeps the changes token beside the sync manifest", () => {
+    expect(loadConfig(ENV, "/labs/lab/cli").changesTokenPath).toBe(
+      "/labs/lab/cli/.state/changes-token.json",
+    );
+  });
+
   it("honours explicit overrides", () => {
-    const config = loadConfig({ ...ENV, CORPUS_DIR: "/tmp/c", STATE_PATH: "/tmp/m.json" }, "/x");
+    const config = loadConfig(
+      {
+        ...ENV,
+        CORPUS_DIR: "/tmp/c",
+        STATE_PATH: "/tmp/m.json",
+        CHANGES_TOKEN_PATH: "/tmp/t.json",
+      },
+      "/x",
+    );
 
     expect(config.corpusDir).toBe("/tmp/c");
     expect(config.statePath).toBe("/tmp/m.json");
+    expect(config.changesTokenPath).toBe("/tmp/t.json");
   });
 
   it("names the missing variable when one is absent", () => {
