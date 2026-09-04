@@ -4,6 +4,8 @@ A fully managed retrieval-augmented generation (RAG) backend on Google Cloud,
 built with Terraform, loaded with a small corpus, and proven — not assumed —
 to answer from that corpus rather than from the model's own training data.
 
+> Companion post: [Managed RAG on Google Cloud: how do you prove Vertex AI Search actually retrieved anything?](https://techwithugur.dev/posts/vertex-ai-search-rag/)
+
 ## What this lab shows
 
 Terraform provisions a Cloud Storage bucket, a Vertex AI Search data store,
