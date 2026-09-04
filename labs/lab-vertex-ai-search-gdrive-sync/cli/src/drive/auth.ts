@@ -35,7 +35,7 @@ export const DRIVE_READONLY_SCOPE = "https://www.googleapis.com/auth/drive.reado
 /** Creating and moving. Only `seed` and the verify harness's deliberate mutations use this. */
 export const DRIVE_WRITE_SCOPE = "https://www.googleapis.com/auth/drive";
 /** The source credential's scope — enough to call generateAccessToken on the service account. */
-export const CLOUD_PLATFORM_SCOPE = "https://www.googleapis.com/auth/cloud-platform";
+const CLOUD_PLATFORM_SCOPE = "https://www.googleapis.com/auth/cloud-platform";
 
 export interface ImpersonationOptions {
   targetPrincipal: string;
@@ -69,10 +69,7 @@ export function applicationAuth(): GoogleAuth {
  * this command needs. The service account's Drive access comes from shared-drive
  * membership, not from any IAM role.
  */
-export async function impersonatedAuth(
-  serviceAccount: string,
-  scopes: string[],
-): Promise<Impersonated> {
+async function impersonatedAuth(serviceAccount: string, scopes: string[]): Promise<Impersonated> {
   const sourceClient = await applicationAuth().getClient();
   return new Impersonated({ sourceClient, ...impersonationOptions(serviceAccount, scopes) });
 }

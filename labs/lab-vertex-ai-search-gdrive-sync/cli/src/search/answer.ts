@@ -3,8 +3,7 @@ import type { Logger } from "../logger.js";
 import { withRetry } from "./retry.js";
 import { type AnswerResult, shapeAnswer } from "./shape.js";
 
-export type { AnswerChunk, AnswerResult, AnswerSupport } from "./shape.js";
-export { shapeAnswer } from "./shape.js";
+export type { AnswerResult } from "./shape.js";
 
 /**
  * The control. Instead of letting the app search the corpus, hand the answer

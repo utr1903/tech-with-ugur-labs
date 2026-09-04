@@ -8,7 +8,7 @@ export interface StagedDocument {
   markdown: string;
 }
 
-export const METADATA_OBJECT_NAME = "metadata/documents.jsonl";
+const METADATA_OBJECT_NAME = "metadata/documents.jsonl";
 const MARKDOWN_MIME_TYPE = "text/markdown";
 
 export function stagedObjectName(driveFileId: string): string {

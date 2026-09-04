@@ -8,7 +8,7 @@ import { DOC_MIME_TYPE, FOLDER_MIME_TYPE } from "./tree.js";
  * so this takes the brief's named default, "text/markdown", uploaded as the
  * media body directly. Revisit only if the real seed run rejects the import.
  */
-export const SEED_MIME_TYPE = "text/markdown";
+const SEED_MIME_TYPE = "text/markdown";
 
 export interface FolderEnsurer {
   find(parentId: string, name: string): Promise<string | null>;

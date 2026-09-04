@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { dirname } from "node:path";
 import { type DriveNode, documentsOf } from "./tree.js";
 
-export interface ManifestEntry {
+interface ManifestEntry {
   id: string;
   path: string;
   name: string;

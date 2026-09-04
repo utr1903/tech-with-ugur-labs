@@ -4,6 +4,7 @@ import { runAsk } from "./commands/ask.js";
 import { runChanges } from "./commands/changes.js";
 import { runSeed } from "./commands/seed.js";
 import { runSync } from "./commands/sync.js";
+import { runVerify } from "./commands/verify.js";
 import { loadConfig } from "./config/config.js";
 import { createLogger, installGlobalErrorHandlers } from "./logger.js";
 
@@ -46,6 +47,13 @@ program
   .description("Print the Drive changes feed, to compare with what the manifest diff sees.")
   .action(async () => {
     await runChanges(config, logger);
+  });
+
+program
+  .command("verify")
+  .description("Prove the sync loop: the corpus answers, edits land, and moves do not go stale.")
+  .action(async () => {
+    process.exitCode = await runVerify(config, logger);
   });
 
 await program.parseAsync(process.argv);
