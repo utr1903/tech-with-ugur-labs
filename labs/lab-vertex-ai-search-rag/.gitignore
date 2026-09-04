@@ -1,0 +1,13 @@
+# Terraform (terraform-structure standard)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+crash.log
+*.tfplan
+
+# CLI
+node_modules/
+.env
