@@ -7,6 +7,8 @@ into the data store. Then it proves the sync loop actually works: edit a
 Doc, re-sync, and the answer changes; move a folder, re-sync, and the
 moved documents leave the index without going stale.
 
+> Companion post: [A living RAG corpus: syncing a Google Drive folder into Vertex AI Search](https://techwithugur.dev/posts/vertex-ai-search-gdrive-sync/)
+
 ## 1. What this shows
 
 Vertex AI Search normally indexes a static snapshot: you upload some
