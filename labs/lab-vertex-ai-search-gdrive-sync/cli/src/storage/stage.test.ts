@@ -9,14 +9,14 @@ import {
   stagedUri,
 } from "./stage.js";
 
-const DOCS: StagedDocument[] = [
-  {
-    driveFileId: "1AbCdEf",
-    path: "corpus/retrieval/chunking-strategies",
-    title: "Chunking strategies",
-    markdown: "# Chunking strategies\n\nBody.\n",
-  },
-];
+const CHUNKING_DOC: StagedDocument = {
+  driveFileId: "1AbCdEf",
+  path: "corpus/retrieval/chunking-strategies",
+  title: "Chunking strategies",
+  markdown: "# Chunking strategies\n\nBody.\n",
+};
+
+const DOCS: StagedDocument[] = [CHUNKING_DOC];
 
 const silentLogger = {
   info: () => undefined,
@@ -65,7 +65,7 @@ describe("buildMetadataJsonl", () => {
   });
 
   it("emits one line per document, newline terminated", () => {
-    const jsonl = buildMetadataJsonl([...DOCS, { ...DOCS[0]!, driveFileId: "2Gh" }], "b");
+    const jsonl = buildMetadataJsonl([...DOCS, { ...CHUNKING_DOC, driveFileId: "2Gh" }], "b");
 
     expect(jsonl.endsWith("\n")).toBe(true);
     expect(jsonl.trimEnd().split("\n")).toHaveLength(2);
