@@ -7,6 +7,11 @@ project_id = "your-gcp-project-id"
 # https://drive.google.com/drive/folders/<this-part>
 drive_id = "0ABCdefGHIjklMNOpqr"
 
+# You — the identity that will impersonate the sync service account.
+#   echo "user:$(gcloud config get-value account)"
+# Use a serviceAccount: prefix instead if you run this from a service account.
+operator_member = "user:you@example.com"
+
 # Optional overrides:
 # region          = "europe-west1"
 # search_location = "global"

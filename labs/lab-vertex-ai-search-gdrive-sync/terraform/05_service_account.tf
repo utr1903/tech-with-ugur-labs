@@ -13,7 +13,7 @@ resource "google_service_account" "corpus_sync" {
 resource "google_service_account_iam_member" "operator_can_impersonate" {
   service_account_id = google_service_account.corpus_sync.name
   role               = "roles/iam.serviceAccountTokenCreator"
-  member             = "user:${data.google_client_openid_userinfo.operator.email}"
+  member             = var.operator_member
 }
 
 output "sync_service_account" {

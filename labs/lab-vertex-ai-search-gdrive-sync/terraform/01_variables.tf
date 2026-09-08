@@ -8,6 +8,16 @@ variable "drive_id" {
   type        = string
 }
 
+variable "operator_member" {
+  description = "IAM member that will impersonate the sync service account — you. Get it with `gcloud config get-value account` and prefix it with `user:`, e.g. user:you@example.com. Use a serviceAccount: prefix instead if you drive this lab from a service account. There is deliberately no default: a wrong value here grants token-minting rights on the service account to the wrong principal."
+  type        = string
+
+  validation {
+    condition     = can(regex("^(user|serviceAccount|group):[^:]+@[^:]+$", var.operator_member))
+    error_message = "operator_member must look like user:you@example.com, serviceAccount:name@project.iam.gserviceaccount.com, or group:team@example.com."
+  }
+}
+
 variable "region" {
   description = "Region for the Cloud Storage staging bucket."
   type        = string

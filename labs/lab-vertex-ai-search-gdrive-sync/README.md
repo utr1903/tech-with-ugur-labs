@@ -105,8 +105,18 @@ content — the Drive share itself *is* the grant.
 ```bash
 cd labs/lab-vertex-ai-search-gdrive-sync
 cp terraform/terraform.tfvars.example terraform/terraform.tfvars
-# set project_id in terraform/terraform.tfvars
+# set project_id and operator_member in terraform/terraform.tfvars
+echo "user:$(gcloud config get-value account)"   # this is your operator_member
 ```
+
+`operator_member` is you: the identity that will mint short-lived tokens
+for the sync service account, so it needs Token Creator on that account.
+It is a variable rather than something Terraform discovers because the
+data source that reads the caller's own address returns nothing when
+`user_project_override` is set — and this configuration needs that
+setting, so the lookup would silently produce a null address. Being
+explicit also means the lab works unchanged when the operator is a
+service account rather than a person.
 
 One-time bootstrap, only needed the first time you use a given project —
 Terraform needs the API that lets it enable APIs before it can enable
