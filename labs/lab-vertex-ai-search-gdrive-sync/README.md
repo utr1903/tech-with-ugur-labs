@@ -130,6 +130,16 @@ gcloud auth application-default set-quota-project <your-project-id>
 Skip either of these and `terraform apply` fails partway through, or ADC
 calls fail with a missing quota project.
 
+Terraform enables the other six itself — Discovery Engine, Cloud Storage,
+Drive, IAM, IAM Credentials and Docs. Two of those are easy to overlook
+when reading the code: **IAM** creates the service account (IAM Credentials
+only mints tokens for an account that already exists), and **Docs** is what
+the verification suite uses to edit a document in place, so a missing Docs
+API surfaces only at `npm run verify`, right at the end of the run. Because
+an API enablement is accepted before it has propagated, the configuration
+waits 30 seconds after enabling them on the first apply; later applies skip
+the wait.
+
 In Drive, create a shared drive — not a My Drive folder, for the reason
 given in [section 3](#3-prerequisites) — and copy its ID out of the URL:
 

@@ -6,6 +6,8 @@ resource "google_service_account" "corpus_sync" {
   project      = var.project_id
   account_id   = local.sync_sa_id
   display_name = "Corpus sync (Drive reader for the Vertex AI Search lab)"
+
+  depends_on = [time_sleep.api_propagation]
 }
 
 # No key is ever created. The operator mints short-lived tokens for this account
