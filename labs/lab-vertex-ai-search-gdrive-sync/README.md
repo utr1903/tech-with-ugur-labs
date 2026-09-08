@@ -177,18 +177,16 @@ npm run sync
 npm run verify
 ```
 
-One thing to know before that first `npm run seed`: it uploads each
-corpus document as `text/markdown` media when creating the Google Doc,
-relying on Drive's own import conversion to turn that into a native Doc
-(`cli/src/drive/seed.ts`). Google's own documentation is not fully
-consistent about whether Markdown is an importable source format for
-Google Docs at all — some pages list it, others don't. This lab takes the
-`text/markdown` branch as a working assumption rather than a verified
-fact; the first real `npm run seed` against a live project is what
-actually confirms or refutes it. If Drive rejects that MIME type, or
-imports it as plain text instead of a formatted Doc, that's a bug in
-`SEED_MIME_TYPE` (`cli/src/drive/seed.ts`) to fix, not a sign you did the
-setup wrong.
+One detail worth knowing about that `npm run seed`: it uploads each corpus
+document as `text/markdown` media when creating the Google Doc, and lets
+Drive's own import conversion turn it into a native Doc
+(`cli/src/drive/seed.ts`). Google's documentation disagrees with itself
+about whether that works — the uploads guide lists Word, ODT, HTML, RTF
+and plain text as the importable source formats for Docs and omits
+Markdown, while Docs Help says a `.md` upload opens in Docs. **The API
+sides with Docs Help: the conversion works**, and the canary facts survive
+the Markdown → Doc → Markdown round trip intact, which the verification
+suite depends on — it matches numbers like `41.8 points` literally.
 
 ## 5. The three identities
 
