@@ -4,12 +4,29 @@ from __future__ import annotations
 
 from app import config
 from app.data import openmeteo
+from app.logging_setup import Logger
 
 
-def run() -> int:
+def run(*, log: Logger) -> None:
     """Rebuilds the committed snapshot from the live endpoints."""
-    print(f"fetching {config.FETCH_START}..{config.FETCH_END} for Milan")
-    frame = openmeteo.fetch_snapshot()
-    openmeteo.write_snapshot(frame, config.SNAPSHOT_PATH)
-    print(f"wrote {len(frame)} rows to {config.SNAPSHOT_PATH}")
-    return 0
+    try:
+        log.info(
+            "Fetching the snapshot...",
+            start=config.FETCH_START,
+            end=config.FETCH_END,
+        )
+        frame = openmeteo.fetch_snapshot()
+        openmeteo.write_snapshot(frame, config.SNAPSHOT_PATH)
+    except Exception:
+        log.exception(
+            "Fetching the snapshot failed.",
+            start=config.FETCH_START,
+            end=config.FETCH_END,
+        )
+        raise
+    else:
+        log.info(
+            "Fetching the snapshot succeeded.",
+            rows=len(frame),
+            path=str(config.SNAPSHOT_PATH),
+        )
