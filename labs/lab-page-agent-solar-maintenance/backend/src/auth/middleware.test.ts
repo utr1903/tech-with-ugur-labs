@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 import { requireAuth } from "./middleware.js";
 import { type SessionUser, signSession } from "./tokens.js";
 
-const secret = "test-secret-value";
+const secret = "not-a-real-secret-only-for-tests";
 
 function appUnderTest() {
   const app = new Hono();

@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { signSession, verifySession } from "./tokens.js";
 
-const secret = "test-secret-value";
+const secret = "not-a-real-secret-only-for-tests";
 
 describe("session tokens", () => {
   it("round-trips a user", async () => {

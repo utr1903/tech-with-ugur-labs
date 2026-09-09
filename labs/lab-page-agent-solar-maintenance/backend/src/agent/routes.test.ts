@@ -7,7 +7,7 @@ import { createLogger } from "../logger.js";
 import { CallBudget } from "./budget.js";
 import { agentRoutes } from "./routes.js";
 
-const secret = "test-secret-value";
+const secret = "not-a-real-secret-only-for-tests";
 const logger = createLogger({ appName: "test" });
 
 const body = {

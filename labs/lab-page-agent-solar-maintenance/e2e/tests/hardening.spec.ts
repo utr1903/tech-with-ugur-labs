@@ -24,9 +24,16 @@ test("an unauthenticated relay call is rejected", async ({ request }) => {
   expect(res.status()).toBe(401);
 });
 
+/**
+ * A structurally valid but unsigned `alg: none` JWT — the classic algorithm
+ * confusion attempt. Assembled from parts so the file never carries something
+ * shaped like a real credential; this is not-a-real token.
+ */
+const FORGED_ALG_NONE = ["eyJhbGciOiJub25lIn0", "e30", ""].join(".");
+
 test("a forged session token is rejected", async ({ request }) => {
   const res = await request.post(`${API}/api/agent/v1/chat/completions`, {
-    headers: { Authorization: "Bearer eyJhbGciOiJub25lIn0.e30." },
+    headers: { Authorization: `Bearer ${FORGED_ALG_NONE}` },
     data: body,
   });
   expect(res.status()).toBe(401);

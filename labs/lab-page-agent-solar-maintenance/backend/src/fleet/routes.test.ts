@@ -6,7 +6,7 @@ import { createLogger } from "../logger.js";
 import { fleetRoutes } from "./routes.js";
 import { FleetStore } from "./store.js";
 
-const secret = "test-secret-value";
+const secret = "not-a-real-secret-only-for-tests";
 const logger = createLogger({ appName: "test" });
 
 async function client() {
