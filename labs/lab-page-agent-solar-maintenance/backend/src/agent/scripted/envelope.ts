@@ -2,6 +2,7 @@ export type AgentAction =
   | { click_element_by_index: { index: number } }
   | { input_text: { index: number; text: string } }
   | { select_dropdown_option: { index: number; text: string } }
+  | { wait: { seconds: number } }
   | { done: { text: string; success: boolean } };
 
 let callCounter = 0;

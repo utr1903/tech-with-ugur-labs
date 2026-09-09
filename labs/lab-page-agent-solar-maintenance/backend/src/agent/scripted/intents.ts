@@ -23,6 +23,14 @@ export const onReportsList = (url: string) => /\/reports$/.test(url);
 /** Shared with the resolver, which confirms success by looking for it. */
 export const SUBMIT_GOAL = "Submit the report";
 
+/**
+ * Not an intent — the resolver emits this when an intent applies to the page
+ * but its control has not rendered yet. The app fetches its data after the
+ * route changes, so the agent routinely arrives before the list or the form
+ * exists. The library's own `wait` tool is documented for exactly this.
+ */
+export const WAIT_GOAL = "Wait for the page to finish loading";
+
 /** A field intent: located by its `name`, considered done via the history. */
 function fillField(
   goal: string,

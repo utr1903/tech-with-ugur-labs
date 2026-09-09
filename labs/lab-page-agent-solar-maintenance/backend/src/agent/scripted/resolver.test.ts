@@ -206,12 +206,32 @@ describe("resolveNextAction", () => {
     expect(result.action).toMatchObject({ done: { success: false } });
   });
 
-  it("gives up with a failed done rather than looping forever", () => {
+  it("waits when the control it needs has not rendered yet", () => {
+    // The app fetches after navigating, so the agent routinely arrives at
+    // /sites before the site list exists. Giving up here was a real bug.
     const result = resolveNextAction(
-      request(
-        "http://localhost:5173/sites/almeria-roof/report",
-        `[0]<a >Nothing here />`,
-      ),
+      request("http://localhost:5173/sites", `[0]<a >All reports />`),
+      TODAY,
+    );
+    expect(result.action).toEqual({ wait: { seconds: 1 } });
+  });
+
+  it("gives up once it has waited enough times", () => {
+    const waits = Array.from(
+      { length: 5 },
+      () => "Wait for the page to finish loading",
+    );
+    const result = resolveNextAction(
+      request("http://localhost:5173/sites", `[0]<a >All reports />`, waits),
+      TODAY,
+    );
+    expect(result.action).toMatchObject({ done: { success: false } });
+  });
+
+  it("does not wait on a page where nothing applies", () => {
+    // No intent matches /settings at all, so waiting would just burn steps.
+    const result = resolveNextAction(
+      request("http://localhost:5173/settings", `[0]<a >Sites />`),
       TODAY,
     );
     expect(result.action).toMatchObject({ done: { success: false } });
