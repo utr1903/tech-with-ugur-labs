@@ -40,22 +40,33 @@ export interface Report extends NewReport {
   createdAt: string;
 }
 
+/**
+ * Copies a site deeply enough that a caller cannot reach back into the store.
+ * A bare `{ ...site }` is not enough: it shares the `arrays` array, and since
+ * the constructor also spreads shallowly, that array is the very one held by
+ * the module-level SEED_SITES — so one caller pushing to it would corrupt
+ * every FleetStore created afterwards in the same process.
+ */
+function copySite(site: Site): Site {
+  return { ...site, arrays: [...site.arrays] };
+}
+
 export class FleetStore {
-  readonly #sites: Site[] = SEED_SITES.map((site) => ({ ...site }));
+  readonly #sites: Site[] = SEED_SITES.map(copySite);
   readonly #reports: Report[] = [];
   #nextId = 1;
 
   listSites(): Site[] {
-    return this.#sites.map((site) => ({ ...site }));
+    return this.#sites.map(copySite);
   }
 
   getSite(id: string): Site | undefined {
     const site = this.#sites.find((s) => s.id === id);
-    return site ? { ...site } : undefined;
+    return site ? copySite(site) : undefined;
   }
 
   listReports(): Report[] {
-    return [...this.#reports].reverse();
+    return this.#reports.map((report) => ({ ...report })).reverse();
   }
 
   addReport(input: NewReport, user: SessionUser): Report {

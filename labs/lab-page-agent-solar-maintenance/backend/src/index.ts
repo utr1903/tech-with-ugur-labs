@@ -25,6 +25,14 @@ api.use("*", requireAuth(config.jwtSecret));
 api.route("/", fleetRoutes(store, logger));
 app.route("/api", api);
 
+// Hono's default error handler prints a raw multi-line stack trace to stderr,
+// which breaks line-oriented JSON log consumers. Log it through pino instead
+// and answer with nothing the caller can learn from.
+app.onError((err, c) => {
+  logger.error({ err, path: c.req.path }, "Handling a request failed.");
+  return c.json({ error: "Internal server error." }, 500);
+});
+
 logger.info(
   { port: config.port, llmMode: config.llmMode },
   "Starting the backend...",

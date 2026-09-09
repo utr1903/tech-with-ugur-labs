@@ -50,4 +50,25 @@ describe("FleetStore", () => {
     store.addReport({ ...newReport(), summary: "second" }, user);
     expect(store.listReports()[0]?.summary).toBe("second");
   });
+
+  it("hands out copies, so a caller cannot reach back into the store", () => {
+    const site = store.listSites()[0];
+    site?.arrays.push("String 99");
+    if (site) site.name = "Renamed";
+    expect(store.listSites()[0]?.arrays).not.toContain("String 99");
+    expect(store.listSites()[0]?.name).toBe("Almeria Roof Array");
+
+    store.addReport(newReport(), user);
+    const report = store.listReports()[0];
+    if (report) report.summary = "tampered";
+    expect(store.listReports()[0]?.summary).toBe(
+      "Replaced the string 3 inverter fan.",
+    );
+  });
+
+  it("does not let one store corrupt the next one", () => {
+    // The seed is module-level: a shallow copy would share its `arrays`.
+    store.listSites()[0]?.arrays.push("String 99");
+    expect(new FleetStore().listSites()[0]?.arrays).not.toContain("String 99");
+  });
 });
