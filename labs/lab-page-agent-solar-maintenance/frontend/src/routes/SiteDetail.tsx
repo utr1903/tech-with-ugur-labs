@@ -7,12 +7,21 @@ export function SiteDetail() {
   const { getToken } = useAuth();
   const { id = "" } = useParams();
   const [site, setSite] = useState<Site | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     getSite(getToken(), id)
       .then(setSite)
-      .catch(() => setSite(null));
+      .catch(() => setError("Could not load this site."));
   }, [getToken, id]);
+
+  // A failure must not be indistinguishable from a request still in flight.
+  if (error !== "")
+    return (
+      <main>
+        <p role="alert">{error}</p>
+      </main>
+    );
 
   if (!site)
     return (
