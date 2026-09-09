@@ -131,7 +131,7 @@ def report_only() -> int:
     report.plot_episode(built, truth, results, index, labconfig.EPISODE_PLOT_PATH)
     print(f"\nwrote {labconfig.EPISODE_PLOT_PATH}")
 
-    outcomes = checks.run_all(frame, built, truth, results, repeat)
+    outcomes = checks.run_all(frame, built, results, repeat)
     print(checks.format_results(outcomes))
     failed = [o for o in outcomes if not o.passed]
     if failed:

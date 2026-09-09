@@ -139,7 +139,6 @@ def _determinism(
 def run_all(
     frame: pd.DataFrame,
     built: Sequence[Window],
-    truth: np.ndarray,
     results: dict[str, dict],
     determinism_repeat: np.ndarray | None,
 ) -> list[CheckResult]:

@@ -6,6 +6,7 @@ services:
     volumes:
       - model-cache:/cache/huggingface
       - ./output:/app/output
+      - ./data:/app/data
 
 volumes:
   model-cache:

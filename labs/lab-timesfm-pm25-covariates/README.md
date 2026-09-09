@@ -33,19 +33,31 @@ docker compose up
 
 The first run downloads the TimesFM 3.0 checkpoint (~1.32 GB) into a named
 Docker volume - that took about 49 seconds here. Every run after that is
-offline. The five model configurations themselves take about 93 seconds total
-on a laptop CPU (9s, 11s, 25s, 37s, 11s below); nothing here needs a GPU.
+offline. The five model configurations themselves take about 100 seconds
+total on a laptop CPU (7s, 12s, 31s, 38s, 14s below); nothing here needs a
+GPU.
+
+Note for anyone scripting this: `docker compose up` does not propagate the
+container's exit code, so `echo $?` afterwards reads 0 even if a check
+failed inside the container. The in-process gate is sound - `main.py` returns
+1 and exits with it on a failed check - but Compose's own exit code wraps
+that up differently; pass `--abort-on-container-exit` if you need the wrapper
+to fail too.
 
 ## What you should see
+
+The first line of actual output is usually a harmless Hugging Face Hub
+warning (`Warning: You are sending unauthenticated requests to the HF
+Hub...`) - expected, and safe to ignore.
 
 ```
 90 origins, 512h context, 24h horizon
 seasonal-naive MAE: 17.83 ug/m3
-timesfm-univariate     MAE  12.08  (9s)
-timesfm-past-only      MAE  12.17  (11s)
-timesfm-past-future    MAE  10.14  (25s)
-timesfm-both           MAE  10.28  (37s)
-leaky-control          MAE   6.39  (11s)
+timesfm-univariate     MAE  12.08  (7s)
+timesfm-past-only      MAE  12.17  (12s)
+timesfm-past-future    MAE  10.14  (31s)
+timesfm-both           MAE  10.28  (38s)
+leaky-control          MAE   6.39  (14s)
 saved forecasts to /app/output/forecasts.npz
 
 Scoreboard (PM2.5, ug/m3, 24h ahead)
@@ -54,7 +66,7 @@ configuration              MAE    RMSE    MASE  coverage  notes
 seasonal-naive           17.83   23.50   1.000         -  Same hour yesterday
 timesfm-univariate       12.08   15.79   0.678      0.80  TimesFM on the PM2.5 history alone
 timesfm-past-only        12.17   15.82   0.683      0.79  Plus measured NO2 and CO up to the origin, and no further
-timesfm-past-future      10.14   13.02   0.569      0.81  Plus tomorrow's weather, the way a real forecast would have it
+timesfm-past-future      10.14   13.02   0.569      0.81  Plus tomorrow's weather, measured rather than forecast
 timesfm-both             10.28   13.16   0.577      0.81  Past pollutants and future weather together
 leaky-control             6.39    8.53   0.359      0.81  CHEATS *
 
@@ -86,6 +98,16 @@ this on your own data than the model's actual worst showing does.
 
 Tomorrow's weather is worth about 16% of MAE: 12.08 down to 10.14, MASE 0.678
 down to 0.569. That is the single biggest honest gain in the table.
+
+One caveat on that 16%: the "tomorrow's weather" fed to `timesfm-past-future`
+and `timesfm-both` is ERA5 *measured* reanalysis for those exact hours, not a
+real 24-hour weather forecast. That is not target leakage - PM2.5 itself is
+never leaked to any honest configuration - but it is the best possible case
+for weather covariates. A genuine forecast carries error that a measured
+value does not, so a deployed system feeding it real forecast weather instead
+of the true reanalysis would see a smaller gain than 10.14. Treat 16% as an
+upper bound on what TimesFM's covariate support is worth here, not a number a
+production system would actually get.
 
 Yesterday's NO2 and CO are worth nothing at all: 12.08 to 12.17, very slightly
 *worse* than using PM2.5 alone. Stacking those past-only covariates on top of
@@ -127,8 +149,9 @@ command):
    - `timesfm-univariate` - TimesFM on the PM2.5 history alone
    - `timesfm-past-only` - plus measured NO2 and CO up to the origin, no
      further
-   - `timesfm-past-future` - plus tomorrow's weather, the way a real forecast
-     would have it
+   - `timesfm-past-future` - plus tomorrow's weather, from ERA5 measured
+     reanalysis rather than a real forecast (see below for what that means
+     for the result)
    - `timesfm-both` - past pollutants and future weather together
    - `leaky-control` - the cheat described above, included to show what
      leakage looks like rather than to be a real option

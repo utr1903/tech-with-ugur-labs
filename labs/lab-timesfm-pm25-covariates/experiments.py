@@ -1,6 +1,6 @@
 """The six things we are comparing.
 
-The split that matters: NO2 and CO are the strongest correlates of PM2.5 in this
+The split that matters: CO and NO2 are the strongest correlates of PM2.5 in this
 dataset (+0.92 and +0.79) and you cannot know either one in advance, so they can
 only ever be past-only covariates. The weather correlates less strongly but a
 forecast genuinely gives it to you, so it can be past-and-future.
@@ -47,7 +47,11 @@ EXPERIMENTS: tuple[Experiment, ...] = (
     Experiment(
         name="timesfm-past-future",
         kind="timesfm",
-        blurb="Plus tomorrow's weather, the way a real forecast would have it.",
+        blurb=(
+            "Plus tomorrow's weather, measured rather than forecast. That is "
+            "the best case for these covariates, not target leakage - a real "
+            "forecast would carry error a measured value does not."
+        ),
         past_future=labconfig.WEATHER_VARIABLES,
     ),
     Experiment(

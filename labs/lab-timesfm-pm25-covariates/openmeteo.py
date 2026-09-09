@@ -56,7 +56,8 @@ def fetch_snapshot(client: httpx.Client | None = None) -> pd.DataFrame:
     if not air.index.equals(weather.index):
         raise FetchError(
             "air quality and weather time grid mismatch: "
-            f"{len(air)} vs {len(weather)} rows"
+            f"{len(air)} rows ({air.index[0]}..{air.index[-1]}) vs "
+            f"{len(weather)} rows ({weather.index[0]}..{weather.index[-1]})"
         )
 
     snapshot = air.join(weather)[list(labconfig.ALL_VARIABLES)]
