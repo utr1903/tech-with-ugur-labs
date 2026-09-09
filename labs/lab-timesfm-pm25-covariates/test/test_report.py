@@ -45,6 +45,14 @@ def test_scoreboard_lists_every_configuration_and_marks_the_cheat():
     assert "cheat" in leaky_line.lower() or "*" in leaky_line
 
 
+def test_scoreboard_notes_are_not_truncated_on_a_decimal_point():
+    text = report.format_scoreboard(_results())
+    univariate_line = next(
+        line for line in text.splitlines() if "timesfm-univariate" in line
+    )
+    assert "PM2.5" in univariate_line
+
+
 def test_worst_episode_is_the_origin_containing_the_peak():
     truth = np.zeros((5, labconfig.HORIZON_HOURS), dtype=np.float32)
     truth[3, 7] = 200.0

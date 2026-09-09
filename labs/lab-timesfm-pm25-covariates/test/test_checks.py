@@ -47,6 +47,17 @@ def test_all_checks_pass_on_well_formed_results(fixtures):
     assert all(o.passed for o in outcomes), [o.detail for o in outcomes if not o.passed]
 
 
+def test_check_fails_on_a_malformed_snapshot(fixtures):
+    frame, built, truth = fixtures
+    results = _passing_results(truth)
+    repeat = results["timesfm-univariate"]["points"][: labconfig.DETERMINISM_ORIGINS]
+    bad_frame = frame.iloc[:-1]  # wrong row count fails validate_snapshot
+    outcomes = {
+        o.name: o for o in checks.run_all(bad_frame, built, truth, results, repeat)
+    }
+    assert not outcomes["snapshot-integrity"].passed
+
+
 def test_check_fails_when_the_model_loses_to_the_baseline(fixtures):
     frame, built, truth = fixtures
     results = _passing_results(truth)

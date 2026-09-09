@@ -24,15 +24,16 @@ def format_scoreboard(results: dict[str, dict]) -> str:
     for experiment in experiments.EXPERIMENTS:
         scores = results[experiment.name]["scores"]
         coverage = scores["coverage"]
-        coverage_text = "-" if np.isnan(coverage) else f"{coverage:>10.2f}"
-        marker = " * CHEATS" if experiment.leaky else ""
+        coverage_text = "-".rjust(10) if np.isnan(coverage) else f"{coverage:>10.2f}"
+        note = experiment.blurb.split(". ")[0].rstrip(".")
+        marker = " *" if experiment.leaky else ""
         lines.append(
             f"{experiment.name:<22}"
             f"{scores['mae']:>8.2f}"
             f"{scores['rmse']:>8.2f}"
             f"{scores['mase']:>8.3f}"
             f"{coverage_text}"
-            f"  {experiment.blurb.split('.')[0]}{marker}"
+            f"  {note}{marker}"
         )
     lines.append("")
     lines.append("MASE is MAE relative to seasonal-naive: below 1.0 beats it.")
