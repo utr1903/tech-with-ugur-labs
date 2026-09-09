@@ -8,6 +8,7 @@ export function ReportForm() {
   const { id = "" } = useParams();
   const navigate = useNavigate();
   const [site, setSite] = useState<Site | null>(null);
+  const [siteError, setSiteError] = useState("");
   const [component, setComponent] = useState("");
   const [componentRef, setComponentRef] = useState("");
   const [workDate, setWorkDate] = useState("");
@@ -20,7 +21,7 @@ export function ReportForm() {
   useEffect(() => {
     getSite(getToken(), id)
       .then(setSite)
-      .catch(() => setSite(null));
+      .catch(() => setSiteError("Could not load this site."));
   }, [getToken, id]);
 
   async function onSubmit(event: FormEvent) {
@@ -45,12 +46,18 @@ export function ReportForm() {
   return (
     <main>
       <h1>File a report</h1>
-      <p>{site ? site.name : "Loading the site..."}</p>
+      {/* Loading and failed must never render as the same thing. */}
+      {siteError === "" ? (
+        <p>{site ? site.name : "Loading the site..."}</p>
+      ) : (
+        <p role="alert">{siteError}</p>
+      )}
       <form onSubmit={onSubmit}>
         <label htmlFor="component">Component</label>
         <select
           id="component"
           name="component"
+          required
           value={component}
           onChange={(e) => setComponent(e.target.value)}
         >
@@ -67,6 +74,8 @@ export function ReportForm() {
           id="component-ref"
           name="component-ref"
           type="text"
+          required
+          maxLength={120}
           value={componentRef}
           onChange={(e) => setComponentRef(e.target.value)}
         />
@@ -76,6 +85,7 @@ export function ReportForm() {
           id="work-date"
           name="work-date"
           type="date"
+          required
           value={workDate}
           onChange={(e) => setWorkDate(e.target.value)}
         />
@@ -85,6 +95,7 @@ export function ReportForm() {
           id="duration-hours"
           name="duration-hours"
           type="number"
+          required
           min="0"
           max="24"
           step="0.5"
@@ -96,6 +107,7 @@ export function ReportForm() {
         <textarea
           id="summary"
           name="summary"
+          required
           value={summary}
           onChange={(e) => setSummary(e.target.value)}
         />

@@ -5,13 +5,32 @@ import { useAuth } from "../auth/AuthContext.js";
 
 export function Reports() {
   const { getToken } = useAuth();
-  const [reports, setReports] = useState<Report[]>([]);
+  // null means "not loaded yet"; an empty array means "loaded, and empty".
+  const [reports, setReports] = useState<Report[] | null>(null);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     listReports(getToken())
       .then(setReports)
-      .catch(() => setReports([]));
+      .catch(() => setError("Could not load the reports."));
   }, [getToken]);
+
+  if (error !== "") {
+    return (
+      <main>
+        <h1>Reports</h1>
+        <p role="alert">{error}</p>
+      </main>
+    );
+  }
+  if (reports === null) {
+    return (
+      <main>
+        <h1>Reports</h1>
+        <p>Loading reports...</p>
+      </main>
+    );
+  }
 
   return (
     <main>
