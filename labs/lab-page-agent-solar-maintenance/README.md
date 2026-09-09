@@ -40,33 +40,39 @@ protect.
 ## Architecture
 
 ```
-┌───────────────────────────── Browser ───────────────────────────────┐
-│  React SPA, served on :5173                                         │
-│                                                                      │
-│   Sites → Site → Report form        window.pageAgent (page-agent)   │
-│        ▲                       DOM   ┌─────────────────────────┐    │
-│        └───────────────────────────► │ reads the rendered page, │    │
-│                                       │ clicks, types, selects.  │    │
-│                                       │ NO model key here, ever. │    │
-│                                       └────────────┬─────────────┘    │
-└────────────────────────────────────────────────────┼─────────────────┘
-                                                       │ POST /api/agent/v1/chat/completions
-                                                       │ Authorization: Bearer <session JWT>
-                                                       │ (the ONLY thing that ever leaves the tab)
-                                                       ▼
-┌────────────────────────────── Backend, :8080 ───────────────────────┐
-│  auth ──► guard (allowlist + size cap) ──► budget ──► transport      │
-│                                                          │           │
-│                     LLM_MODE=scripted (default) ─────────┤           │
-│                     LLM_MODE=gemini  (optional) ──────────┘          │
-│                                       │                              │
-│              GEMINI_API_KEY lives ONLY here, in the backend's own    │
-│              environment. It never travels to the browser and the    │
-│              browser's own header never travels upstream.            │
-└───────────────────────────────────────┼─────────────────────────────┘
-                                         │ (only when LLM_MODE=gemini)
-                                         ▼
-                    generativelanguage.googleapis.com
+┌──────────────────────────── Browser ─────────────────────────────┐
+│  React SPA on :5173                                              │
+│                                                                  │
+│   Sites → Site → Report form                                     │
+│        ▲                                                         │
+│        │ clicks, types, selects                                  │
+│        │                                                         │
+│   ┌────┴──────────────────────────────────────────────────────┐  │
+│   │  window.pageAgent  —  reads the rendered DOM and drives it │  │
+│   │  NO model key here, ever. No apiKey is ever set.           │  │
+│   └────────────────────────────┬───────────────────────────────┘  │
+└────────────────────────────────┼─────────────────────────────────┘
+                                 │  POST /api/agent/v1/chat/completions
+                                 │  Authorization: Bearer <session JWT>
+                                 │  (the only credential that leaves the tab)
+                                 ▼
+┌──────────────────────────── Backend, :8080 ──────────────────────┐
+│                                                                  │
+│   auth ──► guard ──► budget ──► transport                        │
+│            (allowlist,          │                                │
+│             size cap)           ├─ LLM_MODE=scripted  (default)  │
+│                                 │    deterministic, no key,      │
+│                                 │    no outbound call            │
+│                                 │                                │
+│                                 └─ LLM_MODE=gemini   (optional)  │
+│                                      │                           │
+│   GEMINI_API_KEY lives only here, in this process's environment. │
+│   It never reaches the browser, and the browser's own header     │
+│   is consumed here and never forwarded upstream.                 │
+└─────────────────────────────────────┼────────────────────────────┘
+                                      │  (only when LLM_MODE=gemini)
+                                      ▼
+                     generativelanguage.googleapis.com
 ```
 
 ## Prerequisites
