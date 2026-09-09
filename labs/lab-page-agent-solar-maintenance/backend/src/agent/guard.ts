@@ -1,10 +1,7 @@
 import { z } from "zod";
 import type { Config } from "../config.js";
 
-// Not exported: nothing outside this file imports these by name yet (Task 8
-// will, once it wires the guard into a route) — see the precedent in
-// config.ts (LlmMode) and fleet/store.ts (Component).
-interface ChatMessage {
+export interface ChatMessage {
   role: string;
   content?: string | null;
   [key: string]: unknown;
