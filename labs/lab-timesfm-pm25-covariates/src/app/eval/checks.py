@@ -15,6 +15,7 @@ import pandas as pd
 
 from app import config
 from app.data import snapshot
+from app.errors import SnapshotError
 from app.forecast.windows import Window
 
 HONEST_TIMESFM = (
@@ -37,8 +38,8 @@ class CheckResult:
 def _snapshot_integrity(frame: pd.DataFrame) -> CheckResult:
     try:
         snapshot.validate_snapshot(frame)
-    except snapshot.SnapshotError as error:
-        return CheckResult("snapshot-integrity", False, str(error))
+    except SnapshotError as err:
+        return CheckResult("snapshot-integrity", False, str(err))
     return CheckResult(
         "snapshot-integrity",
         True,

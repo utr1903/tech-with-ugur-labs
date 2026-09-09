@@ -7,17 +7,14 @@ from pathlib import Path
 import pandas as pd
 
 from app import config
-
-
-class SnapshotError(RuntimeError):
-    """Raised when the snapshot is not the dataset the backtest expects."""
+from app.errors import SnapshotError
 
 
 def load_snapshot(path: Path = config.SNAPSHOT_PATH) -> pd.DataFrame:
     """Reads the committed CSV into a time-indexed frame."""
     if not path.exists():
         raise SnapshotError(
-            f"no snapshot at {path} - run `python main.py fetch` to build it"
+            f"no snapshot at {path} - run `uv run app fetch` to build it"
         )
     frame = pd.read_csv(path, index_col="time", parse_dates=["time"])
     return frame[list(config.ALL_VARIABLES)]

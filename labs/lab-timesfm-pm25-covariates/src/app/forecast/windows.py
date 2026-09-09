@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 
 from app import config
+from app.errors import WindowError
 
 
 @dataclass(frozen=True)
@@ -34,11 +35,11 @@ def build_windows(frame: pd.DataFrame) -> list[Window]:
     built: list[Window] = []
     for origin in origin_timestamps():
         if origin not in positions:
-            raise ValueError(f"origin {origin} is not in the snapshot")
+            raise WindowError(f"origin {origin} is not in the snapshot")
         start = positions[origin] - config.CONTEXT_HOURS
         end = positions[origin] + config.HORIZON_HOURS
         if start < 0 or end > len(frame):
-            raise ValueError(f"origin {origin} does not have room for its window")
+            raise WindowError(f"origin {origin} does not have room for its window")
         built.append(Window(origin=origin, start=start))
     return built
 

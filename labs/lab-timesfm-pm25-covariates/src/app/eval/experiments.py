@@ -11,6 +11,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from app import config
+from app.errors import ExperimentError
 
 UNKNOWABLE_POLLUTANTS = ("nitrogen_dioxide", "carbon_monoxide")
 
@@ -80,4 +81,4 @@ def by_name(name: str) -> Experiment:
     for experiment in EXPERIMENTS:
         if experiment.name == name:
             return experiment
-    raise KeyError(name)
+    raise ExperimentError(f"no experiment named {name}")

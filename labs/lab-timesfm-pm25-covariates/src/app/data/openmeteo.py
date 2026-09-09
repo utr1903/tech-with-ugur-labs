@@ -12,10 +12,7 @@ import httpx
 import pandas as pd
 
 from app import config
-
-
-class FetchError(RuntimeError):
-    """Raised when the upstream endpoints disagree or return nothing usable."""
+from app.errors import FetchError
 
 
 def _pull(client: httpx.Client, url: str, variables: tuple[str, ...]) -> pd.DataFrame:

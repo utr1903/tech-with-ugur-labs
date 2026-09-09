@@ -5,6 +5,7 @@ import pytest
 
 from app import config
 from app.data import snapshot
+from app.errors import SnapshotError
 
 
 def _good_frame(n=config.EXPECTED_ROWS):
@@ -19,21 +20,21 @@ def test_validate_accepts_a_well_formed_snapshot():
 
 
 def test_validate_rejects_wrong_row_count():
-    with pytest.raises(snapshot.SnapshotError, match="9504"):
+    with pytest.raises(SnapshotError, match="9504"):
         snapshot.validate_snapshot(_good_frame(n=9503))
 
 
 def test_validate_rejects_nulls():
     frame = _good_frame()
     frame.iloc[5, 0] = None
-    with pytest.raises(snapshot.SnapshotError, match="null"):
+    with pytest.raises(SnapshotError, match="null"):
         snapshot.validate_snapshot(frame)
 
 
 def test_validate_rejects_a_gappy_hour_grid():
     frame = _good_frame()
     frame = frame.drop(frame.index[10])
-    with pytest.raises(snapshot.SnapshotError):
+    with pytest.raises(SnapshotError):
         snapshot.validate_snapshot(frame)
 
 
