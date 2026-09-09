@@ -7,7 +7,7 @@ export interface ChatMessage {
   [key: string]: unknown;
 }
 
-interface ChatRequest {
+export interface ChatRequest {
   model: string;
   messages: ChatMessage[];
   tools?: unknown[];
