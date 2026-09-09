@@ -17,7 +17,7 @@ relays every call through the app's own backend on the engineer's session
 token instead, and is honest about exactly what that relay can and can't
 protect.
 
-> Companion post: [{{POST_TITLE}}]({{BLOG_POST_URL}})
+> Companion post: [The Agent Is in the Page. The Key Is Not.](https://techwithugur.dev/posts/page-agent-solar-maintenance/)
 
 ## What you'll learn
 
