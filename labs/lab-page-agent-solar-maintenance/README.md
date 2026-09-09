@@ -111,6 +111,15 @@ markup — but the panel is how an engineer actually uses this.)
 
 ## What you should see
 
+[![The "File a report" form for the Almeria Roof Array, mid-run: every field
+carries a small numbered badge the agent addresses it by, the cursor sits in
+the Unit field which now reads "String 3 inverter", and the agent panel at the
+bottom of the page reports that it is inputting text into element
+number 3.](media/demo-poster.png)](media/page-agent-demo.mp4)
+
+*▶ Click the still to play the recording (30 seconds, no audio): one typed
+sentence in, twelve steps, a filed maintenance report.*
+
 The panel appears docked at the bottom of the page as soon as you're signed
 in, with a status line ("Ready") and the task input underneath it. The
 moment you press Enter, that status line takes over as a live feed —
