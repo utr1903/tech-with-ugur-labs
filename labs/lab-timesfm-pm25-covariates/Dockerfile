@@ -1,15 +1,16 @@
 FROM python:3.12-slim
 
+COPY --from=ghcr.io/astral-sh/uv:0.9.16 /uv /uvx /bin/
+
 WORKDIR /app
 
-# CPU-only torch: the default index would pull ~2.5 GB of CUDA libraries
-# that this lab never touches.
-COPY requirements.txt .
-RUN pip install --no-cache-dir \
-      --extra-index-url https://download.pytorch.org/whl/cpu \
-      -r requirements.txt
+# The dev group ships in the image on purpose: the lock is Linux-only, so
+# ruff, mypy and pytest can only run in here.
+COPY pyproject.toml uv.lock ./
+COPY src/ src/
+RUN uv sync --locked
 
 COPY . .
 
-ENV PYTHONPATH=/app/src
-CMD ["python", "-m", "app", "run"]
+ENV PATH="/app/.venv/bin:$PATH"
+CMD ["app", "run"]

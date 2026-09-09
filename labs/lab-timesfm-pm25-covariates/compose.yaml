@@ -4,6 +4,9 @@ services:
     environment:
       HF_HOME: /cache/huggingface
       MPLBACKEND: Agg
+      DATA_DIR: /app/data
+      OUTPUT_DIR: /app/output
+      LOG_LEVEL: info
     volumes:
       - model-cache:/cache/huggingface
       - ./output:/app/output
