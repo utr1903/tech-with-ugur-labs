@@ -89,18 +89,28 @@ Wait for the backend's healthcheck to pass (a few seconds), then open
 - Email: `rosa@example.com`
 - Password: `solar`
 
-Open the browser's devtools console and drive the agent with one sentence:
+Once you're signed in, the agent's own panel appears at the bottom of the
+page — that's the whole interface. Click into its input and type one
+sentence:
 
-```js
-await window.pageAgent.execute(
-  "replaced the string 3 inverter fan on the Almeria roof array this morning, took two hours, panel 14 still shows a hotspot",
-);
+```
+replaced the string 3 inverter fan on the Almeria roof array this morning, took two hours, panel 14 still shows a hotspot
 ```
 
-`window.pageAgent` is installed as soon as you're signed in — there's no
-separate chat widget to find first.
+Press Enter and watch it work.
+
+(`window.pageAgent.execute(task)` also exists on the page — the automation
+path the e2e suite uses to drive the same task without touching the panel's
+markup — but the panel is how an engineer actually uses this.)
 
 ## What you should see
+
+The panel appears docked at the bottom of the page as soon as you're signed
+in, with a status line ("Ready") and the task input underneath it. The
+moment you press Enter, that status line takes over as a live feed —
+"Clicking element [0]...", "Selecting option...", "Inputting text..." — and
+its step list grows one entry per action, so you can watch the plan unfold
+instead of waiting on a result.
 
 A run against the "Almeria Roof Array" site — one of four seeded sites —
 takes about 12 steps and 13 seconds: `wait` (the list hasn't loaded yet),
@@ -109,11 +119,12 @@ finishing with a click on "Submit report". The browser lands on `/reports`
 with a new row: component "String 3 inverter", type "Inverter", today's
 date, "2h", the typed summary, and the follow-up note about panel 14.
 
-Open the Network tab while it runs and you'll see every one of those calls
-go to `/api/agent/v1/chat/completions` on `localhost:5173` itself, each
-carrying `Authorization: Bearer eyJ...` — the app's own session JWT. Nothing
-shaped like `AIza...`, `sk-...`, or an `x-goog-api-key` header ever appears,
-because the library was never given a key to send.
+If you want to see the credential story rather than take it on faith, open
+the Network tab while it runs: every one of those calls goes to
+`/api/agent/v1/chat/completions` on `localhost:5173` itself, each carrying
+`Authorization: Bearer eyJ...` — the app's own session JWT. Nothing shaped
+like `AIza...`, `sk-...`, or an `x-goog-api-key` header ever appears, because
+the library was never given a key to send.
 
 ## Run the tests
 
