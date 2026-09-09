@@ -16,6 +16,8 @@ export function agentRoutes(
   app.post("/chat/completions", async (c) => {
     const user = c.get("user");
 
+    // Budget FIRST, before the body is read or parsed: a caller who is over
+    // budget must not be able to make us do the expensive work anyway.
     const decision = budget.tryConsume(user.id);
     if (!decision.allowed) {
       logger.warn(
