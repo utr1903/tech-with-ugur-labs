@@ -1,5 +1,6 @@
 import { serve } from "@hono/node-server";
 import { Hono } from "hono";
+import { authRoutes } from "./auth/routes.js";
 import { loadConfig } from "./config.js";
 import { createLogger, installGlobalErrorHandlers } from "./logger.js";
 
@@ -10,6 +11,7 @@ const config = loadConfig(process.env);
 const app = new Hono();
 
 app.get("/health", (c) => c.json({ status: "ok" }));
+app.route("/api/auth", authRoutes(config, logger));
 
 logger.info(
   { port: config.port, llmMode: config.llmMode },
