@@ -17,6 +17,12 @@ const onSites = (url: string) => /\/sites$/.test(url);
 const onSiteDetail = (url: string) => /\/sites\/almeria-roof$/.test(url);
 const onReport = (url: string) => /\/sites\/almeria-roof\/report$/.test(url);
 
+/** The app lands here once the form is submitted. */
+export const onReportsList = (url: string) => /\/reports$/.test(url);
+
+/** Shared with the resolver, which confirms success by looking for it. */
+export const SUBMIT_GOAL = "Submit the report";
+
 /** A field intent: located by its `name`, considered done via the history. */
 function fillField(
   goal: string,
@@ -87,7 +93,7 @@ export const INTENTS: Intent[] = [
     typeInto("Panel 14 still shows a hotspot."),
   ),
   {
-    goal: "Submit the report",
+    goal: SUBMIT_GOAL,
     when: onReport,
     satisfied: (view) => !onReport(view.url),
     locate: (view) => findByAttr(view, "name", "submit-report"),

@@ -82,7 +82,10 @@ const STEP_BLOCK = /<step_\d+>([\s\S]*?)<\/step_\d+>/g;
 
 function parseHistory(content: string): HistoryStep[] {
   const steps: HistoryStep[] = [];
-  for (const [, block = ""] of content.matchAll(STEP_BLOCK)) {
+  // Scoped to the history block, like <user_request>, so a step-shaped string
+  // appearing in page text can never be read as a completed step.
+  const history = between(content, "<agent_history>", "</agent_history>");
+  for (const [, block = ""] of history.matchAll(STEP_BLOCK)) {
     steps.push({
       goal: /^Next Goal:[ \t]*(.*)$/m.exec(block)?.[1]?.trim() ?? "",
       result: /^Action Results:[ \t]*(.*)$/m.exec(block)?.[1]?.trim() ?? "",

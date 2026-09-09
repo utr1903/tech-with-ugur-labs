@@ -164,10 +164,46 @@ describe("resolveNextAction", () => {
 
   it("finishes once the form is submitted and the page moved on", () => {
     const result = resolveNextAction(
-      request("http://localhost:5173/reports", `[0]<a >Sites />`),
+      request("http://localhost:5173/reports", `[0]<a >Sites />`, [
+        "Submit the report",
+      ]),
       TODAY,
     );
     expect(result.action).toMatchObject({ done: { success: true } });
+  });
+
+  it("does not claim success merely because it reached the reports list", () => {
+    // No submit step in the history: landing here without having filed
+    // anything is a failure, not a finished task.
+    const result = resolveNextAction(
+      request("http://localhost:5173/reports", `[0]<a >Sites />`),
+      TODAY,
+    );
+    expect(result.action).toMatchObject({ done: { success: false } });
+  });
+
+  it("does not claim success on a page it does not recognise", () => {
+    const result = resolveNextAction(
+      request("http://localhost:5173/settings", `[0]<a >Sites />`),
+      TODAY,
+    );
+    expect(result.action).toMatchObject({ done: { success: false } });
+  });
+
+  it("fails loudly when it cannot read the current page", () => {
+    // A browser_state with no "Current Page:" line must never be mistaken for
+    // "every intent is done" — that would report a report that was never filed.
+    const result = resolveNextAction(
+      [
+        { role: "system", content: "sys" },
+        {
+          role: "user",
+          content: "<browser_state>\n[0]<a >Sites />\n</browser_state>",
+        },
+      ],
+      TODAY,
+    );
+    expect(result.action).toMatchObject({ done: { success: false } });
   });
 
   it("gives up with a failed done rather than looping forever", () => {
