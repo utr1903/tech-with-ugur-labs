@@ -2,6 +2,8 @@ import type { ReactNode } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { useAuth } from "./auth/AuthContext.js";
 import { Login } from "./routes/Login.js";
+import { SiteDetail } from "./routes/SiteDetail.js";
+import { Sites } from "./routes/Sites.js";
 
 function RequireSession({ children }: { children: ReactNode }) {
   const { session } = useAuth();
@@ -17,7 +19,15 @@ export function App() {
         path="/sites"
         element={
           <RequireSession>
-            <p>Sites go here.</p>
+            <Sites />
+          </RequireSession>
+        }
+      />
+      <Route
+        path="/sites/:id"
+        element={
+          <RequireSession>
+            <SiteDetail />
           </RequireSession>
         }
       />
