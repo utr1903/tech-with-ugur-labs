@@ -1,0 +1,11 @@
+services:
+  lab:
+    build: .
+    environment:
+      HF_HOME: /cache/huggingface
+    volumes:
+      - model-cache:/cache/huggingface
+      - ./output:/app/output
+
+volumes:
+  model-cache:
