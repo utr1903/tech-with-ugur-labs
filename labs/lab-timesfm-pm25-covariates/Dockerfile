@@ -11,4 +11,5 @@ RUN pip install --no-cache-dir \
 
 COPY . .
 
-CMD ["python", "main.py", "run"]
+ENV PYTHONPATH=/app/src
+CMD ["python", "-m", "app", "run"]

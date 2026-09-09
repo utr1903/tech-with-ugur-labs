@@ -3,6 +3,7 @@ services:
     build: .
     environment:
       HF_HOME: /cache/huggingface
+      MPLBACKEND: Agg
     volumes:
       - model-cache:/cache/huggingface
       - ./output:/app/output
