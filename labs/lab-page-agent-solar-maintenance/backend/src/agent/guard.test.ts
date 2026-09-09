@@ -77,4 +77,30 @@ describe("guardChatRequest", () => {
       ),
     ).toMatchObject({ ok: false, status: 413 });
   });
+
+  it("counts tools toward the size cap, not just messages", () => {
+    // A tiny message array must not be a way to smuggle a huge tool schema
+    // through to the upstream model on our key.
+    const huge = "x".repeat(config.agentMaxRequestBytes + 1);
+    expect(
+      guardChatRequest({ ...valid, tools: [{ description: huge }] }, config),
+    ).toMatchObject({ ok: false, status: 413 });
+  });
+
+  it("forwards these keys and no others", () => {
+    const result = guardChatRequest(
+      { ...valid, api_key: "sk-leak", stream: true },
+      config,
+    );
+    if (!result.ok) throw new Error("expected ok");
+    // Exact equality, so a future field silently joining the passthrough fails.
+    expect(Object.keys(result.request).sort()).toEqual([
+      "max_tokens",
+      "messages",
+      "model",
+      "parallel_tool_calls",
+      "tool_choice",
+      "tools",
+    ]);
+  });
 });

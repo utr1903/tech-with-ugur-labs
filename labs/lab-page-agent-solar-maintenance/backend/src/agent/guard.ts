@@ -40,8 +40,14 @@ export function guardChatRequest(raw: unknown, config: Config): GuardResult {
   if (messages.length > config.agentMaxMessages) {
     return { ok: false, status: 400, error: "Too many messages." };
   }
-  const bytes = Buffer.byteLength(JSON.stringify(messages), "utf8");
-  if (bytes > config.agentMaxRequestBytes) {
+
+  // Size EVERYTHING the client controls that we would forward, not just the
+  // messages. `tools` and `tool_choice` are opaque to us, so a caller could
+  // otherwise slip a tiny message array past the cap alongside a gigantic tool
+  // schema and have us relay it upstream on our key. The count cap runs first
+  // so an obviously bad request is rejected before we serialise anything.
+  const forwarded = JSON.stringify({ messages, tools, tool_choice });
+  if (Buffer.byteLength(forwarded, "utf8") > config.agentMaxRequestBytes) {
     return { ok: false, status: 413, error: "Request too large." };
   }
 
