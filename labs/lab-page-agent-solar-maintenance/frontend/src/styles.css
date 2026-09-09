@@ -1,0 +1,75 @@
+:root {
+  color-scheme: light;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+  background: #f4f6f5;
+  color: #1a1f1c;
+}
+
+main {
+  max-width: 40rem;
+  margin: 0 auto;
+  padding: 2rem 1.5rem;
+}
+
+h1 {
+  font-size: 1.5rem;
+}
+
+form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  max-width: 24rem;
+}
+
+label {
+  font-weight: 600;
+  margin-top: 0.75rem;
+}
+
+input {
+  font-size: 1rem;
+  padding: 0.5rem;
+  border: 1px solid #6b7570;
+  border-radius: 0.25rem;
+}
+
+button {
+  margin-top: 1.25rem;
+  padding: 0.6rem 1rem;
+  font-size: 1rem;
+  border: 1px solid #1a1f1c;
+  border-radius: 0.25rem;
+  background: #1a1f1c;
+  color: #fff;
+  cursor: pointer;
+  align-self: flex-start;
+}
+
+a {
+  color: #1a5c3a;
+}
+
+:focus-visible {
+  outline: 3px solid #1a5c3a;
+  outline-offset: 2px;
+}
+
+[role="alert"] {
+  border: 1px solid #7a1f1f;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.25rem;
+  margin-top: 1rem;
+}
+
+ul {
+  padding-left: 1.25rem;
+}
+
+nav {
+  margin-top: 1.5rem;
+}
