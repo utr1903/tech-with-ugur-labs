@@ -16,8 +16,8 @@ def test_origins_match_the_measured_backtest_geometry():
     assert all(stamp.hour == 0 for stamp in stamps)
 
 
-def test_windows_are_in_range_and_contiguous():
-    frame = snapshot.load_snapshot()
+def test_windows_are_in_range_and_contiguous(log):
+    frame = snapshot.load_snapshot(log=log)
     built = windows.build_windows(frame)
     assert len(built) == config.EXPECTED_ORIGINS
     for window in built:
@@ -30,8 +30,8 @@ def test_windows_are_in_range_and_contiguous():
         assert frame.index[window.start + config.CONTEXT_HOURS] == window.origin
 
 
-def test_blocks_have_the_documented_shapes():
-    frame = snapshot.load_snapshot()
+def test_blocks_have_the_documented_shapes(log):
+    frame = snapshot.load_snapshot(log=log)
     window = windows.build_windows(frame)[0]
 
     context = windows.context_block(frame, window, ["pm2_5", "wind_speed_10m"])
@@ -45,8 +45,8 @@ def test_blocks_have_the_documented_shapes():
     assert target.ndim == 1
 
 
-def test_actuals_are_the_measured_truth():
-    frame = snapshot.load_snapshot()
+def test_actuals_are_the_measured_truth(log):
+    frame = snapshot.load_snapshot(log=log)
     built = windows.build_windows(frame)
     truth = windows.actuals(frame, built)
     assert truth.shape == (config.EXPECTED_ORIGINS, config.HORIZON_HOURS)

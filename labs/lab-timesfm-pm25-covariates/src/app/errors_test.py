@@ -5,6 +5,7 @@ from __future__ import annotations
 import pytest
 
 from app.errors import (
+    ArtifactError,
     ChecksFailedError,
     ExperimentError,
     FetchError,
@@ -18,6 +19,7 @@ SUBCLASSES = [
     SnapshotError,
     WindowError,
     ExperimentError,
+    ArtifactError,
     ChecksFailedError,
 ]
 

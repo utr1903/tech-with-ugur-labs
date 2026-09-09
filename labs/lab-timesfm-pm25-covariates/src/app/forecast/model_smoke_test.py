@@ -10,10 +10,10 @@ from app.forecast import model, scaling, windows
 pytestmark = pytest.mark.slow
 
 
-def test_univariate_forecast_has_the_documented_shapes():
-    frame = snapshot.load_snapshot()
+def test_univariate_forecast_has_the_documented_shapes(log):
+    frame = snapshot.load_snapshot(log=log)
     window = windows.build_windows(frame)[0]
-    forecaster = model.build_forecaster()
+    forecaster = model.build_forecaster(log=log)
 
     outputs = list(
         forecaster.predict_batch(
@@ -34,16 +34,16 @@ def test_univariate_forecast_has_the_documented_shapes():
     assert np.isfinite(outputs[0].forecast).all()
 
 
-def test_past_future_covariates_need_edge_padding():
+def test_past_future_covariates_need_edge_padding(log):
     """horizon 24 rounds up to the model's output patch length of 64.
 
     Past-and-future covariates are expected to span context + 64. We supply
     context + 24 - the 24 hours we claim to know - and let padding_mode="edge"
     extend them.
     """
-    frame = snapshot.load_snapshot()
+    frame = snapshot.load_snapshot(log=log)
     window = windows.build_windows(frame)[0]
-    forecaster = model.build_forecaster()
+    forecaster = model.build_forecaster(log=log)
 
     columns = list(config.WEATHER_VARIABLES)
     block = np.concatenate(

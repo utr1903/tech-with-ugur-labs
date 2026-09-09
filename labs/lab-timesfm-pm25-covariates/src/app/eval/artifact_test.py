@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from app import config
+from app.errors import ArtifactError
 from app.eval import artifact
 
 
-def test_backtest_artifact_roundtrips(tmp_path, monkeypatch):
+def test_backtest_artifact_roundtrips(tmp_path, monkeypatch, log):
     path = tmp_path / "forecasts.npz"
     monkeypatch.setattr(config, "FORECASTS_PATH", path)
 
@@ -14,14 +16,18 @@ def test_backtest_artifact_roundtrips(tmp_path, monkeypatch):
     results = {
         "seasonal-naive": {
             "points": np.full(shape, 1.0, dtype=np.float32),
-            "quantiles": np.full((*shape, config.N_QUANTILES), 1.0, np.float32),
-            "scores": {"mae": 17.83, "rmse": 23.5, "mase": 1.0, "coverage": float("nan")},
+            "quantiles": np.full(
+                (*shape, config.N_QUANTILES), 1.0, np.float32
+            ),
+            "scores": {
+                "mae": 17.83, "rmse": 23.5, "mase": 1.0, "coverage": float("nan"),
+            },
         }
     }
     repeat = np.full((config.DETERMINISM_ORIGINS, config.HORIZON_HOURS), 1.0)
 
-    artifact.save_artifact(path, results, repeat)
-    loaded_results, loaded_repeat = artifact.load_artifact(path)
+    artifact.save_artifact(path, results, repeat, log=log)
+    loaded_results, loaded_repeat = artifact.load_artifact(path, log=log)
 
     assert set(loaded_results) == set(results)
     np.testing.assert_array_equal(
@@ -29,3 +35,13 @@ def test_backtest_artifact_roundtrips(tmp_path, monkeypatch):
     )
     assert loaded_results["seasonal-naive"]["scores"]["mae"] == 17.83
     np.testing.assert_array_equal(loaded_repeat, repeat)
+
+
+def test_load_artifact_translates_a_missing_file_to_an_artifact_error(
+    tmp_path, log
+):
+    """The ordinary mistake of running `report` before `backtest` must raise a
+    LabError, not a raw FileNotFoundError that escapes __main__'s except."""
+    path = tmp_path / "no-such-forecasts.npz"
+    with pytest.raises(ArtifactError, match="run `uv run app backtest` first"):
+        artifact.load_artifact(path, log=log)

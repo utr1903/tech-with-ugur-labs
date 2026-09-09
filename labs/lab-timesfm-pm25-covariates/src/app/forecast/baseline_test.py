@@ -9,8 +9,8 @@ from app.eval import metrics
 from app.forecast import baseline, windows
 
 
-def test_seasonal_naive_is_yesterday_same_hour():
-    frame = snapshot.load_snapshot()
+def test_seasonal_naive_is_yesterday_same_hour(log):
+    frame = snapshot.load_snapshot(log=log)
     built = windows.build_windows(frame)
     predicted = baseline.seasonal_naive(frame, built)
 
@@ -26,9 +26,9 @@ def test_seasonal_naive_is_yesterday_same_hour():
     np.testing.assert_allclose(predicted[0], expected)
 
 
-def test_seasonal_naive_reproduces_the_reference_mae():
+def test_seasonal_naive_reproduces_the_reference_mae(log):
     """17.83 ug/m3 is the number the whole scoreboard is calibrated against."""
-    frame = snapshot.load_snapshot()
+    frame = snapshot.load_snapshot(log=log)
     built = windows.build_windows(frame)
     truth = windows.actuals(frame, built)
     measured = metrics.mae(baseline.seasonal_naive(frame, built), truth)

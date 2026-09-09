@@ -11,9 +11,12 @@ from timesfm3 import ModelConfig, TimesFM3Forecaster
 from app import config
 from app.eval import experiments
 from app.forecast import scaling, windows
+from app.logging_setup import Logger
 
 
-def build_forecaster(batch_size: int = config.BATCH_SIZE) -> TimesFM3Forecaster:
+def build_forecaster(
+    batch_size: int = config.BATCH_SIZE, *, log: Logger
+) -> TimesFM3Forecaster:
     """Loads the 3.0 checkpoint.
 
     `device` is left unset, which resolves to CUDA when it is available and CPU
@@ -21,12 +24,20 @@ def build_forecaster(batch_size: int = config.BATCH_SIZE) -> TimesFM3Forecaster:
     checkpoint is ~1.32 GB and is cached in a named Docker volume, so it
     downloads once.
     """
-    return TimesFM3Forecaster(
-        ModelConfig(
-            checkpoint_path=config.CHECKPOINT,
-            per_core_batch_size=batch_size,
+    try:
+        log.info("Building the forecaster...", batch_size=batch_size)
+        forecaster = TimesFM3Forecaster(
+            ModelConfig(
+                checkpoint_path=config.CHECKPOINT,
+                per_core_batch_size=batch_size,
+            )
         )
-    )
+    except Exception:
+        log.exception("Building the forecaster failed.", batch_size=batch_size)
+        raise
+    else:
+        log.info("Building the forecaster succeeded.", checkpoint=config.CHECKPOINT)
+        return forecaster
 
 
 def covariate_blocks(
@@ -64,6 +75,8 @@ def run_experiment(
     frame: pd.DataFrame,
     built: Sequence[windows.Window],
     experiment: experiments.Experiment,
+    *,
+    log: Logger,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Forecasts every origin for one configuration.
 
@@ -81,27 +94,37 @@ def run_experiment(
         past_only_list.append(past_only)
         past_future_list.append(past_future)
 
-    outputs = list(
-        model.predict_batch(
-            contexts=contexts,
-            horizon=config.HORIZON_HOURS,
-            past_only_covariates=(
-                past_only_list if experiment.past_only else None
-            ),
-            past_future_covariates=(
-                past_future_list if experiment.past_future else None
-            ),
-            return_quantiles=True,
-            use_symmetric_averaging=False,
-            make_positive=True,
-            sort_quantiles=True,
-            # horizon 24 rounds up to the model's 64-step output patch;
-            # edge-pad the covariates over the difference rather than
-            # pretending to know 64 hours of weather.
-            padding_mode="edge",
+    try:
+        log.info(
+            "Forecasting the batch...", name=experiment.name, origins=len(built)
         )
-    )
-
-    points = np.stack([out.forecast for out in outputs]).astype(np.float32)
-    quantiles = np.stack([out.quantiles for out in outputs]).astype(np.float32)
-    return points, quantiles
+        outputs = list(
+            model.predict_batch(
+                contexts=contexts,
+                horizon=config.HORIZON_HOURS,
+                past_only_covariates=(
+                    past_only_list if experiment.past_only else None
+                ),
+                past_future_covariates=(
+                    past_future_list if experiment.past_future else None
+                ),
+                return_quantiles=True,
+                use_symmetric_averaging=False,
+                make_positive=True,
+                sort_quantiles=True,
+                # horizon 24 rounds up to the model's 64-step output patch;
+                # edge-pad the covariates over the difference rather than
+                # pretending to know 64 hours of weather.
+                padding_mode="edge",
+            )
+        )
+        points = np.stack([out.forecast for out in outputs]).astype(np.float32)
+        quantiles = np.stack([out.quantiles for out in outputs]).astype(np.float32)
+    except Exception:
+        log.exception(
+            "Forecasting the batch failed.", name=experiment.name, origins=len(built)
+        )
+        raise
+    else:
+        log.info("Forecasting the batch succeeded.", name=experiment.name)
+        return points, quantiles

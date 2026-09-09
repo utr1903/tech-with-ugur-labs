@@ -7,6 +7,7 @@ from app import config
 from app.data import snapshot
 from app.eval import checks
 from app.forecast import windows
+from app.logging_setup import get_logger
 
 
 def _result(points, quantiles=None, **scores):
@@ -21,7 +22,9 @@ def _result(points, quantiles=None, **scores):
 
 @pytest.fixture(scope="module")
 def fixtures():
-    frame = snapshot.load_snapshot()
+    # Module-scoped, so it cannot depend on the function-scoped `log`
+    # fixture - build a bound logger directly instead.
+    frame = snapshot.load_snapshot(log=get_logger(app_name="test"))
     built = windows.build_windows(frame)
     truth = windows.actuals(frame, built)
     return frame, built, truth
@@ -39,70 +42,80 @@ def _passing_results(truth):
     }
 
 
-def test_all_checks_pass_on_well_formed_results(fixtures):
+def test_all_checks_pass_on_well_formed_results(fixtures, log):
     frame, built, truth = fixtures
     results = _passing_results(truth)
     repeat = results["timesfm-univariate"]["points"][: config.DETERMINISM_ORIGINS]
-    outcomes = checks.run_all(frame, built, results, repeat)
+    outcomes = checks.run_all(frame, built, results, repeat, log=log)
 
     assert len(outcomes) == 6
     assert all(o.passed for o in outcomes), [o.detail for o in outcomes if not o.passed]
 
 
-def test_check_fails_on_a_malformed_snapshot(fixtures):
+def test_check_fails_on_a_malformed_snapshot(fixtures, log):
     frame, built, truth = fixtures
     results = _passing_results(truth)
     repeat = results["timesfm-univariate"]["points"][: config.DETERMINISM_ORIGINS]
     bad_frame = frame.iloc[:-1]  # wrong row count fails validate_snapshot
     outcomes = {
-        o.name: o for o in checks.run_all(bad_frame, built, results, repeat)
+        o.name: o for o in checks.run_all(bad_frame, built, results, repeat, log=log)
     }
     assert not outcomes["snapshot-integrity"].passed
 
 
-def test_check_fails_when_the_model_loses_to_the_baseline(fixtures):
+def test_check_fails_when_the_model_loses_to_the_baseline(fixtures, log):
     frame, built, truth = fixtures
     results = _passing_results(truth)
     results["timesfm-univariate"]["scores"]["mae"] = 19.0
     repeat = results["timesfm-univariate"]["points"][: config.DETERMINISM_ORIGINS]
-    outcomes = {o.name: o for o in checks.run_all(frame, built, results, repeat)}
+    outcomes = {
+        o.name: o for o in checks.run_all(frame, built, results, repeat, log=log)
+    }
     assert not outcomes["beats-the-baseline"].passed
 
 
-def test_check_fails_when_leakage_is_invisible(fixtures):
+def test_check_fails_when_leakage_is_invisible(fixtures, log):
     """If the leaky run does not win, the covariates are not being used."""
     frame, built, truth = fixtures
     results = _passing_results(truth)
     results["leaky-control"]["scores"]["mae"] = 16.0  # worse than past-future's 14.5
     repeat = results["timesfm-univariate"]["points"][: config.DETERMINISM_ORIGINS]
-    outcomes = {o.name: o for o in checks.run_all(frame, built, results, repeat)}
+    outcomes = {
+        o.name: o for o in checks.run_all(frame, built, results, repeat, log=log)
+    }
     assert not outcomes["leakage-is-visible"].passed
 
 
-def test_check_fails_on_non_finite_forecasts(fixtures):
+def test_check_fails_on_non_finite_forecasts(fixtures, log):
     frame, built, truth = fixtures
     results = _passing_results(truth)
     results["timesfm-both"]["points"][0, 0] = np.nan
     repeat = results["timesfm-univariate"]["points"][: config.DETERMINISM_ORIGINS]
-    outcomes = {o.name: o for o in checks.run_all(frame, built, results, repeat)}
+    outcomes = {
+        o.name: o for o in checks.run_all(frame, built, results, repeat, log=log)
+    }
     assert not outcomes["shapes-and-finiteness"].passed
 
 
-def test_check_fails_on_a_miscalibrated_band(fixtures):
+def test_check_fails_on_a_miscalibrated_band(fixtures, log):
     frame, built, truth = fixtures
     results = _passing_results(truth)
     results["timesfm-univariate"]["scores"]["coverage"] = 0.20
     repeat = results["timesfm-univariate"]["points"][: config.DETERMINISM_ORIGINS]
-    outcomes = {o.name: o for o in checks.run_all(frame, built, results, repeat)}
+    outcomes = {
+        o.name: o for o in checks.run_all(frame, built, results, repeat, log=log)
+    }
     assert not outcomes["calibration-sanity"].passed
 
 
-def test_check_fails_when_two_runs_disagree(fixtures):
+def test_check_fails_when_two_runs_disagree(fixtures, log):
     frame, built, truth = fixtures
     results = _passing_results(truth)
     repeat = results["timesfm-univariate"]["points"][
         : config.DETERMINISM_ORIGINS
     ].copy()
     repeat[0, 0] += 0.001
-    outcomes = {o.name: o for o in checks.run_all(frame, built, results, repeat)}
+    outcomes = {
+        o.name: o for o in checks.run_all(frame, built, results, repeat, log=log)
+    }
     assert not outcomes["determinism"].passed

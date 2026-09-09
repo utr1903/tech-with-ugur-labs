@@ -26,9 +26,9 @@ def _client(n=48):
     return httpx.Client(transport=httpx.MockTransport(handler))
 
 
-def test_fetch_snapshot_returns_aligned_frame():
+def test_fetch_snapshot_returns_aligned_frame(log):
     with _client() as client:
-        df = openmeteo.fetch_snapshot(client=client)
+        df = openmeteo.fetch_snapshot(client=client, log=log)
 
     assert list(df.columns) == list(config.ALL_VARIABLES)
     assert df.index.name == "time"
@@ -36,7 +36,7 @@ def test_fetch_snapshot_returns_aligned_frame():
     assert not df.isnull().to_numpy().any()
 
 
-def test_fetch_snapshot_rejects_mismatched_time_grids():
+def test_fetch_snapshot_rejects_mismatched_time_grids(log):
     calls = {"n": 0}
 
     def handler(request):
@@ -49,15 +49,15 @@ def test_fetch_snapshot_rejects_mismatched_time_grids():
 
     with httpx.Client(transport=httpx.MockTransport(handler)) as client:
         with pytest.raises(openmeteo.FetchError, match="time grid"):
-            openmeteo.fetch_snapshot(client=client)
+            openmeteo.fetch_snapshot(client=client, log=log)
 
 
-def test_write_snapshot_roundtrips(tmp_path):
+def test_write_snapshot_roundtrips(tmp_path, log):
     with _client() as client:
-        df = openmeteo.fetch_snapshot(client=client)
+        df = openmeteo.fetch_snapshot(client=client, log=log)
 
     path = tmp_path / "snap.csv"
-    openmeteo.write_snapshot(df, path)
+    openmeteo.write_snapshot(df, path, log=log)
 
     reloaded = pd.read_csv(path, index_col="time", parse_dates=["time"])
     pd.testing.assert_frame_equal(df, reloaded)

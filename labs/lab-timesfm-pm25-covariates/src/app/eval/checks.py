@@ -17,6 +17,7 @@ from app import config
 from app.data import snapshot
 from app.errors import SnapshotError
 from app.forecast.windows import Window
+from app.logging_setup import Logger
 
 HONEST_TIMESFM = (
     "timesfm-univariate",
@@ -35,9 +36,9 @@ class CheckResult:
     detail: str
 
 
-def _snapshot_integrity(frame: pd.DataFrame) -> CheckResult:
+def _snapshot_integrity(frame: pd.DataFrame, *, log: Logger) -> CheckResult:
     try:
-        snapshot.validate_snapshot(frame)
+        snapshot.validate_snapshot(frame, log=log)
     except SnapshotError as err:
         return CheckResult("snapshot-integrity", False, str(err))
     return CheckResult(
@@ -142,16 +143,30 @@ def run_all(
     built: Sequence[Window],
     results: dict[str, dict],
     determinism_repeat: np.ndarray | None,
+    *,
+    log: Logger,
 ) -> list[CheckResult]:
     """Runs every hard check, in the order the README lists them."""
-    return [
-        _snapshot_integrity(frame),
-        _shapes_and_finiteness(built, results),
-        _beats_the_baseline(results),
-        _leakage_is_visible(results),
-        _calibration_sanity(results),
-        _determinism(results, determinism_repeat),
-    ]
+    try:
+        log.info("Running the checks...", origins=len(built))
+        outcomes = [
+            _snapshot_integrity(frame, log=log),
+            _shapes_and_finiteness(built, results),
+            _beats_the_baseline(results),
+            _leakage_is_visible(results),
+            _calibration_sanity(results),
+            _determinism(results, determinism_repeat),
+        ]
+    except Exception:
+        log.exception("Running the checks failed.", origins=len(built))
+        raise
+    else:
+        log.info(
+            "Running the checks succeeded.",
+            passed=sum(outcome.passed for outcome in outcomes),
+            total=len(outcomes),
+        )
+        return outcomes
 
 
 def format_results(outcomes: Sequence[CheckResult]) -> str:

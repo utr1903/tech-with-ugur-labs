@@ -9,11 +9,14 @@ from app import config
 from app.data import snapshot
 from app.eval import experiments
 from app.forecast import model, windows
+from app.logging_setup import get_logger
 
 
 @pytest.fixture(scope="module")
 def frame():
-    return snapshot.load_snapshot()
+    # Module-scoped, so it cannot depend on the function-scoped `log`
+    # fixture - build a bound logger directly instead.
+    return snapshot.load_snapshot(log=get_logger(app_name="test"))
 
 
 class FakeForecaster:
@@ -110,14 +113,14 @@ def test_the_leaky_control_really_does_see_the_future(frame):
     assert not np.allclose(tail, last_context)
 
 
-def test_run_experiment_issues_one_batched_call_for_every_origin(frame):
+def test_run_experiment_issues_one_batched_call_for_every_origin(frame, log):
     """A regression to a 90-iteration Python loop would still pass every
     other test in this file - only checking the call count catches it."""
     built = windows.build_windows(frame)[:3]
     forecaster = FakeForecaster()
 
     points, quantiles = model.run_experiment(
-        forecaster, frame, built, experiments.by_name("timesfm-univariate")
+        forecaster, frame, built, experiments.by_name("timesfm-univariate"), log=log
     )
 
     assert len(forecaster.calls) == 1
@@ -126,14 +129,14 @@ def test_run_experiment_issues_one_batched_call_for_every_origin(frame):
     assert quantiles.shape == (3, config.HORIZON_HOURS, config.N_QUANTILES)
 
 
-def test_run_experiment_passes_none_for_unused_covariate_kinds(frame):
+def test_run_experiment_passes_none_for_unused_covariate_kinds(frame, log):
     """Unused covariate kinds must reach predict_batch as None, not as a
     same-length list of Nones - the model branches on identity, not content."""
     built = windows.build_windows(frame)[:2]
     forecaster = FakeForecaster()
 
     model.run_experiment(
-        forecaster, frame, built, experiments.by_name("timesfm-univariate")
+        forecaster, frame, built, experiments.by_name("timesfm-univariate"), log=log
     )
 
     call = forecaster.calls[0]
@@ -141,12 +144,12 @@ def test_run_experiment_passes_none_for_unused_covariate_kinds(frame):
     assert call["past_future_covariates"] is None
 
 
-def test_run_experiment_passes_a_covariate_list_for_past_only(frame):
+def test_run_experiment_passes_a_covariate_list_for_past_only(frame, log):
     built = windows.build_windows(frame)[:2]
     forecaster = FakeForecaster()
 
     model.run_experiment(
-        forecaster, frame, built, experiments.by_name("timesfm-past-only")
+        forecaster, frame, built, experiments.by_name("timesfm-past-only"), log=log
     )
 
     call = forecaster.calls[0]
@@ -156,12 +159,12 @@ def test_run_experiment_passes_a_covariate_list_for_past_only(frame):
     assert call["past_future_covariates"] is None
 
 
-def test_run_experiment_passes_covariate_lists_for_both_kinds(frame):
+def test_run_experiment_passes_covariate_lists_for_both_kinds(frame, log):
     built = windows.build_windows(frame)[:2]
     forecaster = FakeForecaster()
 
     model.run_experiment(
-        forecaster, frame, built, experiments.by_name("timesfm-both")
+        forecaster, frame, built, experiments.by_name("timesfm-both"), log=log
     )
 
     call = forecaster.calls[0]
@@ -169,12 +172,12 @@ def test_run_experiment_passes_covariate_lists_for_both_kinds(frame):
     assert isinstance(call["past_future_covariates"], list)
 
 
-def test_run_experiment_passes_the_documented_predict_batch_flags(frame):
+def test_run_experiment_passes_the_documented_predict_batch_flags(frame, log):
     built = windows.build_windows(frame)[:2]
     forecaster = FakeForecaster()
 
     model.run_experiment(
-        forecaster, frame, built, experiments.by_name("timesfm-past-future")
+        forecaster, frame, built, experiments.by_name("timesfm-past-future"), log=log
     )
 
     call = forecaster.calls[0]

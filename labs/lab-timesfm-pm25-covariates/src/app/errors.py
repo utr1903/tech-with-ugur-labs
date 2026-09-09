@@ -27,5 +27,9 @@ class ExperimentError(LabError):
     """No configuration by that name."""
 
 
+class ArtifactError(LabError):
+    """The saved backtest is missing, unreadable, or not what save_artifact wrote."""
+
+
 class ChecksFailedError(LabError):
     """At least one hard check did not pass, so the run means nothing."""

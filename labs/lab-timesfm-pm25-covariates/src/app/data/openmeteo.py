@@ -13,6 +13,7 @@ import pandas as pd
 
 from app import config
 from app.errors import FetchError
+from app.logging_setup import Logger
 
 
 def _pull(client: httpx.Client, url: str, variables: tuple[str, ...]) -> pd.DataFrame:
@@ -39,17 +40,8 @@ def _pull(client: httpx.Client, url: str, variables: tuple[str, ...]) -> pd.Data
     return frame
 
 
-def fetch_snapshot(client: httpx.Client | None = None) -> pd.DataFrame:
-    """Fetches both endpoints and returns one aligned, null-free frame."""
-    owned = client is None
-    client = client or httpx.Client()
-    try:
-        air = _pull(client, config.AIR_QUALITY_URL, config.AIR_QUALITY_VARIABLES)
-        weather = _pull(client, config.WEATHER_URL, config.WEATHER_VARIABLES)
-    finally:
-        if owned:
-            client.close()
-
+def _join_and_validate(air: pd.DataFrame, weather: pd.DataFrame) -> pd.DataFrame:
+    """Aligns the two endpoints' frames and enforces the fetch's own contract."""
     if not air.index.equals(weather.index):
         raise FetchError(
             "air quality and weather time grid mismatch: "
@@ -64,7 +56,42 @@ def fetch_snapshot(client: httpx.Client | None = None) -> pd.DataFrame:
     return snapshot
 
 
-def write_snapshot(frame: pd.DataFrame, path: Path) -> None:
+def fetch_snapshot(
+    client: httpx.Client | None = None, *, log: Logger
+) -> pd.DataFrame:
+    """Fetches both endpoints and returns one aligned, null-free frame."""
+    owned = client is None
+    client = client or httpx.Client()
+    try:
+        log.info(
+            "Fetching the snapshot...", start=config.FETCH_START, end=config.FETCH_END
+        )
+        air = _pull(client, config.AIR_QUALITY_URL, config.AIR_QUALITY_VARIABLES)
+        weather = _pull(client, config.WEATHER_URL, config.WEATHER_VARIABLES)
+        snapshot = _join_and_validate(air, weather)
+    except Exception:
+        log.exception(
+            "Fetching the snapshot failed.",
+            start=config.FETCH_START,
+            end=config.FETCH_END,
+        )
+        raise
+    else:
+        log.info("Fetching the snapshot succeeded.", rows=len(snapshot))
+        return snapshot
+    finally:
+        if owned:
+            client.close()
+
+
+def write_snapshot(frame: pd.DataFrame, path: Path, *, log: Logger) -> None:
     """Writes the snapshot CSV, creating the parent directory if needed."""
-    path.parent.mkdir(parents=True, exist_ok=True)
-    frame.to_csv(path, date_format="%Y-%m-%dT%H:%M:%S")
+    try:
+        log.info("Writing the snapshot...", path=str(path), rows=len(frame))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        frame.to_csv(path, date_format="%Y-%m-%dT%H:%M:%S")
+    except Exception:
+        log.exception("Writing the snapshot failed.", path=str(path))
+        raise
+    else:
+        log.info("Writing the snapshot succeeded.", path=str(path), rows=len(frame))
