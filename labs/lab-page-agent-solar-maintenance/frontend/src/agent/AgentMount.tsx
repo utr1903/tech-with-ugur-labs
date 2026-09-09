@@ -12,6 +12,10 @@ export function AgentMount() {
   useEffect(() => {
     if (!session) return;
     const agent = createSolarAgent(getToken);
+    // The library builds its panel hidden and only reveals it once a task is
+    // already running — which no one can trigger, because the input lives in
+    // the panel. Showing it here is what gives the engineer somewhere to type.
+    agent.panel.show();
     window.pageAgent = agent;
     return () => {
       delete window.pageAgent;
