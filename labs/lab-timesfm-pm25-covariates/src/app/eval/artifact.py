@@ -23,7 +23,14 @@ def save_artifact(
     *,
     log: Logger,
 ) -> None:
-    """Persists forecasts, quantiles and scores to one npz file."""
+    """Persists forecasts, quantiles and scores to one npz file.
+
+    The flat `<name>::points` / `<name>::quantiles` keys, plus JSON packed
+    into a 0-d `__scores__` array, are a deliberate compatibility boundary
+    for this one file format - not a layout to copy elsewhere. It is the
+    only place in this lab where structured data crosses a boundary as
+    string-keyed data rather than as the dataclasses in `eval/results.py`.
+    """
     try:
         log.info("Saving the forecasts...", path=str(path))
         path.parent.mkdir(parents=True, exist_ok=True)

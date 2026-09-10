@@ -30,7 +30,11 @@ def main(argv: list[str] | None = None) -> int:
     log = configure_logging(app_name=APP_NAME)
     install_global_error_handlers(log)
 
-    parser = argparse.ArgumentParser(prog="app", description=__doc__)
+    parser = argparse.ArgumentParser(
+        prog="app",
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
     parser.add_argument("command", nargs="?", default="run", choices=list(COMMANDS))
     args = parser.parse_args(argv)
 

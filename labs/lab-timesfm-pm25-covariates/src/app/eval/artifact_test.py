@@ -12,30 +12,51 @@ from app.eval.results import ExperimentResult, Scores
 from app.logging_setup import Logger
 
 
-def test_backtest_artifact_roundtrips(
-    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, log: Logger
-) -> None:
+def test_backtest_artifact_roundtrips(tmp_path: Path, log: Logger) -> None:
     path = tmp_path / "forecasts.npz"
-    monkeypatch.setattr(config, "FORECASTS_PATH", path)
 
     shape = (config.EXPECTED_ORIGINS, config.HORIZON_HOURS)
+    quantile_shape = (*shape, config.N_QUANTILES)
+    # Distinct values in every array, not a single repeated constant, so a
+    # rewrite that mixes up positions or drops an array still fails the
+    # roundtrip instead of accidentally matching by coincidence.
     results = {
         "seasonal-naive": ExperimentResult(
-            points=np.full(shape, 1.0, dtype=np.float32),
-            quantiles=np.full((*shape, config.N_QUANTILES), 1.0, np.float32),
+            points=np.arange(np.prod(shape), dtype=np.float32).reshape(shape),
+            quantiles=np.arange(np.prod(quantile_shape), dtype=np.float32).reshape(
+                quantile_shape
+            ),
             scores=Scores(mae=17.83, rmse=23.5, mase=1.0, coverage=float("nan")),
         )
     }
-    repeat = np.full(
-        (config.DETERMINISM_ORIGINS, config.HORIZON_HOURS), 1.0, dtype=np.float32
+    repeat = (
+        np.arange(
+            config.DETERMINISM_ORIGINS * config.HORIZON_HOURS, dtype=np.float32
+        ).reshape(config.DETERMINISM_ORIGINS, config.HORIZON_HOURS)
+        + 1000.0
     )
 
     artifact.save_artifact(path, results, repeat, log=log)
+
+    # The archive's key layout is part of the contract: assert the exact key
+    # set so a rewrite that drops or renames one silently is caught here,
+    # not by a coincidental shape match in the roundtrip below.
+    assert set(np.load(path).files) == {
+        "seasonal-naive::points",
+        "seasonal-naive::quantiles",
+        "__scores__",
+        "__determinism_repeat__",
+    }
+
     loaded_results, loaded_repeat = artifact.load_artifact(path, log=log)
 
     assert set(loaded_results) == set(results)
     np.testing.assert_array_equal(
         loaded_results["seasonal-naive"].points, results["seasonal-naive"].points
+    )
+    np.testing.assert_array_equal(
+        loaded_results["seasonal-naive"].quantiles,
+        results["seasonal-naive"].quantiles,
     )
     assert loaded_results["seasonal-naive"].scores.mae == 17.83
     np.testing.assert_array_equal(loaded_repeat, repeat)

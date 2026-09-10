@@ -43,7 +43,7 @@ def _run_configurations(
         )
         configuration_results[experiment.name] = result
         log.info(
-            "Running the configuration succeeded.",
+            "Scored the configuration.",
             name=experiment.name,
             mae=result.scores.mae,
             seconds=time.perf_counter() - started,
@@ -58,7 +58,7 @@ def run(*, log: Logger) -> None:
     built = windows.build_windows(frame)
     truth = windows.actuals(frame, built)
     log.info(
-        "Building the backtest windows succeeded.",
+        "Built the backtest windows.",
         origins=len(built),
         context_hours=config.CONTEXT_HOURS,
         horizon_hours=config.HORIZON_HOURS,
@@ -66,7 +66,7 @@ def run(*, log: Logger) -> None:
 
     naive_points = baseline.seasonal_naive(frame, built)
     baseline_mae = metrics.mae(naive_points, truth)
-    log.info("Scoring the baseline succeeded.", mae=baseline_mae)
+    log.info("Scored the baseline.", mae=baseline_mae)
 
     naive_quantiles: FloatArray = np.repeat(
         naive_points[..., None], config.N_QUANTILES, axis=-1
@@ -93,7 +93,7 @@ def run(*, log: Logger) -> None:
         log=log,
     )
     log.info(
-        "Running the determinism repeat succeeded.",
+        "Ran the determinism repeat.",
         origins=config.DETERMINISM_ORIGINS,
     )
 
