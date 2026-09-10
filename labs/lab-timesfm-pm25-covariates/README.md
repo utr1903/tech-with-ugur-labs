@@ -32,10 +32,10 @@ docker compose up
 ```
 
 The first run downloads the TimesFM 3.0 checkpoint (~1.32 GB) into a named
-Docker volume - that took about 49 seconds here. Every run after that is
-offline. The five model configurations themselves take about 81 seconds
-total on a laptop CPU (4.5s, 10.4s, 23.2s, 31.5s, 11.6s below); nothing here
-needs a GPU.
+Docker volume - that takes under a minute on a typical connection. Every run
+after that is offline. The five model configurations themselves take a bit
+over a minute combined on a laptop CPU; nothing here needs a GPU. Exact
+timings vary by machine and appear per-configuration in the log below.
 
 Note for anyone scripting this: `docker compose up` does not propagate the
 container's exit code, so `echo $?` afterwards reads 0 even if a check
@@ -54,39 +54,40 @@ The scoreboard and checks are rendered as plain text underneath. This is a
 real run, trimmed of nothing but the Docker build/pull noise above it:
 
 ```
-{"app_name": "timesfm-pm25-covariates", "path": "/app/data/milan_air_quality_hourly.csv", "event": "Loading the snapshot...", "level": "info", "timestamp": "2026-09-10T00:51:28.188541Z"}
-{"app_name": "timesfm-pm25-covariates", "rows": 9504, "event": "Loading the snapshot succeeded.", "level": "info", "timestamp": "2026-09-10T00:51:28.202343Z"}
-{"app_name": "timesfm-pm25-covariates", "rows": 9504, "event": "Validating the snapshot...", "level": "info", "timestamp": "2026-09-10T00:51:28.202379Z"}
-{"app_name": "timesfm-pm25-covariates", "rows": 9504, "event": "Validating the snapshot succeeded.", "level": "info", "timestamp": "2026-09-10T00:51:28.203269Z"}
-{"app_name": "timesfm-pm25-covariates", "origins": 90, "context_hours": 512, "horizon_hours": 24, "event": "Built the backtest windows.", "level": "info", "timestamp": "2026-09-10T00:51:28.212635Z"}
-{"app_name": "timesfm-pm25-covariates", "mae": 17.829214096069336, "event": "Scored the baseline.", "level": "info", "timestamp": "2026-09-10T00:51:28.212793Z"}
-{"app_name": "timesfm-pm25-covariates", "batch_size": 8, "event": "Building the forecaster...", "level": "info", "timestamp": "2026-09-10T00:51:28.212904Z"}
+{"app_name": "timesfm-pm25-covariates", "path": "/app/data/milan_air_quality_hourly.csv", "event": "Loading the snapshot...", "level": "info", "timestamp": "2026-09-10T00:57:01.011758Z"}
+{"app_name": "timesfm-pm25-covariates", "rows": 9504, "event": "Loading the snapshot succeeded.", "level": "info", "timestamp": "2026-09-10T00:57:01.021886Z"}
+{"app_name": "timesfm-pm25-covariates", "rows": 9504, "event": "Validating the snapshot...", "level": "info", "timestamp": "2026-09-10T00:57:01.021920Z"}
+{"app_name": "timesfm-pm25-covariates", "rows": 9504, "event": "Validating the snapshot succeeded.", "level": "info", "timestamp": "2026-09-10T00:57:01.022719Z"}
+{"app_name": "timesfm-pm25-covariates", "origins": 90, "context_hours": 512, "horizon_hours": 24, "event": "Built the backtest windows.", "level": "info", "timestamp": "2026-09-10T00:57:01.033904Z"}
+{"app_name": "timesfm-pm25-covariates", "mae": 17.829214096069336, "event": "Scored the baseline.", "level": "info", "timestamp": "2026-09-10T00:57:01.034121Z"}
+{"app_name": "timesfm-pm25-covariates", "batch_size": 8, "event": "Building the forecaster...", "level": "info", "timestamp": "2026-09-10T00:57:01.034195Z"}
 Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
-{"app_name": "timesfm-pm25-covariates", "checkpoint": "google/timesfm-3.0-pytorch", "event": "Building the forecaster succeeded.", "level": "info", "timestamp": "2026-09-10T00:51:30.282195Z"}
-{"app_name": "timesfm-pm25-covariates", "name": "timesfm-univariate", "origins": 90, "event": "Forecasting the batch...", "level": "info", "timestamp": "2026-09-10T00:51:30.292654Z"}
-{"app_name": "timesfm-pm25-covariates", "name": "timesfm-univariate", "event": "Forecasting the batch succeeded.", "level": "info", "timestamp": "2026-09-10T00:51:35.336949Z"}
-{"app_name": "timesfm-pm25-covariates", "name": "timesfm-univariate", "mae": 12.08474063873291, "seconds": 5.055041168998287, "event": "Scored the configuration.", "level": "info", "timestamp": "2026-09-10T00:51:35.337502Z"}
-{"app_name": "timesfm-pm25-covariates", "name": "timesfm-past-only", "origins": 90, "event": "Forecasting the batch...", "level": "info", "timestamp": "2026-09-10T00:51:35.356023Z"}
-{"app_name": "timesfm-pm25-covariates", "name": "timesfm-past-only", "event": "Forecasting the batch succeeded.", "level": "info", "timestamp": "2026-09-10T00:51:45.674296Z"}
-{"app_name": "timesfm-pm25-covariates", "name": "timesfm-past-only", "mae": 12.172311782836914, "seconds": 10.336968796000292, "event": "Scored the configuration.", "level": "info", "timestamp": "2026-09-10T00:51:45.675026Z"}
-{"app_name": "timesfm-pm25-covariates", "name": "timesfm-past-future", "origins": 90, "event": "Forecasting the batch...", "level": "info", "timestamp": "2026-09-10T00:51:45.708137Z"}
-{"app_name": "timesfm-pm25-covariates", "name": "timesfm-past-future", "event": "Forecasting the batch succeeded.", "level": "info", "timestamp": "2026-09-10T00:52:08.403351Z"}
-{"app_name": "timesfm-pm25-covariates", "name": "timesfm-past-future", "mae": 10.144158363342285, "seconds": 22.729194343999552, "event": "Scored the configuration.", "level": "info", "timestamp": "2026-09-10T00:52:08.404277Z"}
-{"app_name": "timesfm-pm25-covariates", "name": "timesfm-both", "origins": 90, "event": "Forecasting the batch...", "level": "info", "timestamp": "2026-09-10T00:52:08.443903Z"}
-{"app_name": "timesfm-pm25-covariates", "name": "timesfm-both", "event": "Forecasting the batch succeeded.", "level": "info", "timestamp": "2026-09-10T00:52:40.077175Z"}
-{"app_name": "timesfm-pm25-covariates", "name": "timesfm-both", "mae": 10.281707763671875, "seconds": 31.684906763999606, "event": "Scored the configuration.", "level": "info", "timestamp": "2026-09-10T00:52:40.079376Z"}
-{"app_name": "timesfm-pm25-covariates", "name": "leaky-control", "origins": 90, "event": "Forecasting the batch...", "level": "info", "timestamp": "2026-09-10T00:52:40.104120Z"}
-{"app_name": "timesfm-pm25-covariates", "name": "leaky-control", "event": "Forecasting the batch succeeded.", "level": "info", "timestamp": "2026-09-10T00:52:51.528036Z"}
-{"app_name": "timesfm-pm25-covariates", "name": "leaky-control", "mae": 6.3939995765686035, "seconds": 11.449455879999732, "event": "Scored the configuration.", "level": "info", "timestamp": "2026-09-10T00:52:51.528898Z"}
-{"app_name": "timesfm-pm25-covariates", "name": "timesfm-univariate", "origins": 8, "event": "Forecasting the batch...", "level": "info", "timestamp": "2026-09-10T00:52:51.531230Z"}
-{"app_name": "timesfm-pm25-covariates", "name": "timesfm-univariate", "event": "Forecasting the batch succeeded.", "level": "info", "timestamp": "2026-09-10T00:52:52.030736Z"}
-{"app_name": "timesfm-pm25-covariates", "origins": 8, "event": "Ran the determinism repeat.", "level": "info", "timestamp": "2026-09-10T00:52:52.030807Z"}
-{"app_name": "timesfm-pm25-covariates", "path": "/app/output/forecasts.npz", "event": "Saving the forecasts...", "level": "info", "timestamp": "2026-09-10T00:52:52.030959Z"}
-{"app_name": "timesfm-pm25-covariates", "path": "/app/output/forecasts.npz", "event": "Saving the forecasts succeeded.", "level": "info", "timestamp": "2026-09-10T00:52:52.049936Z"}
-{"app_name": "timesfm-pm25-covariates", "path": "/app/data/milan_air_quality_hourly.csv", "event": "Loading the snapshot...", "level": "info", "timestamp": "2026-09-10T00:52:52.050877Z"}
-{"app_name": "timesfm-pm25-covariates", "rows": 9504, "event": "Loading the snapshot succeeded.", "level": "info", "timestamp": "2026-09-10T00:52:52.061294Z"}
-{"app_name": "timesfm-pm25-covariates", "path": "/app/output/forecasts.npz", "event": "Loading the forecasts...", "level": "info", "timestamp": "2026-09-10T00:52:52.077862Z"}
-{"app_name": "timesfm-pm25-covariates", "configurations": 6, "event": "Loading the forecasts succeeded.", "level": "info", "timestamp": "2026-09-10T00:52:52.087435Z"}
+{"app_name": "timesfm-pm25-covariates", "checkpoint": "google/timesfm-3.0-pytorch", "event": "Building the forecaster succeeded.", "level": "info", "timestamp": "2026-09-10T00:57:03.088081Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-univariate", "origins": 90, "event": "Forecasting the batch...", "level": "info", "timestamp": "2026-09-10T00:57:03.099032Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-univariate", "event": "Forecasting the batch succeeded.", "level": "info", "timestamp": "2026-09-10T00:57:08.260676Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-univariate", "mae": 12.08474063873291, "seconds": 5.171549835999031, "event": "Scored the configuration.", "level": "info", "timestamp": "2026-09-10T00:57:08.261260Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-past-only", "origins": 90, "event": "Forecasting the batch...", "level": "info", "timestamp": "2026-09-10T00:57:08.276548Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-past-only", "event": "Forecasting the batch succeeded.", "level": "info", "timestamp": "2026-09-10T00:57:18.286265Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-past-only", "mae": 12.172311782836914, "seconds": 10.029270295999595, "event": "Scored the configuration.", "level": "info", "timestamp": "2026-09-10T00:57:18.286865Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-past-future", "origins": 90, "event": "Forecasting the batch...", "level": "info", "timestamp": "2026-09-10T00:57:18.317607Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-past-future", "event": "Forecasting the batch succeeded.", "level": "info", "timestamp": "2026-09-10T00:57:41.054747Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-past-future", "mae": 10.144158363342285, "seconds": 22.76637684400339, "event": "Scored the configuration.", "level": "info", "timestamp": "2026-09-10T00:57:41.055844Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-both", "origins": 90, "event": "Forecasting the batch...", "level": "info", "timestamp": "2026-09-10T00:57:41.109666Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-both", "event": "Forecasting the batch succeeded.", "level": "info", "timestamp": "2026-09-10T00:58:11.167545Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-both", "mae": 10.281707763671875, "seconds": 30.114677222001774, "event": "Scored the configuration.", "level": "info", "timestamp": "2026-09-10T00:58:11.171126Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "leaky-control", "origins": 90, "event": "Forecasting the batch...", "level": "info", "timestamp": "2026-09-10T00:58:11.192118Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "leaky-control", "event": "Forecasting the batch succeeded.", "level": "info", "timestamp": "2026-09-10T00:58:21.813127Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "leaky-control", "mae": 6.3939995765686035, "seconds": 10.64272537999932, "event": "Scored the configuration.", "level": "info", "timestamp": "2026-09-10T00:58:21.813909Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-univariate", "origins": 8, "event": "Forecasting the batch...", "level": "info", "timestamp": "2026-09-10T00:58:21.815852Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-univariate", "event": "Forecasting the batch succeeded.", "level": "info", "timestamp": "2026-09-10T00:58:22.238522Z"}
+{"app_name": "timesfm-pm25-covariates", "origins": 8, "event": "Ran the determinism repeat.", "level": "info", "timestamp": "2026-09-10T00:58:22.238577Z"}
+{"app_name": "timesfm-pm25-covariates", "path": "/app/output/forecasts.npz", "event": "Saving the forecasts...", "level": "info", "timestamp": "2026-09-10T00:58:22.238687Z"}
+{"app_name": "timesfm-pm25-covariates", "path": "/app/output/forecasts.npz", "event": "Saving the forecasts succeeded.", "level": "info", "timestamp": "2026-09-10T00:58:22.260509Z"}
+{"app_name": "timesfm-pm25-covariates", "path": "/app/data/milan_air_quality_hourly.csv", "event": "Loading the snapshot...", "level": "info", "timestamp": "2026-09-10T00:58:22.261409Z"}
+{"app_name": "timesfm-pm25-covariates", "rows": 9504, "event": "Loading the snapshot succeeded.", "level": "info", "timestamp": "2026-09-10T00:58:22.270318Z"}
+{"app_name": "timesfm-pm25-covariates", "path": "/app/output/forecasts.npz", "event": "Loading the forecasts...", "level": "info", "timestamp": "2026-09-10T00:58:22.283451Z"}
+{"app_name": "timesfm-pm25-covariates", "configurations": 6, "event": "Loading the forecasts succeeded.", "level": "info", "timestamp": "2026-09-10T00:58:22.292005Z"}
+
 Scoreboard (PM2.5, ug/m3, 24h ahead)
 ---------------------------------------------------------------
 configuration              MAE    RMSE    MASE  coverage  notes
@@ -96,14 +97,16 @@ timesfm-past-only        12.17   15.82   0.683      0.79  Plus measured NO2 and 
 timesfm-past-future      10.14   13.02   0.569      0.81  Plus tomorrow's weather, measured rather than forecast
 timesfm-both             10.28   13.16   0.577      0.81  Past pollutants and future weather together
 leaky-control             6.39    8.53   0.359      0.81  CHEATS *
+
 MASE is MAE relative to seasonal-naive: below 1.0 beats it.
 * leaky-control is given tomorrow's NO2 and CO. Its score is what target leakage looks like, not a result.
-{"app_name": "timesfm-pm25-covariates", "path": "/app/output/smog_episode.png", "event": "Plotting the worst episode...", "level": "info", "timestamp": "2026-09-10T00:52:52.087618Z"}
-{"app_name": "timesfm-pm25-covariates", "path": "/app/output/smog_episode.png", "event": "Plotting the worst episode succeeded.", "level": "info", "timestamp": "2026-09-10T00:52:52.190221Z"}
-{"app_name": "timesfm-pm25-covariates", "origins": 90, "event": "Running the checks...", "level": "info", "timestamp": "2026-09-10T00:52:52.190264Z"}
-{"app_name": "timesfm-pm25-covariates", "rows": 9504, "event": "Validating the snapshot...", "level": "info", "timestamp": "2026-09-10T00:52:52.190296Z"}
-{"app_name": "timesfm-pm25-covariates", "rows": 9504, "event": "Validating the snapshot succeeded.", "level": "info", "timestamp": "2026-09-10T00:52:52.191489Z"}
-{"app_name": "timesfm-pm25-covariates", "passed": 6, "total": 6, "event": "Running the checks succeeded.", "level": "info", "timestamp": "2026-09-10T00:52:52.191602Z"}
+{"app_name": "timesfm-pm25-covariates", "path": "/app/output/smog_episode.png", "event": "Plotting the worst episode...", "level": "info", "timestamp": "2026-09-10T00:58:22.292176Z"}
+{"app_name": "timesfm-pm25-covariates", "path": "/app/output/smog_episode.png", "event": "Plotting the worst episode succeeded.", "level": "info", "timestamp": "2026-09-10T00:58:22.384553Z"}
+{"app_name": "timesfm-pm25-covariates", "origins": 90, "event": "Running the checks...", "level": "info", "timestamp": "2026-09-10T00:58:22.384602Z"}
+{"app_name": "timesfm-pm25-covariates", "rows": 9504, "event": "Validating the snapshot...", "level": "info", "timestamp": "2026-09-10T00:58:22.384631Z"}
+{"app_name": "timesfm-pm25-covariates", "rows": 9504, "event": "Validating the snapshot succeeded.", "level": "info", "timestamp": "2026-09-10T00:58:22.385822Z"}
+{"app_name": "timesfm-pm25-covariates", "passed": 6, "total": 6, "event": "Running the checks succeeded.", "level": "info", "timestamp": "2026-09-10T00:58:22.385955Z"}
+
 Checks
 ------
 [PASS] snapshot-integrity: 9504 contiguous hourly rows, no nulls, one aligned grid
@@ -112,6 +115,7 @@ Checks
 [PASS] leakage-is-visible: leaky-control MAE 6.39 vs best honest 10.14 ug/m3 - if this fails, the covariate arguments are being ignored
 [PASS] calibration-sanity: 0.1-0.9 band covers 0.79-0.81 of actuals
 [PASS] determinism: two runs over 8 origins produced bit-identical point forecasts
+
 all checks passed
 ```
 
