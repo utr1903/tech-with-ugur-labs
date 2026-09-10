@@ -10,7 +10,7 @@ import pandas as pd
 
 from app import config
 from app.errors import WindowError
-from app.eval.results import FloatArray
+from app.lib.arrays import FloatArray
 
 
 @dataclass(frozen=True)

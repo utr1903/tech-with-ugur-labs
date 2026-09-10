@@ -11,7 +11,8 @@ import numpy as np
 import numpy.typing as npt
 
 from app.errors import ArtifactError
-from app.eval.results import ExperimentResult, FloatArray, Scores
+from app.eval.results import ExperimentResult, Scores
+from app.lib.arrays import FloatArray
 from app.logging_setup import Logger
 
 

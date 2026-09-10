@@ -10,8 +10,8 @@ from timesfm3 import ModelConfig, TimesFM3Forecaster
 
 from app import config
 from app.eval import experiments
-from app.eval.results import FloatArray
 from app.forecast import scaling, windows
+from app.lib.arrays import FloatArray
 from app.logging_setup import Logger
 
 

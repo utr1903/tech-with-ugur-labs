@@ -9,8 +9,9 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from app import config
-from app.eval.results import ExperimentResult, FloatArray
+from app.eval.results import ExperimentResult
 from app.forecast.windows import Window
+from app.lib.arrays import FloatArray
 from app.logging_setup import Logger
 
 

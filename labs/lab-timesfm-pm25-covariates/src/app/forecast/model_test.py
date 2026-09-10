@@ -11,8 +11,8 @@ import pytest
 from app import config
 from app.data import snapshot
 from app.eval import experiments
-from app.eval.results import FloatArray
 from app.forecast import model, windows
+from app.lib.arrays import FloatArray
 from app.logging_setup import Logger, get_logger
 
 
@@ -31,6 +31,14 @@ class FakeForecaster:
     arguments are spelled out (rather than `**kwargs: Any`, which ruff's
     ANN401 forbids) because run_experiment always calls this with exactly
     this set - the fake is standing in for one real, untyped call shape.
+
+    Every parameter is required, with no default - run_experiment always
+    passes all nine by keyword, so nothing breaks, but a caller that drops
+    one now gets an immediate TypeError instead of a silently-defaulted
+    value. Several of these defaults would otherwise equal the exact value a
+    test asserts (`use_symmetric_averaging=False`, `padding_mode="edge"`,
+    `past_only_covariates=None`), which would let a dropped kwarg at the real
+    call site in model.py pass its test while silently changing behaviour.
     """
 
     def __init__(self) -> None:
@@ -41,13 +49,13 @@ class FakeForecaster:
         *,
         contexts: list[FloatArray],
         horizon: int,
-        past_only_covariates: list[FloatArray | None] | None = None,
-        past_future_covariates: list[FloatArray | None] | None = None,
-        return_quantiles: bool = False,
-        use_symmetric_averaging: bool = False,
-        make_positive: bool = False,
-        sort_quantiles: bool = False,
-        padding_mode: str = "edge",
+        past_only_covariates: list[FloatArray | None] | None,
+        past_future_covariates: list[FloatArray | None] | None,
+        return_quantiles: bool,
+        use_symmetric_averaging: bool,
+        make_positive: bool,
+        sort_quantiles: bool,
+        padding_mode: str,
     ) -> Iterator[SimpleNamespace]:
         call: dict[str, Any] = {
             "contexts": contexts,

@@ -5,7 +5,8 @@ from __future__ import annotations
 import numpy as np
 
 from app import config
-from app.eval.results import FloatArray, Scores
+from app.eval.results import Scores
+from app.lib.arrays import FloatArray
 
 
 def mae(pred: FloatArray, truth: FloatArray) -> float:

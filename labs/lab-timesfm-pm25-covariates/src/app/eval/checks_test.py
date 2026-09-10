@@ -9,9 +9,10 @@ import pytest
 from app import config
 from app.data import snapshot
 from app.eval import checks
-from app.eval.results import ExperimentResult, FloatArray, Scores
+from app.eval.results import ExperimentResult, Scores
 from app.forecast import windows
 from app.forecast.windows import Window
+from app.lib.arrays import FloatArray
 from app.logging_setup import Logger, get_logger
 
 

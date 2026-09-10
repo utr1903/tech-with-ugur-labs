@@ -4,13 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-import numpy as np
-import numpy.typing as npt
-
-# The forecast arrays are float32 end to end: windows.context_block and
-# horizon_block both finish with astype/ascontiguousarray(dtype=np.float32),
-# and everything downstream inherits it.
-type FloatArray = npt.NDArray[np.float32]
+from app.lib.arrays import FloatArray
 
 
 @dataclass(frozen=True)

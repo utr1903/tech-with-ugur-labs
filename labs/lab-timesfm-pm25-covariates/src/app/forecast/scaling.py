@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from app.eval.results import FloatArray
+from app.lib.arrays import FloatArray
 
 _MIN_SD = 1e-6
 

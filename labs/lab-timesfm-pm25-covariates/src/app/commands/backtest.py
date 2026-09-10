@@ -11,9 +11,10 @@ from timesfm3 import TimesFM3Forecaster
 from app import config
 from app.data import snapshot
 from app.eval import artifact, experiments, metrics
-from app.eval.results import ExperimentResult, FloatArray
+from app.eval.results import ExperimentResult
 from app.forecast import baseline, model, windows
 from app.forecast.windows import Window
+from app.lib.arrays import FloatArray
 from app.logging_setup import Logger
 
 

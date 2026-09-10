@@ -12,8 +12,8 @@ import numpy as np
 import pandas as pd
 
 from app import config
-from app.eval.results import FloatArray
 from app.forecast.windows import Window
+from app.lib.arrays import FloatArray
 
 
 def seasonal_naive(frame: pd.DataFrame, built: Sequence[Window]) -> FloatArray:

@@ -16,8 +16,9 @@ import pandas as pd
 from app import config
 from app.data import snapshot
 from app.errors import SnapshotError
-from app.eval.results import ExperimentResult, FloatArray
+from app.eval.results import ExperimentResult
 from app.forecast.windows import Window
+from app.lib.arrays import FloatArray
 from app.logging_setup import Logger
 
 HONEST_TIMESFM = (
