@@ -2,7 +2,7 @@
 
 uv run app run        # backtest + report + checks (the default)
 uv run app fetch      # rebuild the data snapshot from Open-Meteo
-uv run app backtest   # forecasts only, saved to output/forecasts.npz
+uv run app backtest   # forecasts only, saved to tmp/forecasts.npz
 uv run app report     # re-render from a saved backtest
 """
 

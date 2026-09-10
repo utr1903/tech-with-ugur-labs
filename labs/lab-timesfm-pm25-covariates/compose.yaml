@@ -5,11 +5,11 @@ services:
       HF_HOME: /cache/huggingface
       MPLBACKEND: Agg
       DATA_DIR: /app/data
-      OUTPUT_DIR: /app/output
+      OUTPUT_DIR: /app/tmp
       LOG_LEVEL: info
     volumes:
       - model-cache:/cache/huggingface
-      - ./output:/app/output
+      - ./tmp:/app/tmp
       - ./data:/app/data
 
 volumes:

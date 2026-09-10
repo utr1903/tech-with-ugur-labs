@@ -68,7 +68,7 @@ DETERMINISM_ORIGINS = BATCH_SIZE
 # --- working directory, which is the lab directory locally and /app in the
 # --- container.
 DATA_DIR = Path(os.environ.get("DATA_DIR", "data"))
-OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "output"))
+OUTPUT_DIR = Path(os.environ.get("OUTPUT_DIR", "tmp"))
 SNAPSHOT_PATH = DATA_DIR / "milan_air_quality_hourly.csv"
 FORECASTS_PATH = OUTPUT_DIR / "forecasts.npz"
 EPISODE_PLOT_PATH = OUTPUT_DIR / "smog_episode.png"
