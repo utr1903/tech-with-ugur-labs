@@ -10,6 +10,7 @@ from timesfm3 import ModelConfig, TimesFM3Forecaster
 
 from app import config
 from app.eval import experiments
+from app.eval.results import FloatArray
 from app.forecast import scaling, windows
 from app.logging_setup import Logger
 
@@ -44,7 +45,7 @@ def covariate_blocks(
     frame: pd.DataFrame,
     window: windows.Window,
     experiment: experiments.Experiment,
-) -> tuple[np.ndarray | None, np.ndarray | None]:
+) -> tuple[FloatArray | None, FloatArray | None]:
     """Builds the standardised covariate arrays for one origin.
 
     Past-only stops at the origin. Past-and-future runs one horizon beyond it -
@@ -77,7 +78,7 @@ def run_experiment(
     experiment: experiments.Experiment,
     *,
     log: Logger,
-) -> tuple[np.ndarray, np.ndarray]:
+) -> tuple[FloatArray, FloatArray]:
     """Forecasts every origin for one configuration.
 
     All origins go into a single predict_batch call, which chunks them
@@ -85,8 +86,8 @@ def run_experiment(
     the per-call overhead 90 times over.
     """
     contexts = []
-    past_only_list: list[np.ndarray | None] = []
-    past_future_list: list[np.ndarray | None] = []
+    past_only_list: list[FloatArray | None] = []
+    past_future_list: list[FloatArray | None] = []
 
     for window in built:
         contexts.append(windows.target_context(frame, window))
@@ -95,16 +96,12 @@ def run_experiment(
         past_future_list.append(past_future)
 
     try:
-        log.info(
-            "Forecasting the batch...", name=experiment.name, origins=len(built)
-        )
+        log.info("Forecasting the batch...", name=experiment.name, origins=len(built))
         outputs = list(
             model.predict_batch(
                 contexts=contexts,
                 horizon=config.HORIZON_HOURS,
-                past_only_covariates=(
-                    past_only_list if experiment.past_only else None
-                ),
+                past_only_covariates=(past_only_list if experiment.past_only else None),
                 past_future_covariates=(
                     past_future_list if experiment.past_future else None
                 ),

@@ -38,9 +38,7 @@ def validate_snapshot(frame: pd.DataFrame, *, log: Logger) -> None:
         raise SnapshotError(f"unexpected columns: {list(frame.columns)}")
 
     if len(frame) != config.EXPECTED_ROWS:
-        raise SnapshotError(
-            f"expected {config.EXPECTED_ROWS} rows, found {len(frame)}"
-        )
+        raise SnapshotError(f"expected {config.EXPECTED_ROWS} rows, found {len(frame)}")
 
     nulls = frame.isnull().sum()
     if nulls.any():

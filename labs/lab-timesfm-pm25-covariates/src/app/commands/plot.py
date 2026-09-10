@@ -9,19 +9,20 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 from app import config
+from app.eval.results import ExperimentResult, FloatArray
 from app.forecast.windows import Window
 from app.logging_setup import Logger
 
 
-def worst_episode_index(truth: np.ndarray) -> int:
+def worst_episode_index(truth: FloatArray) -> int:
     """The origin whose horizon contains the highest measured PM2.5."""
     return int(np.argmax(truth.max(axis=1)))
 
 
 def plot_episode(
     built: Sequence[Window],
-    truth: np.ndarray,
-    results: dict[str, dict],
+    truth: FloatArray,
+    results: dict[str, ExperimentResult],
     index: int,
     path: Path,
     *,
@@ -35,7 +36,7 @@ def plot_episode(
 
         figure, axes = plt.subplots(figsize=(10, 5.5))
 
-        band = results["timesfm-past-future"]["quantiles"][index]
+        band = results["timesfm-past-future"].quantiles[index]
         axes.fill_between(
             hours,
             band[:, config.LOW_QUANTILE_INDEX],
@@ -52,7 +53,7 @@ def plot_episode(
         ):
             axes.plot(
                 hours,
-                results[name]["points"][index],
+                results[name].points[index],
                 style,
                 linewidth=1.6,
                 label=name,

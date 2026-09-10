@@ -11,6 +11,7 @@ from timesfm3 import TimesFM3Forecaster
 from app import config
 from app.data import snapshot
 from app.eval import artifact, experiments, metrics
+from app.eval.results import ExperimentResult, FloatArray
 from app.forecast import baseline, model, windows
 from app.forecast.windows import Window
 from app.logging_setup import Logger
@@ -20,13 +21,13 @@ def _run_configurations(
     forecaster: TimesFM3Forecaster,
     frame: pd.DataFrame,
     built: list[Window],
-    truth: np.ndarray,
+    truth: FloatArray,
     baseline_mae: float,
     *,
     log: Logger,
-) -> dict[str, dict]:
+) -> dict[str, ExperimentResult]:
     """Scores every timesfm configuration, returning a fresh results dict."""
-    configuration_results: dict[str, dict] = {}
+    configuration_results: dict[str, ExperimentResult] = {}
     for experiment in experiments.EXPERIMENTS:
         if experiment.kind != "timesfm":
             continue
@@ -34,15 +35,16 @@ def _run_configurations(
         points, quantiles = model.run_experiment(
             forecaster, frame, built, experiment, log=log
         )
-        configuration_results[experiment.name] = {
-            "points": points,
-            "quantiles": quantiles,
-            "scores": metrics.evaluate(points, truth, baseline_mae, quantiles),
-        }
+        result = ExperimentResult(
+            points=points,
+            quantiles=quantiles,
+            scores=metrics.evaluate(points, truth, baseline_mae, quantiles),
+        )
+        configuration_results[experiment.name] = result
         log.info(
             "Running the configuration succeeded.",
             name=experiment.name,
-            mae=configuration_results[experiment.name]["scores"]["mae"],
+            mae=result.scores.mae,
             seconds=time.perf_counter() - started,
         )
     return configuration_results
@@ -65,14 +67,15 @@ def run(*, log: Logger) -> None:
     baseline_mae = metrics.mae(naive_points, truth)
     log.info("Scoring the baseline succeeded.", mae=baseline_mae)
 
+    naive_quantiles: FloatArray = np.repeat(
+        naive_points[..., None], config.N_QUANTILES, axis=-1
+    )
     results = {
-        "seasonal-naive": {
-            "points": naive_points,
-            "quantiles": np.repeat(
-                naive_points[..., None], config.N_QUANTILES, axis=-1
-            ),
-            "scores": metrics.evaluate(naive_points, truth, baseline_mae),
-        }
+        "seasonal-naive": ExperimentResult(
+            points=naive_points,
+            quantiles=naive_quantiles,
+            scores=metrics.evaluate(naive_points, truth, baseline_mae),
+        )
     }
 
     forecaster = model.build_forecaster(log=log)

@@ -19,6 +19,7 @@ app = "app.__main__:main"
 dev = [
     "deptry==0.25.1",
     "mypy==2.3.1",
+    "pandas-stubs==2.2.3.250527",
     "pytest==8.3.4",
     "ruff==0.16.6",
 ]
@@ -94,3 +95,10 @@ extend_exclude = [".*_test\\.py", ".*conftest\\.py"]
 # The distribution is `timesfm`; the module it installs is `timesfm3`.
 [tool.deptry.package_module_name_map]
 timesfm = ["timesfm3"]
+
+[tool.deptry.per_rule_ignores]
+# torch is never imported. It is declared so that [tool.uv.sources] routes
+# timesfm's transitive torch through the CPU wheel index - uv sources do not
+# apply to transitive dependencies, so without the direct declaration uv
+# resolves torch from PyPI and pulls ~2.5 GB of CUDA into the image.
+DEP002 = ["torch"]

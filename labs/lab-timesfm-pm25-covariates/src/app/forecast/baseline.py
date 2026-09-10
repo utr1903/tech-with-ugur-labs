@@ -12,10 +12,11 @@ import numpy as np
 import pandas as pd
 
 from app import config
+from app.eval.results import FloatArray
 from app.forecast.windows import Window
 
 
-def seasonal_naive(frame: pd.DataFrame, built: Sequence[Window]) -> np.ndarray:
+def seasonal_naive(frame: pd.DataFrame, built: Sequence[Window]) -> FloatArray:
     """Predicts each horizon hour with the same hour one day earlier."""
     series = frame[config.TARGET].to_numpy()
     predictions = []
@@ -23,4 +24,5 @@ def seasonal_naive(frame: pd.DataFrame, built: Sequence[Window]) -> np.ndarray:
         origin = window.start + config.CONTEXT_HOURS
         start = origin - config.SEASONAL_PERIOD_HOURS
         predictions.append(series[start : start + config.HORIZON_HOURS])
-    return np.stack(predictions).astype(np.float32)
+    naive: FloatArray = np.stack(predictions).astype(np.float32)
+    return naive

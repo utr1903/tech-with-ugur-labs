@@ -1,27 +1,34 @@
 from __future__ import annotations
 
+import dataclasses
+
 import numpy as np
+import pandas as pd
 import pytest
 
 from app import config
 from app.data import snapshot
 from app.eval import checks
+from app.eval.results import ExperimentResult, FloatArray, Scores
 from app.forecast import windows
-from app.logging_setup import get_logger
+from app.forecast.windows import Window
+from app.logging_setup import Logger, get_logger
 
 
-def _result(points, quantiles=None, **scores):
+def _result(
+    points: FloatArray, quantiles: FloatArray | None = None, **scores: float
+) -> ExperimentResult:
     n, h = points.shape
     if quantiles is None:
-        spread = np.linspace(-10.0, 10.0, config.N_QUANTILES)
+        spread = np.linspace(-10.0, 10.0, config.N_QUANTILES, dtype=np.float32)
         quantiles = points[..., None] + spread
     base = {"mae": 0.0, "rmse": 0.0, "mase": 0.0, "coverage": 0.8}
     base.update(scores)
-    return {"points": points, "quantiles": quantiles, "scores": base}
+    return ExperimentResult(points=points, quantiles=quantiles, scores=Scores(**base))
 
 
 @pytest.fixture(scope="module")
-def fixtures():
+def fixtures() -> tuple[pd.DataFrame, list[Window], FloatArray]:
     # Module-scoped, so it cannot depend on the function-scoped `log`
     # fixture - build a bound logger directly instead.
     frame = snapshot.load_snapshot(log=get_logger(app_name="test"))
@@ -30,32 +37,54 @@ def fixtures():
     return frame, built, truth
 
 
-def _passing_results(truth):
+def _passing_results(truth: FloatArray) -> dict[str, ExperimentResult]:
     shape = truth.shape
     return {
-        "seasonal-naive": _result(np.full(shape, 50.0), mae=17.83, mase=1.0),
-        "timesfm-univariate": _result(np.full(shape, 50.0), mae=15.0, mase=0.84),
-        "timesfm-past-only": _result(np.full(shape, 50.0), mae=15.5, mase=0.87),
-        "timesfm-past-future": _result(np.full(shape, 50.0), mae=14.5, mase=0.81),
-        "timesfm-both": _result(np.full(shape, 50.0), mae=14.8, mase=0.83),
-        "leaky-control": _result(np.full(shape, 50.0), mae=6.0, mase=0.34),
+        "seasonal-naive": _result(
+            np.full(shape, 50.0, dtype=np.float32), mae=17.83, mase=1.0
+        ),
+        "timesfm-univariate": _result(
+            np.full(shape, 50.0, dtype=np.float32), mae=15.0, mase=0.84
+        ),
+        "timesfm-past-only": _result(
+            np.full(shape, 50.0, dtype=np.float32), mae=15.5, mase=0.87
+        ),
+        "timesfm-past-future": _result(
+            np.full(shape, 50.0, dtype=np.float32), mae=14.5, mase=0.81
+        ),
+        "timesfm-both": _result(
+            np.full(shape, 50.0, dtype=np.float32), mae=14.8, mase=0.83
+        ),
+        "leaky-control": _result(
+            np.full(shape, 50.0, dtype=np.float32), mae=6.0, mase=0.34
+        ),
     }
 
 
-def test_all_checks_pass_on_well_formed_results(fixtures, log):
+def _with_score(result: ExperimentResult, **scores: float) -> ExperimentResult:
+    return dataclasses.replace(
+        result, scores=dataclasses.replace(result.scores, **scores)
+    )
+
+
+def test_all_checks_pass_on_well_formed_results(
+    fixtures: tuple[pd.DataFrame, list[Window], FloatArray], log: Logger
+) -> None:
     frame, built, truth = fixtures
     results = _passing_results(truth)
-    repeat = results["timesfm-univariate"]["points"][: config.DETERMINISM_ORIGINS]
+    repeat = results["timesfm-univariate"].points[: config.DETERMINISM_ORIGINS]
     outcomes = checks.run_all(frame, built, results, repeat, log=log)
 
     assert len(outcomes) == 6
     assert all(o.passed for o in outcomes), [o.detail for o in outcomes if not o.passed]
 
 
-def test_check_fails_on_a_malformed_snapshot(fixtures, log):
+def test_check_fails_on_a_malformed_snapshot(
+    fixtures: tuple[pd.DataFrame, list[Window], FloatArray], log: Logger
+) -> None:
     frame, built, truth = fixtures
     results = _passing_results(truth)
-    repeat = results["timesfm-univariate"]["points"][: config.DETERMINISM_ORIGINS]
+    repeat = results["timesfm-univariate"].points[: config.DETERMINISM_ORIGINS]
     bad_frame = frame.iloc[:-1]  # wrong row count fails validate_snapshot
     outcomes = {
         o.name: o for o in checks.run_all(bad_frame, built, results, repeat, log=log)
@@ -63,57 +92,68 @@ def test_check_fails_on_a_malformed_snapshot(fixtures, log):
     assert not outcomes["snapshot-integrity"].passed
 
 
-def test_check_fails_when_the_model_loses_to_the_baseline(fixtures, log):
+def test_check_fails_when_the_model_loses_to_the_baseline(
+    fixtures: tuple[pd.DataFrame, list[Window], FloatArray], log: Logger
+) -> None:
     frame, built, truth = fixtures
     results = _passing_results(truth)
-    results["timesfm-univariate"]["scores"]["mae"] = 19.0
-    repeat = results["timesfm-univariate"]["points"][: config.DETERMINISM_ORIGINS]
+    results["timesfm-univariate"] = _with_score(results["timesfm-univariate"], mae=19.0)
+    repeat = results["timesfm-univariate"].points[: config.DETERMINISM_ORIGINS]
     outcomes = {
         o.name: o for o in checks.run_all(frame, built, results, repeat, log=log)
     }
     assert not outcomes["beats-the-baseline"].passed
 
 
-def test_check_fails_when_leakage_is_invisible(fixtures, log):
+def test_check_fails_when_leakage_is_invisible(
+    fixtures: tuple[pd.DataFrame, list[Window], FloatArray], log: Logger
+) -> None:
     """If the leaky run does not win, the covariates are not being used."""
     frame, built, truth = fixtures
     results = _passing_results(truth)
-    results["leaky-control"]["scores"]["mae"] = 16.0  # worse than past-future's 14.5
-    repeat = results["timesfm-univariate"]["points"][: config.DETERMINISM_ORIGINS]
+    # worse than past-future's 14.5
+    results["leaky-control"] = _with_score(results["leaky-control"], mae=16.0)
+    repeat = results["timesfm-univariate"].points[: config.DETERMINISM_ORIGINS]
     outcomes = {
         o.name: o for o in checks.run_all(frame, built, results, repeat, log=log)
     }
     assert not outcomes["leakage-is-visible"].passed
 
 
-def test_check_fails_on_non_finite_forecasts(fixtures, log):
+def test_check_fails_on_non_finite_forecasts(
+    fixtures: tuple[pd.DataFrame, list[Window], FloatArray], log: Logger
+) -> None:
     frame, built, truth = fixtures
     results = _passing_results(truth)
-    results["timesfm-both"]["points"][0, 0] = np.nan
-    repeat = results["timesfm-univariate"]["points"][: config.DETERMINISM_ORIGINS]
+    results["timesfm-both"].points[0, 0] = np.nan
+    repeat = results["timesfm-univariate"].points[: config.DETERMINISM_ORIGINS]
     outcomes = {
         o.name: o for o in checks.run_all(frame, built, results, repeat, log=log)
     }
     assert not outcomes["shapes-and-finiteness"].passed
 
 
-def test_check_fails_on_a_miscalibrated_band(fixtures, log):
+def test_check_fails_on_a_miscalibrated_band(
+    fixtures: tuple[pd.DataFrame, list[Window], FloatArray], log: Logger
+) -> None:
     frame, built, truth = fixtures
     results = _passing_results(truth)
-    results["timesfm-univariate"]["scores"]["coverage"] = 0.20
-    repeat = results["timesfm-univariate"]["points"][: config.DETERMINISM_ORIGINS]
+    results["timesfm-univariate"] = _with_score(
+        results["timesfm-univariate"], coverage=0.20
+    )
+    repeat = results["timesfm-univariate"].points[: config.DETERMINISM_ORIGINS]
     outcomes = {
         o.name: o for o in checks.run_all(frame, built, results, repeat, log=log)
     }
     assert not outcomes["calibration-sanity"].passed
 
 
-def test_check_fails_when_two_runs_disagree(fixtures, log):
+def test_check_fails_when_two_runs_disagree(
+    fixtures: tuple[pd.DataFrame, list[Window], FloatArray], log: Logger
+) -> None:
     frame, built, truth = fixtures
     results = _passing_results(truth)
-    repeat = results["timesfm-univariate"]["points"][
-        : config.DETERMINISM_ORIGINS
-    ].copy()
+    repeat = results["timesfm-univariate"].points[: config.DETERMINISM_ORIGINS].copy()
     repeat[0, 0] += 0.001
     outcomes = {
         o.name: o for o in checks.run_all(frame, built, results, repeat, log=log)

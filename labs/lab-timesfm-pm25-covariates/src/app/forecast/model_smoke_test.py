@@ -6,11 +6,12 @@ import pytest
 from app import config
 from app.data import snapshot
 from app.forecast import model, scaling, windows
+from app.logging_setup import Logger
 
 pytestmark = pytest.mark.slow
 
 
-def test_univariate_forecast_has_the_documented_shapes(log):
+def test_univariate_forecast_has_the_documented_shapes(log: Logger) -> None:
     frame = snapshot.load_snapshot(log=log)
     window = windows.build_windows(frame)[0]
     forecaster = model.build_forecaster(log=log)
@@ -34,7 +35,7 @@ def test_univariate_forecast_has_the_documented_shapes(log):
     assert np.isfinite(outputs[0].forecast).all()
 
 
-def test_past_future_covariates_need_edge_padding(log):
+def test_past_future_covariates_need_edge_padding(log: Logger) -> None:
     """horizon 24 rounds up to the model's output patch length of 64.
 
     Past-and-future covariates are expected to span context + 64. We supply

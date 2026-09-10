@@ -7,9 +7,10 @@ from app import config
 from app.data import snapshot
 from app.eval import metrics
 from app.forecast import baseline, windows
+from app.logging_setup import Logger
 
 
-def test_seasonal_naive_is_yesterday_same_hour(log):
+def test_seasonal_naive_is_yesterday_same_hour(log: Logger) -> None:
     frame = snapshot.load_snapshot(log=log)
     built = windows.build_windows(frame)
     predicted = baseline.seasonal_naive(frame, built)
@@ -20,13 +21,14 @@ def test_seasonal_naive_is_yesterday_same_hour(log):
     first = built[0]
     origin_position = first.start + config.CONTEXT_HOURS
     expected = series[
-        origin_position - config.SEASONAL_PERIOD_HOURS :
-        origin_position - config.SEASONAL_PERIOD_HOURS + config.HORIZON_HOURS
+        origin_position - config.SEASONAL_PERIOD_HOURS : origin_position
+        - config.SEASONAL_PERIOD_HOURS
+        + config.HORIZON_HOURS
     ]
     np.testing.assert_allclose(predicted[0], expected)
 
 
-def test_seasonal_naive_reproduces_the_reference_mae(log):
+def test_seasonal_naive_reproduces_the_reference_mae(log: Logger) -> None:
     """17.83 ug/m3 is the number the whole scoreboard is calibrated against."""
     frame = snapshot.load_snapshot(log=log)
     built = windows.build_windows(frame)

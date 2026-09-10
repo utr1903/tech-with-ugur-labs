@@ -1,19 +1,23 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from types import SimpleNamespace
+from typing import Any
 
 import numpy as np
+import pandas as pd
 import pytest
 
 from app import config
 from app.data import snapshot
 from app.eval import experiments
+from app.eval.results import FloatArray
 from app.forecast import model, windows
-from app.logging_setup import get_logger
+from app.logging_setup import Logger, get_logger
 
 
 @pytest.fixture(scope="module")
-def frame():
+def frame() -> pd.DataFrame:
     # Module-scoped, so it cannot depend on the function-scoped `log`
     # fixture - build a bound logger directly instead.
     return snapshot.load_snapshot(log=get_logger(app_name="test"))
@@ -23,15 +27,41 @@ class FakeForecaster:
     """Records every predict_batch call instead of running the real model.
 
     `predict_batch` returns a generator in the real library - returning one
-    here too keeps run_experiment's `list(...)` wrapping honest.
+    here too keeps run_experiment's `list(...)` wrapping honest. The keyword
+    arguments are spelled out (rather than `**kwargs: Any`, which ruff's
+    ANN401 forbids) because run_experiment always calls this with exactly
+    this set - the fake is standing in for one real, untyped call shape.
     """
 
-    def __init__(self):
-        self.calls: list[dict] = []
+    def __init__(self) -> None:
+        self.calls: list[dict[str, Any]] = []
 
-    def predict_batch(self, **kwargs):
-        self.calls.append(kwargs)
-        n = len(kwargs["contexts"])
+    def predict_batch(
+        self,
+        *,
+        contexts: list[FloatArray],
+        horizon: int,
+        past_only_covariates: list[FloatArray | None] | None = None,
+        past_future_covariates: list[FloatArray | None] | None = None,
+        return_quantiles: bool = False,
+        use_symmetric_averaging: bool = False,
+        make_positive: bool = False,
+        sort_quantiles: bool = False,
+        padding_mode: str = "edge",
+    ) -> Iterator[SimpleNamespace]:
+        call: dict[str, Any] = {
+            "contexts": contexts,
+            "horizon": horizon,
+            "past_only_covariates": past_only_covariates,
+            "past_future_covariates": past_future_covariates,
+            "return_quantiles": return_quantiles,
+            "use_symmetric_averaging": use_symmetric_averaging,
+            "make_positive": make_positive,
+            "sort_quantiles": sort_quantiles,
+            "padding_mode": padding_mode,
+        }
+        self.calls.append(call)
+        n = len(contexts)
         return (
             SimpleNamespace(
                 forecast=np.zeros(config.HORIZON_HOURS, dtype=np.float32),
@@ -44,7 +74,7 @@ class FakeForecaster:
         )
 
 
-def test_univariate_has_no_covariates(frame):
+def test_univariate_has_no_covariates(frame: pd.DataFrame) -> None:
     window = windows.build_windows(frame)[0]
     past_only, past_future = model.covariate_blocks(
         frame, window, experiments.by_name("timesfm-univariate")
@@ -53,37 +83,42 @@ def test_univariate_has_no_covariates(frame):
     assert past_future is None
 
 
-def test_past_only_covers_the_context_and_stops_there(frame):
+def test_past_only_covers_the_context_and_stops_there(frame: pd.DataFrame) -> None:
     window = windows.build_windows(frame)[0]
     past_only, past_future = model.covariate_blocks(
         frame, window, experiments.by_name("timesfm-past-only")
     )
+    assert past_only is not None
     assert past_only.shape == (2, config.CONTEXT_HOURS)
     assert past_future is None
 
 
-def test_past_future_extends_exactly_one_horizon_past_the_origin(frame):
+def test_past_future_extends_exactly_one_horizon_past_the_origin(
+    frame: pd.DataFrame,
+) -> None:
     window = windows.build_windows(frame)[0]
     _, past_future = model.covariate_blocks(
         frame, window, experiments.by_name("timesfm-past-future")
     )
+    assert past_future is not None
     assert past_future.shape == (
         len(config.WEATHER_VARIABLES),
         config.CONTEXT_HOURS + config.HORIZON_HOURS,
     )
 
 
-def test_covariates_are_standardised(frame):
+def test_covariates_are_standardised(frame: pd.DataFrame) -> None:
     window = windows.build_windows(frame)[0]
     _, past_future = model.covariate_blocks(
         frame, window, experiments.by_name("timesfm-past-future")
     )
+    assert past_future is not None
     context = past_future[:, : config.CONTEXT_HOURS]
     np.testing.assert_allclose(context.mean(axis=1), 0.0, atol=1e-4)
     np.testing.assert_allclose(context.std(axis=1), 1.0, atol=1e-4)
 
 
-def test_the_leaky_control_really_does_see_the_future(frame):
+def test_the_leaky_control_really_does_see_the_future(frame: pd.DataFrame) -> None:
     """The whole point of the control - assert the leak is present.
 
     Recompute the expected standardised tail independently, straight from the
@@ -94,6 +129,7 @@ def test_the_leaky_control_really_does_see_the_future(frame):
     window = windows.build_windows(frame)[0]
     experiment = experiments.by_name("leaky-control")
     _, past_future = model.covariate_blocks(frame, window, experiment)
+    assert past_future is not None
     assert past_future.shape == (
         2,
         config.CONTEXT_HOURS + config.HORIZON_HOURS,
@@ -113,7 +149,9 @@ def test_the_leaky_control_really_does_see_the_future(frame):
     assert not np.allclose(tail, last_context)
 
 
-def test_run_experiment_issues_one_batched_call_for_every_origin(frame, log):
+def test_run_experiment_issues_one_batched_call_for_every_origin(
+    frame: pd.DataFrame, log: Logger
+) -> None:
     """A regression to a 90-iteration Python loop would still pass every
     other test in this file - only checking the call count catches it."""
     built = windows.build_windows(frame)[:3]
@@ -129,7 +167,9 @@ def test_run_experiment_issues_one_batched_call_for_every_origin(frame, log):
     assert quantiles.shape == (3, config.HORIZON_HOURS, config.N_QUANTILES)
 
 
-def test_run_experiment_passes_none_for_unused_covariate_kinds(frame, log):
+def test_run_experiment_passes_none_for_unused_covariate_kinds(
+    frame: pd.DataFrame, log: Logger
+) -> None:
     """Unused covariate kinds must reach predict_batch as None, not as a
     same-length list of Nones - the model branches on identity, not content."""
     built = windows.build_windows(frame)[:2]
@@ -144,7 +184,9 @@ def test_run_experiment_passes_none_for_unused_covariate_kinds(frame, log):
     assert call["past_future_covariates"] is None
 
 
-def test_run_experiment_passes_a_covariate_list_for_past_only(frame, log):
+def test_run_experiment_passes_a_covariate_list_for_past_only(
+    frame: pd.DataFrame, log: Logger
+) -> None:
     built = windows.build_windows(frame)[:2]
     forecaster = FakeForecaster()
 
@@ -159,7 +201,9 @@ def test_run_experiment_passes_a_covariate_list_for_past_only(frame, log):
     assert call["past_future_covariates"] is None
 
 
-def test_run_experiment_passes_covariate_lists_for_both_kinds(frame, log):
+def test_run_experiment_passes_covariate_lists_for_both_kinds(
+    frame: pd.DataFrame, log: Logger
+) -> None:
     built = windows.build_windows(frame)[:2]
     forecaster = FakeForecaster()
 
@@ -172,7 +216,9 @@ def test_run_experiment_passes_covariate_lists_for_both_kinds(frame, log):
     assert isinstance(call["past_future_covariates"], list)
 
 
-def test_run_experiment_passes_the_documented_predict_batch_flags(frame, log):
+def test_run_experiment_passes_the_documented_predict_batch_flags(
+    frame: pd.DataFrame, log: Logger
+) -> None:
     built = windows.build_windows(frame)[:2]
     forecaster = FakeForecaster()
 

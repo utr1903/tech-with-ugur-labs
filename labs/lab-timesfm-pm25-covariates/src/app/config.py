@@ -50,7 +50,7 @@ SEASONAL_PERIOD_HOURS = 24
 CHECKPOINT = "google/timesfm-3.0-pytorch"
 BATCH_SIZE = 8
 N_QUANTILES = 9
-LOW_QUANTILE_INDEX = 0   # 0.1
+LOW_QUANTILE_INDEX = 0  # 0.1
 HIGH_QUANTILE_INDEX = 8  # 0.9
 
 # --- Reference values measured on this exact window. ---

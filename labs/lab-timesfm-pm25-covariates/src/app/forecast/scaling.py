@@ -14,12 +14,15 @@ from __future__ import annotations
 
 import numpy as np
 
+from app.eval.results import FloatArray
+
 _MIN_SD = 1e-6
 
 
-def standardize_channels(block: np.ndarray, n_context: int) -> np.ndarray:
+def standardize_channels(block: FloatArray, n_context: int) -> FloatArray:
     """Standardises each row of `block` using its first `n_context` values."""
     context = block[:, :n_context]
     mean = context.mean(axis=1, keepdims=True)
     sd = np.maximum(context.std(axis=1, keepdims=True), _MIN_SD)
-    return ((block - mean) / sd).astype(np.float32)
+    scaled: FloatArray = ((block - mean) / sd).astype(np.float32)
+    return scaled

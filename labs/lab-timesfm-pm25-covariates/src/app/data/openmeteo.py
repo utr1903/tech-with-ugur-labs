@@ -56,9 +56,7 @@ def _join_and_validate(air: pd.DataFrame, weather: pd.DataFrame) -> pd.DataFrame
     return snapshot
 
 
-def fetch_snapshot(
-    client: httpx.Client | None = None, *, log: Logger
-) -> pd.DataFrame:
+def fetch_snapshot(client: httpx.Client | None = None, *, log: Logger) -> pd.DataFrame:
     """Fetches both endpoints and returns one aligned, null-free frame."""
     owned = client is None
     client = client or httpx.Client()

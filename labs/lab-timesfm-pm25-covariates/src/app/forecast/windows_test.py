@@ -6,9 +6,10 @@ import pandas as pd
 from app import config
 from app.data import snapshot
 from app.forecast import windows
+from app.logging_setup import Logger
 
 
-def test_origins_match_the_measured_backtest_geometry():
+def test_origins_match_the_measured_backtest_geometry() -> None:
     stamps = windows.origin_timestamps()
     assert len(stamps) == config.EXPECTED_ORIGINS
     assert stamps[0] == pd.Timestamp("2025-12-01T00:00")
@@ -16,21 +17,18 @@ def test_origins_match_the_measured_backtest_geometry():
     assert all(stamp.hour == 0 for stamp in stamps)
 
 
-def test_windows_are_in_range_and_contiguous(log):
+def test_windows_are_in_range_and_contiguous(log: Logger) -> None:
     frame = snapshot.load_snapshot(log=log)
     built = windows.build_windows(frame)
     assert len(built) == config.EXPECTED_ORIGINS
     for window in built:
         assert window.start >= 0
-        assert (
-            window.start + config.CONTEXT_HOURS + config.HORIZON_HOURS
-            <= len(frame)
-        )
+        assert window.start + config.CONTEXT_HOURS + config.HORIZON_HOURS <= len(frame)
         # The context ends exactly at the origin.
         assert frame.index[window.start + config.CONTEXT_HOURS] == window.origin
 
 
-def test_blocks_have_the_documented_shapes(log):
+def test_blocks_have_the_documented_shapes(log: Logger) -> None:
     frame = snapshot.load_snapshot(log=log)
     window = windows.build_windows(frame)[0]
 
@@ -45,14 +43,15 @@ def test_blocks_have_the_documented_shapes(log):
     assert target.ndim == 1
 
 
-def test_actuals_are_the_measured_truth(log):
+def test_actuals_are_the_measured_truth(log: Logger) -> None:
     frame = snapshot.load_snapshot(log=log)
     built = windows.build_windows(frame)
     truth = windows.actuals(frame, built)
     assert truth.shape == (config.EXPECTED_ORIGINS, config.HORIZON_HOURS)
     first = built[0]
     expected = frame["pm2_5"].to_numpy()[
-        first.start + config.CONTEXT_HOURS :
-        first.start + config.CONTEXT_HOURS + config.HORIZON_HOURS
+        first.start + config.CONTEXT_HOURS : first.start
+        + config.CONTEXT_HOURS
+        + config.HORIZON_HOURS
     ]
     np.testing.assert_allclose(truth[0], expected)

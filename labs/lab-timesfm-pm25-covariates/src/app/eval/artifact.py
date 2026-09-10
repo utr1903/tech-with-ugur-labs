@@ -2,28 +2,36 @@
 
 from __future__ import annotations
 
+import dataclasses
 import json
 from pathlib import Path
+from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 
 from app.errors import ArtifactError
+from app.eval.results import ExperimentResult, FloatArray, Scores
 from app.logging_setup import Logger
 
 
 def save_artifact(
-    path: Path, results: dict, repeat: np.ndarray, *, log: Logger
+    path: Path,
+    results: dict[str, ExperimentResult],
+    repeat: FloatArray,
+    *,
+    log: Logger,
 ) -> None:
     """Persists forecasts, quantiles and scores to one npz file."""
     try:
         log.info("Saving the forecasts...", path=str(path))
         path.parent.mkdir(parents=True, exist_ok=True)
-        arrays: dict[str, np.ndarray] = {"__determinism_repeat__": repeat}
-        scores = {}
+        arrays: dict[str, npt.NDArray[Any]] = {"__determinism_repeat__": repeat}
+        scores: dict[str, dict[str, float]] = {}
         for name, result in results.items():
-            arrays[f"{name}::points"] = result["points"]
-            arrays[f"{name}::quantiles"] = result["quantiles"]
-            scores[name] = result["scores"]
+            arrays[f"{name}::points"] = result.points
+            arrays[f"{name}::quantiles"] = result.quantiles
+            scores[name] = dataclasses.asdict(result.scores)
         arrays["__scores__"] = np.array(json.dumps(scores))
         np.savez_compressed(path, **arrays)
     except Exception:
@@ -33,19 +41,21 @@ def save_artifact(
         log.info("Saving the forecasts succeeded.", path=str(path))
 
 
-def load_artifact(path: Path, *, log: Logger) -> tuple[dict, np.ndarray]:
+def load_artifact(
+    path: Path, *, log: Logger
+) -> tuple[dict[str, ExperimentResult], FloatArray]:
     """Reads back what save_artifact wrote."""
     try:
         log.info("Loading the forecasts...", path=str(path))
         with np.load(path, allow_pickle=False) as data:
-            scores = json.loads(str(data["__scores__"]))
-            repeat = data["__determinism_repeat__"]
+            scores: dict[str, dict[str, float]] = json.loads(str(data["__scores__"]))
+            repeat: FloatArray = data["__determinism_repeat__"]
             results = {
-                name: {
-                    "points": data[f"{name}::points"],
-                    "quantiles": data[f"{name}::quantiles"],
-                    "scores": scores[name],
-                }
+                name: ExperimentResult(
+                    points=data[f"{name}::points"],
+                    quantiles=data[f"{name}::quantiles"],
+                    scores=Scores(**scores[name]),
+                )
                 for name in scores
             }
     except Exception as err:

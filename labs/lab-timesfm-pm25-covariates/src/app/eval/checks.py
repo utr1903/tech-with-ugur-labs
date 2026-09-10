@@ -16,6 +16,7 @@ import pandas as pd
 from app import config
 from app.data import snapshot
 from app.errors import SnapshotError
+from app.eval.results import ExperimentResult, FloatArray
 from app.forecast.windows import Window
 from app.logging_setup import Logger
 
@@ -49,13 +50,13 @@ def _snapshot_integrity(frame: pd.DataFrame, *, log: Logger) -> CheckResult:
 
 
 def _shapes_and_finiteness(
-    built: Sequence[Window], results: dict[str, dict]
+    built: Sequence[Window], results: dict[str, ExperimentResult]
 ) -> CheckResult:
     expected_points = (len(built), config.HORIZON_HOURS)
     expected_quantiles = (*expected_points, config.N_QUANTILES)
     problems = []
     for name, result in results.items():
-        points, quantiles = result["points"], result["quantiles"]
+        points, quantiles = result.points, result.quantiles
         if points.shape != expected_points:
             problems.append(f"{name}: points {points.shape} != {expected_points}")
         if quantiles.shape != expected_quantiles:
@@ -76,9 +77,9 @@ def _shapes_and_finiteness(
     )
 
 
-def _beats_the_baseline(results: dict[str, dict]) -> CheckResult:
-    baseline_mae = results["seasonal-naive"]["scores"]["mae"]
-    model_mae = results["timesfm-univariate"]["scores"]["mae"]
+def _beats_the_baseline(results: dict[str, ExperimentResult]) -> CheckResult:
+    baseline_mae = results["seasonal-naive"].scores.mae
+    model_mae = results["timesfm-univariate"].scores.mae
     passed = model_mae < baseline_mae
     return CheckResult(
         "beats-the-baseline",
@@ -88,9 +89,9 @@ def _beats_the_baseline(results: dict[str, dict]) -> CheckResult:
     )
 
 
-def _leakage_is_visible(results: dict[str, dict]) -> CheckResult:
-    leaky_mae = results["leaky-control"]["scores"]["mae"]
-    honest = {name: results[name]["scores"]["mae"] for name in HONEST_TIMESFM}
+def _leakage_is_visible(results: dict[str, ExperimentResult]) -> CheckResult:
+    leaky_mae = results["leaky-control"].scores.mae
+    honest = {name: results[name].scores.mae for name in HONEST_TIMESFM}
     best_honest = min(honest.values())
     passed = leaky_mae < best_honest
     return CheckResult(
@@ -101,10 +102,10 @@ def _leakage_is_visible(results: dict[str, dict]) -> CheckResult:
     )
 
 
-def _calibration_sanity(results: dict[str, dict]) -> CheckResult:
+def _calibration_sanity(results: dict[str, ExperimentResult]) -> CheckResult:
     problems = []
     for name in HONEST_TIMESFM:
-        coverage = results[name]["scores"]["coverage"]
+        coverage = results[name].scores.coverage
         if not config.MIN_BAND_COVERAGE <= coverage <= config.MAX_BAND_COVERAGE:
             problems.append(f"{name}: {coverage:.2f}")
     if problems:
@@ -115,7 +116,7 @@ def _calibration_sanity(results: dict[str, dict]) -> CheckResult:
             f"[{config.MIN_BAND_COVERAGE}, {config.MAX_BAND_COVERAGE}]: "
             + ", ".join(problems),
         )
-    covers = [results[name]["scores"]["coverage"] for name in HONEST_TIMESFM]
+    covers = [results[name].scores.coverage for name in HONEST_TIMESFM]
     return CheckResult(
         "calibration-sanity",
         True,
@@ -124,11 +125,11 @@ def _calibration_sanity(results: dict[str, dict]) -> CheckResult:
 
 
 def _determinism(
-    results: dict[str, dict], repeat: np.ndarray | None
+    results: dict[str, ExperimentResult], repeat: FloatArray | None
 ) -> CheckResult:
     if repeat is None:
         return CheckResult("determinism", False, "no repeat run was supplied")
-    first = results["timesfm-univariate"]["points"][: len(repeat)]
+    first = results["timesfm-univariate"].points[: len(repeat)]
     identical = np.array_equal(first, repeat)
     return CheckResult(
         "determinism",
@@ -141,8 +142,8 @@ def _determinism(
 def run_all(
     frame: pd.DataFrame,
     built: Sequence[Window],
-    results: dict[str, dict],
-    determinism_repeat: np.ndarray | None,
+    results: dict[str, ExperimentResult],
+    determinism_repeat: FloatArray | None,
     *,
     log: Logger,
 ) -> list[CheckResult]:
