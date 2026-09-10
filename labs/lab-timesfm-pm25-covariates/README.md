@@ -33,32 +33,60 @@ docker compose up
 
 The first run downloads the TimesFM 3.0 checkpoint (~1.32 GB) into a named
 Docker volume - that took about 49 seconds here. Every run after that is
-offline. The five model configurations themselves take about 100 seconds
-total on a laptop CPU (7s, 12s, 31s, 38s, 14s below); nothing here needs a
-GPU.
+offline. The five model configurations themselves take about 81 seconds
+total on a laptop CPU (4.5s, 10.4s, 23.2s, 31.5s, 11.6s below); nothing here
+needs a GPU.
 
 Note for anyone scripting this: `docker compose up` does not propagate the
 container's exit code, so `echo $?` afterwards reads 0 even if a check
-failed inside the container. The in-process gate is sound - `main.py` returns
-1 and exits with it on a failed check - but Compose's own exit code wraps
-that up differently; pass `--abort-on-container-exit` if you need the wrapper
-to fail too.
+failed inside the container. The in-process gate is sound - a failed check
+raises `ChecksFailedError`, and `app.__main__.main` catches it, logs it and
+returns 1, so `app run` itself exits 1 - but Compose's own exit code wraps
+that up differently; pass `--abort-on-container-exit` if you need the
+wrapper to fail too.
 
 ## What you should see
 
-The first line of actual output is usually a harmless Hugging Face Hub
+Progress is logged as one JSON object per line; a harmless Hugging Face Hub
 warning (`Warning: You are sending unauthenticated requests to the HF
-Hub...`) - expected, and safe to ignore.
+Hub...`) shows up plain, mixed in among them - expected, and safe to ignore.
+The scoreboard and checks are rendered as plain text underneath. This is a
+real run, trimmed of nothing but the Docker build/pull noise above it:
 
 ```
-90 origins, 512h context, 24h horizon
-seasonal-naive MAE: 17.83 ug/m3
-timesfm-univariate     MAE  12.08  (7s)
-timesfm-past-only      MAE  12.17  (12s)
-timesfm-past-future    MAE  10.14  (31s)
-timesfm-both           MAE  10.28  (38s)
-leaky-control          MAE   6.39  (14s)
-saved forecasts to /app/output/forecasts.npz
+{"app_name": "timesfm-pm25-covariates", "path": "/app/data/milan_air_quality_hourly.csv", "event": "Loading the snapshot...", "level": "info", "timestamp": "2026-09-10T00:17:50.989341Z"}
+{"app_name": "timesfm-pm25-covariates", "rows": 9504, "event": "Loading the snapshot succeeded.", "level": "info", "timestamp": "2026-09-10T00:17:51.002057Z"}
+{"app_name": "timesfm-pm25-covariates", "rows": 9504, "event": "Validating the snapshot...", "level": "info", "timestamp": "2026-09-10T00:17:51.002093Z"}
+{"app_name": "timesfm-pm25-covariates", "rows": 9504, "event": "Validating the snapshot succeeded.", "level": "info", "timestamp": "2026-09-10T00:17:51.002991Z"}
+{"app_name": "timesfm-pm25-covariates", "origins": 90, "context_hours": 512, "horizon_hours": 24, "event": "Building the backtest windows succeeded.", "level": "info", "timestamp": "2026-09-10T00:17:51.012615Z"}
+{"app_name": "timesfm-pm25-covariates", "mae": 17.829214096069336, "event": "Scoring the baseline succeeded.", "level": "info", "timestamp": "2026-09-10T00:17:51.012868Z"}
+{"app_name": "timesfm-pm25-covariates", "batch_size": 8, "event": "Building the forecaster...", "level": "info", "timestamp": "2026-09-10T00:17:51.012947Z"}
+Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+{"app_name": "timesfm-pm25-covariates", "checkpoint": "google/timesfm-3.0-pytorch", "event": "Building the forecaster succeeded.", "level": "info", "timestamp": "2026-09-10T00:17:53.015908Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-univariate", "origins": 90, "event": "Forecasting the batch...", "level": "info", "timestamp": "2026-09-10T00:17:53.024534Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-univariate", "event": "Forecasting the batch succeeded.", "level": "info", "timestamp": "2026-09-10T00:17:57.515966Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-univariate", "mae": 12.08474063873291, "seconds": 4.500242752001213, "event": "Running the configuration succeeded.", "level": "info", "timestamp": "2026-09-10T00:17:57.516347Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-past-only", "origins": 90, "event": "Forecasting the batch...", "level": "info", "timestamp": "2026-09-10T00:17:57.531168Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-past-only", "event": "Forecasting the batch succeeded.", "level": "info", "timestamp": "2026-09-10T00:18:07.950180Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-past-only", "mae": 12.172311782836914, "seconds": 10.434521546005271, "event": "Running the configuration succeeded.", "level": "info", "timestamp": "2026-09-10T00:18:07.950936Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-past-future", "origins": 90, "event": "Forecasting the batch...", "level": "info", "timestamp": "2026-09-10T00:18:07.983079Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-past-future", "event": "Forecasting the batch succeeded.", "level": "info", "timestamp": "2026-09-10T00:18:31.116432Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-past-future", "mae": 10.144158363342285, "seconds": 23.16904296800203, "event": "Running the configuration succeeded.", "level": "info", "timestamp": "2026-09-10T00:18:31.120742Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-both", "origins": 90, "event": "Forecasting the batch...", "level": "info", "timestamp": "2026-09-10T00:18:31.172760Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-both", "event": "Forecasting the batch succeeded.", "level": "info", "timestamp": "2026-09-10T00:19:02.660872Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-both", "mae": 10.281707763671875, "seconds": 31.541093763997196, "event": "Running the configuration succeeded.", "level": "info", "timestamp": "2026-09-10T00:19:02.662326Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "leaky-control", "origins": 90, "event": "Forecasting the batch...", "level": "info", "timestamp": "2026-09-10T00:19:02.686492Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "leaky-control", "event": "Forecasting the batch succeeded.", "level": "info", "timestamp": "2026-09-10T00:19:14.236221Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "leaky-control", "mae": 6.3939995765686035, "seconds": 11.589240296001663, "event": "Running the configuration succeeded.", "level": "info", "timestamp": "2026-09-10T00:19:14.240859Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-univariate", "origins": 8, "event": "Forecasting the batch...", "level": "info", "timestamp": "2026-09-10T00:19:14.244513Z"}
+{"app_name": "timesfm-pm25-covariates", "name": "timesfm-univariate", "event": "Forecasting the batch succeeded.", "level": "info", "timestamp": "2026-09-10T00:19:14.701788Z"}
+{"app_name": "timesfm-pm25-covariates", "origins": 8, "event": "Running the determinism repeat succeeded.", "level": "info", "timestamp": "2026-09-10T00:19:14.701852Z"}
+{"app_name": "timesfm-pm25-covariates", "path": "/app/output/forecasts.npz", "event": "Saving the forecasts...", "level": "info", "timestamp": "2026-09-10T00:19:14.702057Z"}
+{"app_name": "timesfm-pm25-covariates", "path": "/app/output/forecasts.npz", "event": "Saving the forecasts succeeded.", "level": "info", "timestamp": "2026-09-10T00:19:14.718558Z"}
+{"app_name": "timesfm-pm25-covariates", "path": "/app/data/milan_air_quality_hourly.csv", "event": "Loading the snapshot...", "level": "info", "timestamp": "2026-09-10T00:19:14.719507Z"}
+{"app_name": "timesfm-pm25-covariates", "rows": 9504, "event": "Loading the snapshot succeeded.", "level": "info", "timestamp": "2026-09-10T00:19:14.728650Z"}
+{"app_name": "timesfm-pm25-covariates", "path": "/app/output/forecasts.npz", "event": "Loading the forecasts...", "level": "info", "timestamp": "2026-09-10T00:19:14.746057Z"}
+{"app_name": "timesfm-pm25-covariates", "configurations": 6, "event": "Loading the forecasts succeeded.", "level": "info", "timestamp": "2026-09-10T00:19:14.753828Z"}
 
 Scoreboard (PM2.5, ug/m3, 24h ahead)
 ---------------------------------------------------------------
@@ -72,8 +100,12 @@ leaky-control             6.39    8.53   0.359      0.81  CHEATS *
 
 MASE is MAE relative to seasonal-naive: below 1.0 beats it.
 * leaky-control is given tomorrow's NO2 and CO. Its score is what target leakage looks like, not a result.
-
-wrote /app/output/smog_episode.png
+{"app_name": "timesfm-pm25-covariates", "path": "/app/output/smog_episode.png", "event": "Plotting the worst episode...", "level": "info", "timestamp": "2026-09-10T00:19:14.753996Z"}
+{"app_name": "timesfm-pm25-covariates", "path": "/app/output/smog_episode.png", "event": "Plotting the worst episode succeeded.", "level": "info", "timestamp": "2026-09-10T00:19:14.854220Z"}
+{"app_name": "timesfm-pm25-covariates", "origins": 90, "event": "Running the checks...", "level": "info", "timestamp": "2026-09-10T00:19:14.854270Z"}
+{"app_name": "timesfm-pm25-covariates", "rows": 9504, "event": "Validating the snapshot...", "level": "info", "timestamp": "2026-09-10T00:19:14.854303Z"}
+{"app_name": "timesfm-pm25-covariates", "rows": 9504, "event": "Validating the snapshot succeeded.", "level": "info", "timestamp": "2026-09-10T00:19:14.855617Z"}
+{"app_name": "timesfm-pm25-covariates", "passed": 6, "total": 6, "event": "Running the checks succeeded.", "level": "info", "timestamp": "2026-09-10T00:19:14.855779Z"}
 
 Checks
 ------
@@ -133,8 +165,7 @@ the model is fair.
 
 ## How it works
 
-Three stages, run in order by `main.py run` (the container's default
-command):
+Three stages, run in order by `app run` (the container's default command):
 
 1. **fetch** - pulls hourly PM2.5, NO2 and CO plus six weather variables for
    Milan from Open-Meteo and writes one aligned, null-checked CSV. Already
@@ -156,10 +187,10 @@ command):
    - `leaky-control` - the cheat described above, included to show what
      leakage looks like rather than to be a real option
 
-   One detail worth knowing if you read `forecast.py`: a 24-hour horizon is
-   rounded up internally to TimesFM's 64-step output patch. The past-and-future
-   covariate blocks are edge-padded over that difference rather than pretending
-   to know 64 hours of weather.
+   One detail worth knowing if you read `forecast/model.py`: a 24-hour horizon
+   is rounded up internally to TimesFM's 64-step output patch. The
+   past-and-future covariate blocks are edge-padded over that difference
+   rather than pretending to know 64 hours of weather.
 3. **report** - renders the scoreboard, plots the worst episode, and runs six
    hard checks (snapshot integrity, output shapes and finiteness, beating the
    baseline, leakage being visible, calibration, and determinism). Whether the
@@ -168,16 +199,63 @@ command):
    the lab is asking, and enforcing an answer to it would make the answer
    worthless.
 
+## File layout
+
+```
+src/app/
+├── __main__.py         # CLI entrypoint: parses argv, configures logging,
+│                       #   maps a failed command to exit code 1
+├── config.py           # every tunable constant, in one place
+├── errors.py           # LabError and the named subclasses each stage raises
+├── logging_setup.py    # JSON logging to stdout, one configuration for the app
+├── output.py           # the scoreboard/checks text a person reads
+├── commands/
+│   ├── run.py          # the default: backtest, then report
+│   ├── fetch.py        # rebuilds the snapshot from the live Open-Meteo endpoints
+│   ├── backtest.py     # runs every configuration over every origin
+│   ├── report.py       # re-renders the scoreboard, plot and checks
+│   ├── scoreboard.py   # renders the metrics table
+│   └── plot.py         # draws the worst smog episode
+├── data/
+│   ├── openmeteo.py    # pulls both endpoints into one aligned frame (fetch)
+│   └── snapshot.py     # loads and validates the committed snapshot (backtest, report)
+├── forecast/
+│   ├── windows.py      # rolling origins and the slice of data each may see
+│   ├── scaling.py      # puts covariate channels on a common scale
+│   ├── model.py        # runs TimesFM 3.0 over the backtest windows
+│   └── baseline.py     # the seasonal-naive baseline
+├── eval/
+│   ├── experiments.py  # the six configurations being compared
+│   ├── metrics.py      # scores a forecast against what actually happened
+│   ├── results.py      # a configuration's output, as data
+│   ├── artifact.py     # persists and reloads a backtest's forecasts
+│   └── checks.py       # the six hard checks report runs
+└── lib/
+    └── arrays.py       # the float32 array alias shared by forecast and eval
+```
+
+Every module above has a matching `<name>_test.py` next to it (plus a
+`conftest.py` at the top of the tree and another inside `commands/` for
+shared fixtures); `forecast/model_smoke_test.py` is the one slow test,
+skipped by default because it needs the real checkpoint.
+
+This departs from a flat, single-domain layout in two places, both because
+the files score things rather than build them: the forecasting module is
+`forecast/model.py` rather than `forecast/forecast.py`, since
+`from app.forecast import forecast` stutters, and the run's checks live
+under `eval/` rather than `data/`, since they score results instead of
+loading data.
+
 ## Running the tests
 
 ```bash
-docker compose run --rm lab python -m pytest -v -m "not slow"
+docker compose run --rm lab uv run pytest -v -m "not slow"
 ```
 
 ## Refreshing the data
 
 ```bash
-docker compose run --rm lab python main.py fetch
+docker compose run --rm lab app fetch
 ```
 
 ## Clean up
