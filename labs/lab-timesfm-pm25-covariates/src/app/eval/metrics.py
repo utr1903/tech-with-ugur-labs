@@ -1,4 +1,13 @@
-"""Scoring a forecast against what actually happened."""
+"""Scoring a forecast against what actually happened.
+
+Four numbers per configuration, over all 90 origins x 24 horizon hours.
+They are reported together because each one hides something the others
+show: MAE treats every error alike, RMSE weights the rare disaster, the
+relative score says whether any of it beats doing nothing, and coverage
+says whether the uncertainty band means anything.
+
+See docs/METHOD.md section 8 for the formulas and their caveats.
+"""
 
 from __future__ import annotations
 
@@ -15,7 +24,12 @@ def mae(pred: FloatArray, truth: FloatArray) -> float:
 
 
 def rmse(pred: FloatArray, truth: FloatArray) -> float:
-    """Root mean squared error, in ug/m3. Punishes big misses harder."""
+    """Root mean squared error, in ug/m3. Punishes big misses harder.
+
+    Squaring before averaging means one 40 ug/m3 miss counts for more than
+    ten 4 ug/m3 misses, which MAE would score identically. RMSE >= MAE
+    always; the size of the gap is a read on how dispersed the errors are.
+    """
     return float(np.sqrt(np.mean((pred - truth) ** 2)))
 
 
@@ -24,6 +38,13 @@ def mase(pred: FloatArray, truth: FloatArray, baseline_mae: float) -> float:
 
     Below 1.0 beats "same hour yesterday"; above 1.0 loses to it. The baseline
     scores exactly 1.0 by construction.
+
+    NOT textbook MASE. Hyndman & Koehler (2006) scale by the in-sample
+    one-step naive error; this scales by the seasonal-naive error measured on
+    the same evaluation origins, which makes it a relative MAE. The choice is
+    deliberate - "against the baseline on this window" is the comparison a
+    reader wants here - but the number is not comparable to a MASE quoted
+    anywhere else, and the column is labelled with that caveat in mind.
     """
     return mae(pred, truth) / baseline_mae
 
@@ -31,7 +52,10 @@ def mase(pred: FloatArray, truth: FloatArray, baseline_mae: float) -> float:
 def band_coverage(quantiles: FloatArray, truth: FloatArray) -> float:
     """Fraction of actuals falling inside the 0.1-0.9 prediction band.
 
-    A well calibrated 80% band should land near 0.8.
+    The band spans quantiles 0.1 to 0.9, so it is nominally 80% and a well
+    calibrated model lands near 0.80. Coverage alone cannot tell you the band
+    is good: a uselessly wide band scores perfectly on it. Sharpness is not
+    measured here, so read coverage as a floor on credibility, not proof.
     """
     low = quantiles[..., config.LOW_QUANTILE_INDEX]
     high = quantiles[..., config.HIGH_QUANTILE_INDEX]

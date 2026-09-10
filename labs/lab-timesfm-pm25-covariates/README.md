@@ -232,6 +232,61 @@ order:
    the lab is asking, and enforcing an answer to it would make the answer
    worthless.
 
+## The method
+
+Full detail — every preprocessing step, the metric formulas, and where the
+result could mislead you — is in **[`docs/METHOD.md`](docs/METHOD.md)**. The
+short version:
+
+**What a covariate is.** A series other than the target that the model may
+condition on. TimesFM 3.0 splits them by what you can know at forecast time:
+`past_only_covariates` are measured up to the origin and no further;
+`past_future_covariates` are known across the horizon too, because a forecast
+of them genuinely exists.
+
+**Why that split is the whole lab.** On this dataset the most predictive
+variables are exactly the ones you cannot know in advance. Correlation with
+PM2.5 across all 9,504 hours: carbon monoxide **+0.92**, nitrogen dioxide
+**+0.79** — both unknowable ahead of time. Temperature **-0.65**, humidity
+**+0.57**, boundary layer height **-0.42**, wind **-0.35** — all genuinely
+forecastable. The gap between "most predictive" and "actually knowable" is
+what gets measured.
+
+**There is no fitting step.** No `fit()`, no coefficients, no train/test
+split, no gradient anywhere. The checkpoint is frozen and every configuration
+runs identical weights. So the question "how much is wind worth?" cannot be
+answered by reading a weight off the model — nothing exposes one. It is
+answered by **ablation**: run with and without a set of covariates, change
+nothing else, and measure the error difference. That is what the scoreboard
+is, and why every configuration shares one context length, one horizon and one
+set of origins.
+
+**What the preprocessing does, and why.** Covariates are z-scored per channel
+so that a ~1000 hPa pressure series cannot dominate a mostly-0.0 precipitation
+series through units alone. The mean and standard deviation come from the
+**context hours only** — a past-future block extends past the origin, and
+computing its statistics over the horizon would fold the future into the
+scaling of the inputs. That would improve the forecast, and the improvement
+would be an artefact. The target itself is left in raw µg/m³, so forecasts
+come back in the units of the problem with no inverse transform to get wrong.
+
+**How to read the numbers.** MAE is the headline, in µg/m³. RMSE is reported
+beside it because a model that is usually good and occasionally catastrophic is
+a different proposition from a uniformly mediocre one, and MAE alone cannot
+tell them apart. The `mase` column is MAE relative to the seasonal-naive
+baseline on the same origins — below 1.0 beats it. Note that this is *not*
+textbook MASE, which scales by the in-sample one-step naive error; the number
+is not comparable to a MASE reported elsewhere. Band coverage is the fraction
+of measured values inside the nominally-80% 0.1-0.9 quantile band.
+
+**Where it could mislead you.** TimesFM's training cutoff is unpublished, so a
+clean zero-shot result cannot be *proven*, only argued from the 2026 window.
+The `timesfm-past-future` row uses ERA5 measured weather rather than a real
+forecast, making its 16% gain an upper bound on what a deployment would see.
+And with 90 heavily-overlapping origins there is no significance test here: the
+0.09 µg/m³ gap between `timesfm-univariate` and `timesfm-past-only` should be
+read as noise, the 1.94 gap to `timesfm-past-future` as real.
+
 ## File layout
 
 ```

@@ -1,9 +1,22 @@
 """The six things we are comparing.
 
-The split that matters: CO and NO2 are the strongest correlates of PM2.5 in this
-dataset (+0.92 and +0.79) and you cannot know either one in advance, so they can
-only ever be past-only covariates. The weather correlates less strongly but a
-forecast genuinely gives it to you, so it can be past-and-future.
+A covariate is a series other than the target that the model may condition
+on. TimesFM 3.0 splits them by what is knowable at forecast time: past-only
+covariates are measured up to the origin and no further; past-and-future
+covariates are known across the horizon too, because a forecast of them
+exists.
+
+The split that matters here: CO and NO2 are the strongest correlates of PM2.5
+in this dataset (+0.92 and +0.79) and you cannot know either one in advance,
+so they can only ever be past-only. The weather correlates less strongly -
+temperature -0.65, humidity +0.57, boundary layer height -0.42, wind -0.35 -
+but a forecast genuinely gives it to you, so it can be past-and-future. The
+gap between "most predictive" and "actually knowable" is the lab.
+
+Read as an ablation, each row differs from timesfm-univariate in exactly one
+respect, so the difference in MAE is what that covariate set was worth.
+
+See docs/METHOD.md sections 4 and 9.
 """
 
 from __future__ import annotations

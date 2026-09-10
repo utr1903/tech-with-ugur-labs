@@ -1,7 +1,15 @@
 """The baseline a forecast has to beat to be worth anything.
 
-"Tomorrow looks like today" is free, needs no model, and is surprisingly hard
-to beat on hourly data with a strong daily cycle.
+"Same hour yesterday" is free, needs no model, and is surprisingly hard to
+beat on hourly data: PM2.5 has a strong 24-hour cycle driven by traffic and
+heating, so lagging the series by one day already reproduces most of its
+shape. On this window it scores MAE 17.83 ug/m3.
+
+That is why beating it is the one performance assertion the lab enforces. A
+zero-shot foundation model that cannot beat a one-line lag has no story, and
+a scoreboard without a baseline is a column of numbers with no scale.
+
+See docs/METHOD.md section 9.
 """
 
 from __future__ import annotations

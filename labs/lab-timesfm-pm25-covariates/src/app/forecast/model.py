@@ -1,4 +1,20 @@
-"""Running TimesFM 3.0 over the backtest windows."""
+"""Running TimesFM 3.0 over the backtest windows.
+
+Nothing here estimates a parameter. The checkpoint is downloaded frozen and
+every configuration runs identical weights - no fit, no coefficients, no
+train/test split, no gradient. Whatever weighting the model applies to a
+covariate is internal to a pretrained transformer and is not exposed as
+anything readable.
+
+So "how much is wind worth?" is not answered by inspecting the model. It is
+answered by ablation: run with and without a set of covariates, change
+nothing else, and measure the difference in error. That is what the six
+configurations are, and why they share one context length, one horizon and
+one set of origins - an ablation only means something if exactly one thing
+differs.
+
+See docs/METHOD.md sections 6 and 7.
+"""
 
 from __future__ import annotations
 
@@ -51,6 +67,12 @@ def covariate_blocks(
     Past-only stops at the origin. Past-and-future runs one horizon beyond it -
     for the weather that is a legitimate forecast, and for the leaky control it
     is the cheat.
+
+    `np.concatenate(..., axis=1)` joins along the time axis under the
+    (channels, time) layout, giving (6, 536) for six weather variables across
+    512 context hours plus a 24-hour horizon. Both blocks are then scaled with
+    context-only statistics, which is what keeps the horizon out of the
+    scaling (see scaling.standardize_channels).
     """
     past_only = None
     if experiment.past_only:

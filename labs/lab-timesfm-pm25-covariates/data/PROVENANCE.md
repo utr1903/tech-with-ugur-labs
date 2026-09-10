@@ -13,11 +13,14 @@ stable — which is why this file is committed rather than fetched on every run.
 The backtest is therefore deterministic and works offline.
 
 The snapshot spans 13 months even though the backtest only uses the Dec-Feb
-winter window (`BACKTEST_START`/`BACKTEST_END` in `labconfig.py`); the extra
+winter window (`BACKTEST_START`/`BACKTEST_END` in `src/app/config.py`); the extra
 range lets that window be moved, or the summer contrast be examined, without
 re-fetching.
 
-Regenerate or re-target it with `docker compose run --rm lab python main.py fetch`.
+Regenerate or re-target it with `docker compose run --rm lab app fetch`.
+
+The variables, their units, and why each one is in the set are documented in
+[`../docs/METHOD.md`](../docs/METHOD.md).
 
 Data (c) [Open-Meteo](https://open-meteo.com/), licensed
 [CC-BY-4.0](https://creativecommons.org/licenses/by/4.0/). Air quality data is

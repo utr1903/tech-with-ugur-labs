@@ -1,4 +1,16 @@
-"""Rolling origins and the slices of data each one is allowed to see."""
+"""Rolling origins and the slices of data each one is allowed to see.
+
+Each origin is forecast independently from its own 512 hours of context.
+Ninety of them across one winter average forecast skill over episodes, calm
+spells and holidays, where a single train/test split would give one sample
+of it. Nothing is refit between origins - there is nothing to refit.
+
+"Allowed to see" is the operative phrase: a context block stops at the
+origin, and a horizon block starts there. Keeping that boundary in one
+module is what makes it checkable.
+
+See docs/METHOD.md sections 3 and 5.1.
+"""
 
 from __future__ import annotations
 
@@ -44,7 +56,15 @@ def build_windows(frame: pd.DataFrame) -> list[Window]:
 def context_block(
     frame: pd.DataFrame, window: Window, columns: Sequence[str]
 ) -> FloatArray:
-    """The context hours for `columns`, shaped (channels, CONTEXT_HOURS)."""
+    """The context hours for `columns`, shaped (channels, CONTEXT_HOURS).
+
+    `.T` transposes pandas' (time, channels) into the (channels, time) layout
+    the model expects; getting it backwards would not raise, it would forecast
+    a transposed nonsense series. `ascontiguousarray` then materialises the
+    transposed view into a real C-contiguous float32 buffer, which is the
+    dtype the checkpoint runs in - handing it float64 would cost a conversion
+    per call for precision the model does not use.
+    """
     stop = window.start + config.CONTEXT_HOURS
     block = frame[list(columns)].to_numpy()[window.start : stop]
     return np.ascontiguousarray(block.T, dtype=np.float32)
