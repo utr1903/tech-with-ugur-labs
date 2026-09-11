@@ -11,6 +11,7 @@ from app.contracts import DecisionValues, Scenario
 from app.logging_setup import Logger
 from app.verification.cash import compute_costs
 from app.verification.common import CashBreakdown, Checks, VerificationReport, Violation
+from app.verification.domains import check_auxiliary_domains
 from app.verification.knowledge import check_knowledge
 from app.verification.markets import check_markets
 from app.verification.operations import check_operations
@@ -67,6 +68,7 @@ def _verify_numeric(
         c.integer(name, getattr(decisions, name))
     try:
         with np.errstate(over="raise", invalid="raise", divide="raise"):
+            check_auxiliary_domains(scenario, decisions, c)
             costs = compute_costs(scenario, decisions)
             check_knowledge(scenario, decisions, c)
             check_markets(scenario, decisions, c)

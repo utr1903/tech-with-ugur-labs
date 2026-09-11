@@ -45,7 +45,7 @@ The report begins with SCIP's actual termination status, elapsed solve time, obj
 - `feasible_incumbent` means a verified feasible plan exists but optimality was not established. This includes `timelimit` and `gaplimit`; reaching the configured 1% gap is not a claim of global optimality.
 - `no_incumbent` means there is no decision plan to report. The status remains visible; previous output files are preserved.
 
-The bound and gap are SCIP statistics for its scalar cash auxiliary objective. The report shows that incumbent objective **separately** from independently recomputed cumulative cash. A limited incumbent can leave both the cash inequality and electricity epigraph slack, so those values need not match. Do not recalculate or reinterpret SCIP's reported relative gap using the recomputed cash.
+The bound and gap are SCIP statistics for its scalar cash auxiliary objective. The report shows that incumbent objective **separately** from independently recomputed cumulative cash. A limited incumbent can leave both the cash inequality and electricity epigraph slack, so those values need not match. This slack must still stay within the independently verified finite auxiliary bounds. Do not recalculate or reinterpret SCIP's reported relative gap using the recomputed cash.
 
 | Artifact | Contents |
 |---|---|

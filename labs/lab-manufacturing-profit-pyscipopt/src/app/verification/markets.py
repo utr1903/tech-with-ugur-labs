@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from app.contracts import DecisionValues, Scenario
+from app.contracts import DecisionValues, FloatArray, Scenario
 from app.verification.common import Checks
 
 
@@ -21,16 +21,21 @@ def check_markets(s: Scenario, d: DecisionValues, c: Checks) -> None:
         - s.price_sensitivity * (d.price - s.reference_price)
     )
     c.compare("demand", d.sales, demand)
-    # Independently maximize the concave effort response over its permitted box.
+    c.compare(
+        "high_sales_activity", d.sales[:, 1], maximum_demand(s)[:, 1] * d.product_active
+    )
+
+
+def maximum_demand(s: Scenario) -> FloatArray:
+    """Maximize each segment's concave effort response over its permitted box."""
     effort_max = s.staff_max[:, 2].copy()
     positive = s.sales_beta > 0
     effort_max[positive] = np.minimum(
         effort_max[positive], s.sales_alpha[positive] / (2 * s.sales_beta[positive])
     )
     peak = s.sales_alpha * effort_max - s.sales_beta * effort_max**2
-    high_max = (
-        s.demand_base[:, 1]
-        + peak
-        - s.price_sensitivity[:, 1] * (s.price_min[:, 1] - s.reference_price[:, 1])
+    return (
+        s.demand_base
+        + peak[:, None]
+        - s.price_sensitivity * (s.price_min - s.reference_price)
     )
-    c.compare("high_sales_activity", d.sales[:, 1], high_max * d.product_active)

@@ -97,9 +97,11 @@ def test_malformed_decisions(
 def test_slack_auxiliaries_and_cash_violation(
     scenario: Scenario, feasible_values: DecisionValues
 ) -> None:
+    bills = feasible_values.electricity_cost.copy()
+    bills[0] += 1
+    bills[1, 1:] += 1
     assert verify_solution(
-        scenario,
-        replace(feasible_values, electricity_cost=feasible_values.electricity_cost + 1),
+        scenario, replace(feasible_values, electricity_cost=bills)
     ).ok
     assert "cash_auxiliary" in {
         v.code
