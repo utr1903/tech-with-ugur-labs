@@ -7,6 +7,8 @@ can hand it alongside the target. This lab measures what that support is
 actually worth, on hourly PM2.5 in Milan, a city where winter smog is driven by
 temperature inversions trapping still air in the Po Valley.
 
+> Companion post: [The Strongest Signal Is the One You Can't Have](https://techwithugur.dev/posts/timesfm-pm25-covariates/)
+
 ## What this shows
 
 - The distinction that dominates real forecasting: what you will genuinely
