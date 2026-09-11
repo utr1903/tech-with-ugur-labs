@@ -103,14 +103,15 @@ def test_default_scenario_writes_verified_complete_report(tmp_path: Path) -> Non
     assert result.returncode == 0, result.stdout + result.stderr
     payload = _assert_complete_artifacts(output)
     metadata = payload["metadata"]
-    assert isinstance(metadata["status"], str) and metadata["status"]
+    assert metadata["status"] in {"gaplimit", "optimal"}
     assert f"Solver status: {metadata['status']};" in result.stdout
     assert metadata["solve_seconds"] <= (
         payload["solver_settings"]["time_limit_seconds"]
         + SOLVER_STOPPING_TOLERANCE_SECONDS
     )
     gap = metadata["relative_gap"]
-    assert gap is None or 0 <= gap <= payload["solver_settings"]["relative_gap"]
+    assert isinstance(gap, int | float)
+    assert 0 <= gap <= payload["solver_settings"]["relative_gap"]
 
 
 def test_invalid_yaml_exits_with_scenario_error(tmp_path: Path) -> None:
