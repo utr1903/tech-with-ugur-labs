@@ -1,0 +1,104 @@
+[project]
+name = "app"
+version = "0.0.0"
+requires-python = "==3.12.*"
+dependencies = [
+    "timesfm[torch]==3.0.1",
+    "torch==2.8.0",
+    "numpy==2.1.3",
+    "pandas==2.2.3",
+    "matplotlib==3.9.2",
+    "httpx==0.28.1",
+    "structlog==26.1.0",
+]
+
+[project.scripts]
+app = "app.__main__:main"
+
+[dependency-groups]
+dev = [
+    "deptry==0.25.1",
+    "mypy==2.3.1",
+    "pandas-stubs==2.2.3.250527",
+    "pytest==8.3.4",
+    "ruff==0.16.6",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/app"]
+
+# CPU-only torch. The default index would pull ~2.5 GB of CUDA libraries this
+# lab never touches. `explicit` keeps the pytorch index from serving anything
+# that did not ask for it.
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+
+# torch==2.8.0+cpu has no macOS wheel, and this lab only ever runs in Docker.
+# Locking for Linux alone is the honest description of what it supports.
+[tool.uv]
+environments = ["sys_platform == 'linux'"]
+
+[tool.ruff]
+line-length = 88
+src = ["src"]
+
+[tool.ruff.lint]
+select = [
+  "E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM",
+  "RET", "ARG", "PTH", "ANN", "TRY", "LOG", "G", "C90",
+]
+ignore = [
+  # TRY003: the error messages in this lab carry the measured values that
+  # make them useful ("expected 9504 rows, found 100"), which the rule
+  # forbids inline. Disabled project-wide rather than annotated per line.
+  "TRY003",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.mypy]
+strict = true
+files = ["src"]
+
+[[tool.mypy.overrides]]
+# matplotlib ships no py.typed marker and no maintained stub package.
+module = ["matplotlib.*"]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# timesfm3 (3.0.1) ships no type information at all.
+module = ["timesfm3.*"]
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+python_files = ["*_test.py"]
+testpaths = ["src"]
+addopts = "--import-mode=importlib"
+markers = [
+    "slow: needs the TimesFM checkpoint",
+]
+
+[tool.deptry]
+known_first_party = ["app"]
+extend_exclude = [".*_test\\.py", ".*conftest\\.py"]
+
+# The distribution is `timesfm`; the module it installs is `timesfm3`.
+[tool.deptry.package_module_name_map]
+timesfm = ["timesfm3"]
+
+[tool.deptry.per_rule_ignores]
+# torch is never imported. It is declared so that [tool.uv.sources] routes
+# timesfm's transitive torch through the CPU wheel index - uv sources do not
+# apply to transitive dependencies, so without the direct declaration uv
+# resolves torch from PyPI and pulls ~2.5 GB of CUDA into the image.
+DEP002 = ["torch"]
