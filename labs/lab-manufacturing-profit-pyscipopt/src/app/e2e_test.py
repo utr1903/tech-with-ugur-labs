@@ -125,6 +125,35 @@ def test_invalid_yaml_exits_with_scenario_error(tmp_path: Path) -> None:
     assert not output.exists()
 
 
+@pytest.mark.parametrize(
+    ("option", "value", "field"),
+    [
+        ("--time-limit", "nan", "time_limit_seconds"),
+        ("--time-limit", "inf", "time_limit_seconds"),
+        ("--time-limit", "-inf", "time_limit_seconds"),
+        ("--gap", "nan", "relative_gap"),
+        ("--gap", "inf", "relative_gap"),
+        ("--gap", "-inf", "relative_gap"),
+    ],
+)
+def test_nonfinite_cli_solver_override_exits_before_model_build(
+    tmp_path: Path,
+    option: str,
+    value: str,
+    field: str,
+) -> None:
+    output = tmp_path / "output"
+    arguments = (f"{option}={value}",) if value.startswith("-") else (option, value)
+
+    result = _run_cli(DEFAULT_SCENARIO, output, *arguments)
+
+    assert result.returncode == 2, result.stdout + result.stderr
+    assert f"scenario.solver.{field}" in result.stdout
+    assert "Building model..." not in result.stdout
+    assert "Solving model..." not in result.stdout
+    assert not output.exists()
+
+
 def test_valid_but_infeasible_scenario_reports_no_incumbent(tmp_path: Path) -> None:
     scenario = tmp_path / "infeasible.yaml"
     _write_infeasible_scenario(scenario)

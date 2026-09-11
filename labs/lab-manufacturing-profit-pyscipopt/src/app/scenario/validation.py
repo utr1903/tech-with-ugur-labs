@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from math import isfinite
+
 import numpy as np
 import numpy.typing as npt
 
@@ -18,6 +20,9 @@ def _first(condition: npt.NDArray[np.bool_]) -> tuple[int, ...] | None:
 
 def _validate_solver(scenario: Scenario) -> None:
     settings = scenario.solver
+    for name in ("time_limit_seconds", "relative_gap"):
+        if not isfinite(getattr(settings, name)):
+            raise ScenarioError(f"scenario.solver.{name}: expected a finite number")
     for name in (
         "time_limit_seconds",
         "feasibility_abs",
