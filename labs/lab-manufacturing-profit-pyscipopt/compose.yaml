@@ -1,0 +1,10 @@
+services:
+  lab:
+    build: .
+    working_dir: /lab
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+      UV_PROJECT_ENVIRONMENT: ${UV_PROJECT_ENVIRONMENT:-/opt/venv}
+      PYTHONPATH: ${PYTHONPATH:-/lab/src}
+    volumes:
+      - .:/lab
