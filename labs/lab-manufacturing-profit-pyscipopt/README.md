@@ -86,6 +86,8 @@ Headcounts `n[r,k,t]` are integers. Investment starts `z[i,t]` and high-performa
 
 Matrix API arrays mirror these dimensions: headcount `(4,4,3)`, investment starts `(4,3)`, R&D allocation `(4,3,3)`, market decisions `(4,2,3)`, production `(2,2,3)`, shipments `(2,4,2,3)`, and electricity `(2,3)`. Process saving `s[t]`, development stock `d[t]`, and activity have shape `(3,)`. A separate scalar cash auxiliary supplies the linear objective. Every variable has a finite bound derived from scenario data; activity constraints use capacity/demand bounds rather than arbitrary large constants.
 
+The business setup places R&D, sales, and support teams in the US and India. Germany has the existing factory and a local sales/support office. China has a sales/support office throughout the horizon, while its factory opens only after the optional factory investment becomes available. High-performance pumps have higher base demand at reference prices and add development and maintenance obligations. Within each factory they deliberately use the same baseline manufacturing effort, material, and electricity coefficients as standard pumps; scenario validation enforces those equal product coefficients.
+
 ### Equations and editable assumptions
 
 In the table, `{r}`, `{f}`, `{m}`, `{p}`, `{k}`, `{i}`, and `{t}` stand for the named YAML axes above. Monetary coefficients use MUSD. `U[i,t] = sum(z[i,tau] for tau < t)` is persistent availability; `open[germany,t]=1`, `open[china,t]=U[china_factory,t]`.
@@ -112,7 +114,7 @@ In the table, `{r}`, `{f}`, `{m}`, `{p}`, `{k}`, `{i}`, and `{t}` stand for the 
 | `knowledge.development_threshold` | `d[t] >= threshold*h[t]` | High-performance product requires prior development |
 | `knowledge.maintenance_required.{t}` | `sum_r a[r,maintenance,t] >= maintenance[t]*h[t]` | Same-year R&D maintenance to keep the product active |
 | `factories.capacity.{f}.{t}`, `germany_capacity_gain.{t}` | `sum_p q[Germany] <= capacity + gain*U[Germany upgrade]`; `sum_p q[China] <= capacity*open` | Physical throughput; no same-year investment benefit |
-| `factories.manufacturing_productivity.{f}.{t}`, `manufacturing_effort.{f}.{p}` | `sum_p effort[f,p]*q[f,p,t] <= productivity[f,t]*n[f,manufacturing,t]` | Labor throughput accounts for product-specific effort |
+| `factories.manufacturing_productivity.{f}.{t}`, `manufacturing_effort.{f}.{p}` | `sum_p effort[f,p]*q[f,p,t] <= productivity[f,t]*n[f,manufacturing,t]` | Labor throughput; both products must use the same baseline effort within a factory |
 | `factories.overhead_musd.{f}.{t}` | `factory_overhead = overhead*open` | Closed China factory has no factory overhead |
 | `materials.requirement_per_unit.{f}.{p}`, `price_musd_per_material.{f}.{t}` | `material[f,t] = material_price*sum_p requirement*q*(1-s[t])` | Bilinear production × retained-material fraction |
 | `electricity.baseline.{f}.{t}`, `per_unit.{f}.{p}` | `E[f,t] = baseline*open + sum_p per_unit*q` | Open-factory base load plus production energy |
@@ -133,6 +135,8 @@ Additional model relationships join these coefficients:
 - Net cash per year is revenue − regional operating costs − start-year capex. Cumulative cash is the sum over three years. A scalar auxiliary satisfies `cash_auxiliary <= cumulative_cash_expression` and is maximized linearly, allowing nonlinear expressions in constraints while retaining a linear objective.
 
 The sales response uses headcount-equivalent effort derived from the configured maximum team and its share. It does not multiply a share by a changing integer team inside the quadratic response, which would introduce an unnecessary cubic expression. The actual team still limits combined effort.
+
+The R&D curve has marginal output `alpha - 2*beta*n` and reaches its peak at `n = alpha/(2*beta)`. With the default coefficients, that peak is 10 people in the US and 12.5 in India, above the permitted maxima of 6 and 8, so the editable range shows increasing output with diminishing marginal returns. To explore eventual decline without invalidating the scenario, an edited US assumption of `alpha: 8` and `beta: 1` gives output 16 at four people and 12 at six people before an upgrade; output remains nonnegative across the allowed two-to-six-person range. This is an edit example, not a description of the default result.
 
 The tariff epigraph is the maximum of its affine block lines because marginal rates increase. Reported bills are computed by filling each marginal block from physical electricity use. The verifier checks every array's shape and finite values before arithmetic, all decision nonnegativity/integrality, investment timing, staffing/support, R&D, knowledge recurrences, product prerequisites, capacity/labor, demand/pricing/effort, flows, electricity, budgets, and the cash inequality. It returns all detected violations rather than accepting only a solver status.
 

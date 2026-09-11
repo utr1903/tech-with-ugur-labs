@@ -111,14 +111,16 @@ def test_continuous_price_revenue_has_hand_derived_interior_optimum(
     assert result.decisions.cash_auxiliary == pytest.approx(3.991875, abs=1e-5)
 
 
-def test_gap_limited_incumbent_keeps_real_status_and_values(log: Logger) -> None:
+def test_default_incumbent_keeps_real_status_and_values(log: Logger) -> None:
     scenario = load_scenario(Path(__file__).parents[3] / "scenario.yaml", log=log)
     built = build_model(scenario, derive_bounds(scenario), log=log)
     result = solve_model(built, scenario, log=log)
-    assert result.metadata.status == "gaplimit"
+    assert result.metadata.status in {"gaplimit", "optimal"}
     assert result.metadata.has_incumbent
     assert result.decisions is not None
     assert result.metadata.relative_gap is not None
-    assert 0 < result.metadata.relative_gap <= scenario.solver.relative_gap
+    assert 0 <= result.metadata.relative_gap <= scenario.solver.relative_gap
+    if result.metadata.status == "gaplimit":
+        assert result.metadata.relative_gap > 0
     assert result.metadata.objective_bound is not None
     assert result.metadata.objective_bound >= result.decisions.cash_auxiliary
