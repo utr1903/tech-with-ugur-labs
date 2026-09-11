@@ -128,6 +128,23 @@ def add_capacity_constraints(
     Production uses units/year in year 1–3 order. One worker supports the
     configured annual units. Expansion starts at most once; only strictly earlier
     starts add capacity, so year-1 and year-2 starts first help the following year.
+
+    Args:
+        model: SCIP model to mutate; it must own ``variables``.
+        variables: Three-element worker, production, and expansion arrays. Workers
+            are people, production is units/year, and expansion starts are binary.
+        scenario: Demand and worker/factory capacity inputs in units/year.
+        log: Logger receiving entry, success, and failure events.
+
+    Returns:
+        None.
+
+    Raises:
+        ModelError: If SCIP rejects any of the 10 constraints.
+
+    Side effects:
+        Adds staffing, demand, expansion-count, and timed-capacity constraints to
+        ``model`` and emits structured operation logs.
     """
     operation_log = log.bind(
         years=_YEARS,
@@ -170,6 +187,23 @@ def add_research_constraints(
     ``first*r - drop*r*(r-1)/2`` of new saving. It lowers the following year's
     cost and persists thereafter. No year-4 update exists, and the variable lower
     bound enforces the cost floor without clipping.
+
+    Args:
+        model: SCIP model to mutate; it must own ``variables``.
+        variables: Three-element researcher and unit-cost arrays. Researchers are
+            people and unit costs are USD/unit in year 1–3 order.
+        scenario: Initial/floor costs and diminishing savings in USD/unit.
+        log: Logger receiving entry, success, and failure events.
+
+    Returns:
+        None.
+
+    Raises:
+        ModelError: If SCIP rejects the initial-cost or cost-update constraints.
+
+    Side effects:
+        Adds the initial cost and two next-year research updates to ``model`` and
+        emits structured operation logs.
     """
     operation_log = log.bind(
         years=_YEARS,
@@ -211,6 +245,23 @@ def add_cash_objective(
     Annual USD cash is immediate sales revenue minus unit production cost, both
     salaries, and any expansion payment. PySCIPOpt accepts a linear objective, so
     the nonlinear cash expression bounds the scalar that SCIP maximizes.
+
+    Args:
+        model: SCIP model to mutate; it must own ``variables``.
+        variables: Three-element production, cost, staffing, and expansion arrays,
+            plus the scalar USD cash auxiliary.
+        scenario: USD/unit price and cost, USD/year salaries, and expansion USD.
+        log: Logger receiving entry, success, and failure events.
+
+    Returns:
+        None.
+
+    Raises:
+        ModelError: If SCIP rejects the cash constraint or objective.
+
+    Side effects:
+        Adds the cumulative net-cash constraint, sets the maximizing objective on
+        ``model``, and emits structured operation logs.
     """
     operation_log = log.bind(
         years=_YEARS,
