@@ -13,10 +13,23 @@ def _freeze(values: FloatArray) -> FloatArray:
     return result
 
 
-def _production_bounds(scenario: Scenario) -> FloatArray:
+def _available_by_year(scenario: Scenario, investment: str) -> FloatArray:
+    index = scenario.axes.investments.index(investment)
+    affordable = scenario.central_allowance >= scenario.investment_cost[index]
+    available = np.zeros(len(scenario.axes.years), dtype=np.float64)
+    for year in range(1, len(scenario.axes.years)):
+        available[year] = float(np.any(affordable[:year]))
+    return available
+
+
+def production_bounds(scenario: Scenario) -> FloatArray:
+    """Return availability-aware total production bounds by factory and year."""
     manufacturing = scenario.axes.teams.index("manufacturing")
     physical = scenario.factory_capacity.copy()
-    physical[0] += scenario.germany_capacity_gain
+    germany_available = _available_by_year(scenario, "germany_capacity_upgrade")
+    china_available = _available_by_year(scenario, "china_factory")
+    physical[0] += scenario.germany_capacity_gain * germany_available
+    physical[1] *= china_available
     labor = np.empty_like(physical)
     for factory, region_name in enumerate(scenario.axes.factories):
         region = scenario.axes.regions.index(region_name)
@@ -25,6 +38,7 @@ def _production_bounds(scenario: Scenario) -> FloatArray:
             * scenario.staff_max[region, manufacturing]
             / np.min(scenario.manufacturing_effort[factory])
         )
+    labor[1] *= china_available
     return _freeze(np.minimum(physical, labor))
 
 
@@ -86,13 +100,17 @@ def _cash_bound(
 
 def derive_bounds(scenario: Scenario) -> DerivedBounds:
     """Derive finite production, demand, energy, and cash bounds."""
-    production = _production_bounds(scenario)
+    production = production_bounds(scenario)
     demand = _demand_bounds(scenario)
+    factory_open = np.ones_like(production)
+    factory_open[1] = _available_by_year(scenario, "china_factory")
     electricity = _freeze(
-        scenario.factory_baseline_electricity
+        scenario.factory_baseline_electricity * factory_open
         + np.max(scenario.electricity_per_unit, axis=1)[:, None] * production
     )
-    high_production = _freeze(np.sum(production, axis=0))
+    high_product = scenario.axes.products.index("high_performance")
+    high_demand = np.sum(demand[:, high_product, :], axis=0)
+    high_production = _freeze(np.minimum(np.sum(production, axis=0), high_demand))
     return DerivedBounds(
         production_max=production,
         high_production_max=high_production,

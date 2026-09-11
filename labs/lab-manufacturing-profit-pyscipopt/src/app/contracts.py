@@ -138,9 +138,9 @@ class SolveMetadata:
     objective_bound: float | None
     relative_gap: float | None
     node_count: int
-    scip_version: str
     variable_count: int
     constraint_count: int
+    scip_version: str
 
 
 @dataclass(frozen=True)

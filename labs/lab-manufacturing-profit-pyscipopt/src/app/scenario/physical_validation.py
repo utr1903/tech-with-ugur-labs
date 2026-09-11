@@ -8,6 +8,7 @@ import numpy as np
 
 from app.contracts import FloatArray, Scenario
 from app.errors import ScenarioError
+from app.scenario.bounds import production_bounds
 
 
 def _validate_product_requirements(scenario: Scenario) -> None:
@@ -24,26 +25,8 @@ def _validate_product_requirements(scenario: Scenario) -> None:
                 )
 
 
-def _production_max(scenario: Scenario) -> FloatArray:
-    axes = scenario.axes
-    manufacturing = axes.teams.index("manufacturing")
-    physical = scenario.factory_capacity.copy()
-    physical[0] += scenario.germany_capacity_gain
-    labor = np.empty_like(physical)
-    for factory, region_name in enumerate(axes.factories):
-        region = axes.regions.index(region_name)
-        labor[factory] = (
-            scenario.manufacturing_productivity[factory]
-            * scenario.staff_max[region, manufacturing]
-            / np.min(scenario.manufacturing_effort[factory])
-        )
-    result = np.minimum(physical, labor)
-    result.flags.writeable = False
-    return result
-
-
 def _validate_tariffs(scenario: Scenario) -> None:
-    production = _production_max(scenario)
+    production = production_bounds(scenario)
     tariff = scenario.tariff
     if tariff.thresholds.ndim != 2 or tariff.marginal_rates.ndim != 2:
         raise ScenarioError(
@@ -59,9 +42,14 @@ def _validate_tariffs(scenario: Scenario) -> None:
         path = f"scenario.electricity.tariffs.{name}"
         if thresholds[0] != 0 or np.any(np.diff(thresholds) <= 0):
             raise ScenarioError(f"{path}.thresholds: must start at zero and increase")
-        if np.any(rates <= 0) or np.any(np.diff(rates) <= 0):
-            raise ScenarioError(f"{path}.marginal_rates_musd: must strictly increase")
-        maximum_use = scenario.factory_baseline_electricity[factory] + (
+        if np.any(rates < 0) or np.any(np.diff(rates) <= 0):
+            raise ScenarioError(
+                f"{path}.marginal_rates_musd: must be nonnegative and strictly increase"
+            )
+        is_open = np.ones(len(scenario.axes.years))
+        if name == "china":
+            is_open = (production[factory] > 0).astype(np.float64)
+        maximum_use = scenario.factory_baseline_electricity[factory] * is_open + (
             np.max(scenario.electricity_per_unit[factory]) * production[factory]
         )
         for year, use in enumerate(maximum_use):
@@ -120,11 +108,15 @@ def _validate_demand(scenario: Scenario) -> None:
                         f"scenario.market.demand_base.{name}.{product_name}."
                         f"year_{year + 1}: permits negative demand"
                     )
-        if np.any(scenario.demand_base[market, 1] <= scenario.demand_base[market, 0]):
-            raise ScenarioError(
-                f"scenario.market.demand_base.{name}.high_performance: "
-                "must exceed standard at reference conditions"
-            )
+        for year in range(len(scenario.axes.years)):
+            if (
+                scenario.demand_base[market, 1, year]
+                <= scenario.demand_base[market, 0, year]
+            ):
+                raise ScenarioError(
+                    f"scenario.market.demand_base.{name}.high_performance."
+                    f"year_{year + 1}: must exceed standard at reference conditions"
+                )
 
 
 def validate_physical_domain(scenario: Scenario) -> None:

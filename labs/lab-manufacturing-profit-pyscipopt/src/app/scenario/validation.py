@@ -5,38 +5,15 @@ from __future__ import annotations
 import numpy as np
 import numpy.typing as npt
 
-from app.contracts import FloatArray, Scenario
+from app.contracts import Scenario
 from app.errors import ScenarioError
+from app.scenario.domain_validation import validate_coefficient_domains
 from app.scenario.physical_validation import validate_physical_domain
-
-
-def _coordinates(axes: tuple[tuple[str, ...], ...], index: tuple[int, ...]) -> str:
-    return ".".join(axes[depth][position] for depth, position in enumerate(index))
 
 
 def _first(condition: npt.NDArray[np.bool_]) -> tuple[int, ...] | None:
     matches = np.argwhere(condition)
     return tuple(int(position) for position in matches[0]) if matches.size else None
-
-
-def _require_nonnegative(
-    array: FloatArray,
-    path: str,
-    axes: tuple[tuple[str, ...], ...],
-) -> None:
-    index = _first(array < 0)
-    if index is not None:
-        raise ScenarioError(f"{path}.{_coordinates(axes, index)}: must be nonnegative")
-
-
-def _require_positive(
-    array: FloatArray,
-    path: str,
-    axes: tuple[tuple[str, ...], ...],
-) -> None:
-    index = _first(array <= 0)
-    if index is not None:
-        raise ScenarioError(f"{path}.{_coordinates(axes, index)}: must be positive")
 
 
 def _validate_solver(scenario: Scenario) -> None:
@@ -57,13 +34,24 @@ def _validate_solver(scenario: Scenario) -> None:
 
 def _validate_staff(scenario: Scenario) -> None:
     axes = scenario.axes
-    names = (axes.regions, axes.teams, tuple(f"year_{year}" for year in axes.years))
-    _require_nonnegative(scenario.staff_min, "scenario.staff.minimum", names)
-    _require_nonnegative(scenario.staff_max, "scenario.staff.maximum", names)
-    if not np.equal(scenario.staff_min, np.floor(scenario.staff_min)).all():
-        raise ScenarioError("scenario.staff: minimum headcounts must be integers")
-    if not np.equal(scenario.staff_max, np.floor(scenario.staff_max)).all():
-        raise ScenarioError("scenario.staff: maximum headcounts must be integers")
+    for values, field in (
+        (scenario.staff_min, "minimum"),
+        (scenario.staff_max, "maximum"),
+    ):
+        negative = _first(values < 0)
+        if negative is not None:
+            region, team, year = negative
+            raise ScenarioError(
+                f"scenario.staff.{axes.regions[region]}.{axes.teams[team]}."
+                f"{field}.year_{year + 1}: must be nonnegative"
+            )
+        fractional = _first(values != np.floor(values))
+        if fractional is not None:
+            region, team, year = fractional
+            raise ScenarioError(
+                f"scenario.staff.{axes.regions[region]}.{axes.teams[team]}."
+                f"{field}.year_{year + 1}: must be an integer"
+            )
     bad = np.argwhere(scenario.staff_min > scenario.staff_max)
     if bad.size:
         region, team, year = (int(value) for value in bad[0])
@@ -72,6 +60,11 @@ def _validate_staff(scenario: Scenario) -> None:
             f"{axes.regions[region]}.{axes.teams[team]}.minimum.year_{year + 1}: "
             "must not exceed maximum"
         )
+    _validate_team_domains(scenario)
+
+
+def _validate_team_domains(scenario: Scenario) -> None:
+    axes = scenario.axes
     allowed = {
         "us": {"rd", "sales", "support"},
         "india": {"rd", "sales", "support"},
@@ -115,6 +108,18 @@ def _validate_knowledge(scenario: Scenario) -> None:
     for value, name in values:
         if value < 0:
             raise ScenarioError(f"scenario.knowledge.{name}: must be nonnegative")
+    if not 0 < scenario.material_saving_floor <= 1:
+        raise ScenarioError(
+            "scenario.knowledge.material_saving_floor: must be above 0 and at most 1"
+        )
+    if scenario.max_development_stock <= 0:
+        raise ScenarioError(
+            "scenario.knowledge.max_development_stock: must be positive"
+        )
+    if scenario.development_threshold <= 0:
+        raise ScenarioError(
+            "scenario.knowledge.development_threshold: must be positive"
+        )
     if scenario.initial_process_saving > scenario.max_process_saving:
         raise ScenarioError(
             "scenario.knowledge.initial_process_saving: must not exceed maximum"
@@ -138,28 +143,13 @@ def validate_scenario(scenario: Scenario) -> None:
     _validate_solver(scenario)
     _validate_staff(scenario)
     _validate_knowledge(scenario)
-    axes = scenario.axes
-    years = tuple(f"year_{year}" for year in axes.years)
-    _require_positive(
-        scenario.factory_capacity,
-        "scenario.factories.capacity",
-        (axes.factories, years),
-    )
-    _require_positive(
-        scenario.manufacturing_productivity,
-        "scenario.factories.manufacturing_productivity",
-        (axes.factories, years),
-    )
-    _require_positive(
-        scenario.manufacturing_effort,
-        "scenario.factories.manufacturing_effort",
-        (axes.factories, axes.products),
-    )
-    _require_positive(
-        scenario.price_min,
-        "scenario.market.price_min_musd_per_unit",
-        (axes.markets, axes.products, years),
-    )
-    if np.any(scenario.price_min > scenario.price_max):
-        raise ScenarioError("scenario.market.price_min_musd_per_unit: exceeds maximum")
+    validate_coefficient_domains(scenario)
+    bad_price = _first(scenario.price_min > scenario.price_max)
+    if bad_price is not None:
+        market, product, year = bad_price
+        raise ScenarioError(
+            "scenario.market.price_max_musd_per_unit."
+            f"{scenario.axes.markets[market]}.{scenario.axes.products[product]}."
+            f"year_{year + 1}: must be at least the minimum price"
+        )
     validate_physical_domain(scenario)
