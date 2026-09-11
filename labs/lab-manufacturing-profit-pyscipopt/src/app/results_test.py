@@ -6,6 +6,8 @@ import csv
 import json
 from dataclasses import fields, replace
 from pathlib import Path
+from types import TracebackType
+from typing import Self
 
 import numpy as np
 import pytest
@@ -16,6 +18,45 @@ from app.model import DecisionValues, SolveResult
 from app.results import write_results
 from app.scenario import Scenario
 from app.verification import AnnualRow, verify_solution
+
+
+class _WriteFailingTemporaryFile:
+    """A real sibling file whose write leaves partial bytes then raises."""
+
+    def __init__(self, path: Path) -> None:
+        """Create the temporary path that production cleanup must own."""
+        self.path = path
+        self.name = str(path)
+        self.path.touch()
+
+    def __enter__(self) -> Self:
+        """Expose the path and failing writer through the file context API."""
+        return self
+
+    def __exit__(
+        self,
+        _exc_type: type[BaseException] | None,
+        _exc: BaseException | None,
+        _traceback: TracebackType | None,
+    ) -> None:
+        """Leave cleanup responsibility with the result writer."""
+
+    def write(self, text: str) -> int:
+        """Persist partial bytes, then reproduce a filesystem write failure."""
+        self.path.write_text(text[:1], encoding="utf-8")
+        raise OSError("forced temporary-file write failure")
+
+
+def _failing_named_temporary_file(**options: object) -> _WriteFailingTemporaryFile:
+    """Create a deterministic real sibling matching NamedTemporaryFile output."""
+    directory = options.get("dir")
+    prefix = options.get("prefix")
+    suffix = options.get("suffix")
+    if not isinstance(directory, Path):
+        raise TypeError("test expected a pathlib output directory")
+    if not isinstance(prefix, str) or not isinstance(suffix, str):
+        raise TypeError("test expected string temporary-file affixes")
+    return _WriteFailingTemporaryFile(directory / f"{prefix}forced{suffix}")
 
 
 def _worked_result() -> SolveResult:
@@ -132,3 +173,55 @@ def test_serialization_failure_preserves_existing_artifacts(
         "annual_plan.csv",
         "solution.json",
     ]
+
+
+def test_temporary_write_failure_removes_partial_file_and_preserves_artifacts(
+    tmp_path: Path,
+    scenario: Scenario,
+    log: Logger,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A partial sibling is cleaned when its first write raises OSError."""
+    output_dir = tmp_path / "existing-output"
+    output_dir.mkdir()
+    csv_path = output_dir / "annual_plan.csv"
+    json_path = output_dir / "solution.json"
+    csv_path.write_bytes(b"old csv\n")
+    json_path.write_bytes(b"old json\n")
+    result = _worked_result()
+    assert result.decisions is not None
+    verification = verify_solution(scenario, result.decisions, log=log)
+    monkeypatch.setattr(
+        "app.results.tempfile.NamedTemporaryFile", _failing_named_temporary_file
+    )
+
+    with pytest.raises(ArtifactError, match="Could not write results"):
+        write_results(output_dir, scenario, result, verification, log=log)
+
+    assert csv_path.read_bytes() == b"old csv\n"
+    assert json_path.read_bytes() == b"old json\n"
+    assert sorted(path.name for path in output_dir.iterdir()) == [
+        "annual_plan.csv",
+        "solution.json",
+    ]
+
+
+def test_console_shows_fractional_production_to_two_decimals(
+    tmp_path: Path,
+    scenario: Scenario,
+    log: Logger,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """Continuous production remains visible below whole-unit precision."""
+    result = _worked_result()
+    assert result.decisions is not None
+    decisions = replace(
+        result.decisions,
+        units_produced=np.array([3999.4, 4000.0, 4000.0]),
+    )
+    result = replace(result, decisions=decisions)
+    verification = verify_solution(scenario, decisions, log=log)
+
+    write_results(tmp_path / "output", scenario, result, verification, log=log)
+
+    assert "3,999.40" in capsys.readouterr().out

@@ -106,7 +106,7 @@ def _write_console(result: SolveResult, verification: Verification) -> None:
     )
     output.write_line(
         f"{headers[0]:>2} {headers[1]:>3} {headers[2]:>3} {headers[3]:>5} "
-        f"{headers[4]:>5} {headers[5]:>8} {headers[6]:>7} {headers[7]:>8} "
+        f"{headers[4]:>5} {headers[5]:>10} {headers[6]:>7} {headers[7]:>8} "
         f"{headers[8]:>11} {headers[9]:>11} {headers[10]:>10} "
         f"{headers[11]:>10} {headers[12]:>11} {headers[13]:>11}"
     )
@@ -114,7 +114,7 @@ def _write_console(result: SolveResult, verification: Verification) -> None:
         output.write_line(
             f"{row.year:>2d} {row.workers:>3.0f} {row.researchers:>3.0f} "
             f"{row.expansion_start:>5.0f} {row.expansion_available:>5.0f} "
-            f"{row.units_produced:>8,.0f} "
+            f"{row.units_produced:>10,.2f} "
             f"{_money_for_console(row.unit_cost_usd):>7.2f} "
             f"{_money_for_console(row.new_research_saving_usd_per_unit):>8.2f} "
             f"{_money_for_console(row.revenue_usd):>11,.2f} "
@@ -192,8 +192,8 @@ def write_results(
                 dir=output_dir,
                 delete=False,
             ) as temporary_file:
-                temporary_file.write(text)
                 temporary_paths.append(Path(temporary_file.name))
+                temporary_file.write(text)
         temporary_paths[0].replace(output_dir / _CSV_NAME)
         temporary_paths.pop(0)
         temporary_paths[0].replace(output_dir / _JSON_NAME)

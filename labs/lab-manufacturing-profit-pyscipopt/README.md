@@ -63,10 +63,10 @@ this plan (SCIP may retain tiny raw numerical residuals in CSV and JSON):
 ```text
 Verified annual manufacturing plan
 Units: people (Wkr/Rsr); flags (Start/Avail); product units (Units); USD/unit (Cost/Save); USD/year (Rev/Prod/Wkr$/Rsr$/Expand/Net).
-Yr Wkr Rsr Start Avail    Units    Cost New save         Rev        Prod       Wkr$       Rsr$      Expand         Net
- 1   4   3     1     0    4,000   50.00     9.00  360,000.00  200,000.00  80,000.00  30,000.00   50,000.00        0.00
- 2   6   3     0     1    6,000   41.00     9.00  540,000.00  246,000.00 120,000.00  30,000.00        0.00  144,000.00
- 3   6   0     0     1    6,000   32.00     0.00  540,000.00  192,000.00 120,000.00       0.00        0.00  228,000.00
+Yr Wkr Rsr Start Avail      Units    Cost New save         Rev        Prod       Wkr$       Rsr$      Expand         Net
+ 1   4   3     1     0   4,000.00   50.00     9.00  360,000.00  200,000.00  80,000.00  30,000.00   50,000.00        0.00
+ 2   6   3     0     1   6,000.00   41.00     9.00  540,000.00  246,000.00 120,000.00  30,000.00        0.00  144,000.00
+ 3   6   0     0     1   6,000.00   32.00     0.00  540,000.00  192,000.00 120,000.00       0.00        0.00  228,000.00
 
 Total net cash: $372,000.00
 Solver status: optimal
