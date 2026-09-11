@@ -4,6 +4,10 @@ ENV UV_PROJECT_ENVIRONMENT=/opt/venv \
     PATH="/opt/venv/bin:$PATH" \
     PYTHONPATH=/lab/src
 
+# Debian login shells reset PATH in /etc/profile before loading profile.d.
+RUN printf '%s\n' 'export PATH="/opt/venv/bin:$PATH"' \
+    > /etc/profile.d/uv-venv.sh
+
 RUN python -m pip install --no-cache-dir uv==0.12.13
 
 WORKDIR /lab
