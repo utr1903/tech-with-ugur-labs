@@ -302,6 +302,10 @@ def load_scenario(path: Path, *, log: Logger) -> Scenario:
     Raises:
         ScenarioError: If the file cannot be read or decoded, YAML cannot be
             parsed, keys/types are wrong, or business bounds are invalid.
+
+    Side effects:
+        Reads ``path`` once and emits structured operation logs. It does not edit
+        the source; the returned annual array is copied and made read-only.
     """
     log.info("Loading scenario...", path=str(path))
     try:

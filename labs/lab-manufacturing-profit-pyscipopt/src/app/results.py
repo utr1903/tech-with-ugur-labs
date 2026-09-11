@@ -20,6 +20,12 @@ _CSV_NAME = "annual_plan.csv"
 _JSON_NAME = "solution.json"
 
 
+def _money_for_console(value: float) -> float:
+    """Round USD for display and replace either signed zero with plain zero."""
+    rounded = round(value, 2)
+    return 0.0 if rounded == 0 else rounded
+
+
 def _serialize_csv(verification: Verification) -> str:
     """Return the three verified rows as CSV in ``AnnualRow`` field order."""
     buffer = io.StringIO(newline="")
@@ -108,16 +114,19 @@ def _write_console(result: SolveResult, verification: Verification) -> None:
         output.write_line(
             f"{row.year:>2d} {row.workers:>3.0f} {row.researchers:>3.0f} "
             f"{row.expansion_start:>5.0f} {row.expansion_available:>5.0f} "
-            f"{row.units_produced:>8,.0f} {row.unit_cost_usd:>7.2f} "
-            f"{row.new_research_saving_usd_per_unit:>8.2f} "
-            f"{row.revenue_usd:>11,.2f} {row.production_cost_usd:>11,.2f} "
-            f"{row.worker_salaries_usd:>10,.2f} "
-            f"{row.researcher_salaries_usd:>10,.2f} "
-            f"{row.expansion_spending_usd:>11,.2f} "
-            f"{row.annual_net_cash_usd:>11,.2f}"
+            f"{row.units_produced:>8,.0f} "
+            f"{_money_for_console(row.unit_cost_usd):>7.2f} "
+            f"{_money_for_console(row.new_research_saving_usd_per_unit):>8.2f} "
+            f"{_money_for_console(row.revenue_usd):>11,.2f} "
+            f"{_money_for_console(row.production_cost_usd):>11,.2f} "
+            f"{_money_for_console(row.worker_salaries_usd):>10,.2f} "
+            f"{_money_for_console(row.researcher_salaries_usd):>10,.2f} "
+            f"{_money_for_console(row.expansion_spending_usd):>11,.2f} "
+            f"{_money_for_console(row.annual_net_cash_usd):>11,.2f}"
         )
     output.write_line()
-    output.write_line(f"Total net cash: ${verification.total_net_cash_usd:,.2f}")
+    total_net_cash = _money_for_console(verification.total_net_cash_usd)
+    output.write_line(f"Total net cash: ${total_net_cash:,.2f}")
     output.write_line(f"Solver status: {result.status}")
     if result.relative_gap is None:
         output.write_line("Relative gap: unavailable")
@@ -125,9 +134,11 @@ def _write_console(result: SolveResult, verification: Verification) -> None:
         output.write_line(f"Relative gap: {result.relative_gap:.6%}")
     if result.objective_usd is not None:
         difference = verification.total_net_cash_usd - result.objective_usd
-        output.write_line(f"Solver objective: ${result.objective_usd:,.2f}")
-        if abs(difference) > verification.absolute_tolerance:
-            output.write_line(f"Recomputed cash differs by: ${difference:,.2f}")
+        objective = _money_for_console(result.objective_usd)
+        display_difference = _money_for_console(difference)
+        output.write_line(f"Solver objective: ${objective:,.2f}")
+        if display_difference != 0:
+            output.write_line(f"Recomputed cash differs by: ${display_difference:,.2f}")
 
 
 def write_results(

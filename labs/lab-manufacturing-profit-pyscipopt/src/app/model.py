@@ -85,12 +85,30 @@ def build_model(scenario: Scenario, *, log: Logger) -> BuiltModel:
     """Validate inputs and build the complete model without optimizing it.
 
     ``scenario`` supplies dollars, units, people, and read-only annual demand in
-    year 1–3 order. The returned hidden-output SCIP model contains the five
-    decision arrays and cash auxiliary used by the solver.
+    year 1–3 order. Variables are created before capacity, research, and cash
+    constraints are added in that order. The returned hidden-output SCIP model
+    contains the five three-element decision arrays and scalar cash auxiliary
+    used by the solver; this function does not optimize them.
+
+    Args:
+        scenario: Validated business inputs and solver settings. Business arrays
+            use year 1–3 order, production uses units/year, staffing uses people,
+            unit costs use USD/unit, and cash uses USD.
+        log: Logger receiving construction entry, nested equation-group, success,
+            and failure events.
+
+    Returns:
+        The configured SCIP model paired with every variable needed for solving
+        and unrounded incumbent extraction.
 
     Raises:
         ScenarioError: If inputs, overrides, or derived finite bounds are invalid.
         ModelError: If SCIP rejects variable or constraint construction.
+
+    Side effects:
+        Allocates an in-memory SCIP model, hides its native console output, adds
+        variables and constraints, and emits structured logs. It does not mutate
+        ``scenario``, solve, or write files.
     """
     log.info("Building model...", years=_YEARS)
     try:

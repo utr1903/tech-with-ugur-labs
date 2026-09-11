@@ -87,9 +87,23 @@ def solve_model(
     objective USD, and gap are ``None``. Unavailable or infinite bound/gap values
     are also ``None``; status and elapsed solve seconds are always retained.
 
+    Args:
+        built: In-memory SCIP model and its five year 1–3 decision arrays plus
+            scalar USD cash auxiliary.
+        settings: Positive time limit in seconds and relative gap in ``[0, 1)``.
+        log: Logger receiving solve entry, success, and failure events.
+
+    Returns:
+        Solver status, elapsed seconds, finite objective metadata, and either raw
+        incumbent floats or ``None`` when SCIP found no incumbent.
+
     Raises:
         ScenarioError: If solve-time overrides violate the scenario contract.
         ModelError: If SCIP fails or returns invalid incumbent values.
+
+    Side effects:
+        Sets limits on ``built.model``, runs SCIP, updates that model's solve
+        state, and emits structured logs. It does not verify or write the result.
     """
     validate_solver_settings(settings)
     operation_log = log.bind(

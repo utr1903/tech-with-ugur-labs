@@ -48,9 +48,11 @@ def install_global_error_handlers(log: Logger) -> None:
         exc: BaseException,
         tb: TracebackType | None,
     ) -> None:
+        """Render one uncaught exception and its traceback through structlog."""
         log.error("Uncaught exception.", exc_info=(exc_type, exc, tb))
 
     def handle_thread(args: threading.ExceptHookArgs) -> None:
+        """Forward an uncaught worker-thread exception to the shared handler."""
         if args.exc_value is not None:
             handle(args.exc_type, args.exc_value, args.exc_traceback)
 
