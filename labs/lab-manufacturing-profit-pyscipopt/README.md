@@ -47,6 +47,17 @@ The report begins with SCIP's actual termination status, elapsed solve time, obj
 
 The bound and gap are SCIP statistics for its scalar cash auxiliary objective. The report shows that incumbent objective **separately** from independently recomputed cumulative cash. A limited incumbent can leave both the cash inequality and electricity epigraph slack, so those values need not match. This slack must still stay within the independently verified finite auxiliary bounds. Do not recalculate or reinterpret SCIP's reported relative gap using the recomputed cash.
 
+### Measured acceptance
+
+The default scenario was measured on 2026-09-11 on a MacBook Air with an Apple M4, 16 GiB host memory, and Docker Desktop 28.3.2 / Compose 2.39.1. Docker's Linux VM exposed 10 CPUs and 8,218,034,176 bytes of memory. Both runs used the locked `python:3.12.14-slim-trixie` base image at digest `sha256:78387bc3881b8273120a12ebe6c1ab22b018ccc2c9adf565ae1ac9b536e184ea`, PySCIPOpt 6.2.1, SCIP 10.0.2, and the YAML defaults of 120 seconds and 0.01 relative gap, with no CLI overrides.
+
+| Container platform | Execution | SCIP status | Solve time | Objective bound (MUSD) | Incumbent auxiliary (MUSD) | Relative gap | Model size before presolve |
+|---|---|---|---:|---:|---:|---:|---:|
+| `linux/arm64` | Native | `gaplimit` | 0.099194 s | 1035.493604957424 | 1025.737466624713 | 0.009511340523432731 | 256 variables / 221 constraints |
+| `linux/amd64` | Docker Desktop emulation | `gaplimit` | 0.387675 s | 1035.493604957424 | 1025.737466624713 | 0.009511340523432731 | 256 variables / 221 constraints |
+
+Both incumbents passed the independent verifier. The native measurement establishes the default 120-second / 1% target; the emulated timing is reported separately because emulation changes runtime. The end-to-end test allows one second beyond the configured solver limit for SCIP to return from its stopping check; container startup, YAML loading, verification, and report rendering are outside `metadata.solve_seconds`.
+
 | Artifact | Contents |
 |---|---|
 | `solution.json` | Schema version; exact input-byte SHA-256 and path; separate CLI overrides; solver settings/status/SCIP version/size/timing/bound/gap; axes; every decision array including auxiliaries; verifier tolerances; exact annual and cumulative cash and regional cost |
