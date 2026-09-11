@@ -1,271 +1,47 @@
-assumptions:
-  company_statement: Fictional company assumptions for an industrial-pump manufacturer.
-  money_units: millions of USD
-  volume_units: annual pump-volume units
+# Synthetic teaching inputs for one factory, one product, and three years.
+product:
+  # Fixed sale price in USD per unit; finite and > 0; applies to units sold in every year and sets annual revenue.
+  selling_price_usd_per_unit: 90
+  demand_units:
+    # Maximum units sold in year 1; finite and >= 0; caps year-1 production sold immediately.
+    year_1: 4000
+    # Maximum units sold in year 2; finite and >= 0; caps year-2 production sold immediately.
+    year_2: 6000
+    # Maximum units sold in year 3; finite and >= 0; caps year-3 production sold immediately.
+    year_3: 6000
 
-solver:
-  time_limit_seconds: 120.0
-  relative_gap: 0.01
-  feasibility_abs: 0.000001
-  feasibility_rel: 0.000001
-  integrality_abs: 0.000001
-
-staff:
-  us:
-    rd:
-      minimum: {year_1: 2, year_2: 2, year_3: 2}
-      maximum: {year_1: 6, year_2: 6, year_3: 6}
-      salary_musd_per_person: {year_1: 0.300, year_2: 0.300, year_3: 0.300}
-    manufacturing:
-      minimum: {year_1: 0, year_2: 0, year_3: 0}
-      maximum: {year_1: 0, year_2: 0, year_3: 0}
-      salary_musd_per_person: {year_1: 0, year_2: 0, year_3: 0}
-    sales:
-      minimum: {year_1: 2, year_2: 2, year_3: 2}
-      maximum: {year_1: 8, year_2: 8, year_3: 8}
-      salary_musd_per_person: {year_1: 0.180, year_2: 0.180, year_3: 0.180}
-    support:
-      minimum: {year_1: 1, year_2: 1, year_3: 1}
-      maximum: {year_1: 6, year_2: 6, year_3: 6}
-      salary_musd_per_person: {year_1: 0.110, year_2: 0.110, year_3: 0.110}
-  india:
-    rd:
-      minimum: {year_1: 2, year_2: 2, year_3: 2}
-      maximum: {year_1: 8, year_2: 8, year_3: 8}
-      salary_musd_per_person: {year_1: 0.050, year_2: 0.050, year_3: 0.050}
-    manufacturing:
-      minimum: {year_1: 0, year_2: 0, year_3: 0}
-      maximum: {year_1: 0, year_2: 0, year_3: 0}
-      salary_musd_per_person: {year_1: 0, year_2: 0, year_3: 0}
-    sales:
-      minimum: {year_1: 2, year_2: 2, year_3: 2}
-      maximum: {year_1: 10, year_2: 10, year_3: 10}
-      salary_musd_per_person: {year_1: 0.070, year_2: 0.070, year_3: 0.070}
-    support:
-      minimum: {year_1: 1, year_2: 1, year_3: 1}
-      maximum: {year_1: 7, year_2: 7, year_3: 7}
-      salary_musd_per_person: {year_1: 0.040, year_2: 0.040, year_3: 0.040}
-  germany:
-    rd:
-      minimum: {year_1: 0, year_2: 0, year_3: 0}
-      maximum: {year_1: 0, year_2: 0, year_3: 0}
-      salary_musd_per_person: {year_1: 0, year_2: 0, year_3: 0}
-    manufacturing:
-      minimum: {year_1: 5, year_2: 5, year_3: 5}
-      maximum: {year_1: 20, year_2: 20, year_3: 20}
-      salary_musd_per_person: {year_1: 0.120, year_2: 0.120, year_3: 0.120}
-    sales:
-      minimum: {year_1: 2, year_2: 2, year_3: 2}
-      maximum: {year_1: 8, year_2: 8, year_3: 8}
-      salary_musd_per_person: {year_1: 0.130, year_2: 0.130, year_3: 0.130}
-    support:
-      minimum: {year_1: 2, year_2: 2, year_3: 2}
-      maximum: {year_1: 8, year_2: 8, year_3: 8}
-      salary_musd_per_person: {year_1: 0.090, year_2: 0.090, year_3: 0.090}
-  china:
-    rd:
-      minimum: {year_1: 0, year_2: 0, year_3: 0}
-      maximum: {year_1: 0, year_2: 0, year_3: 0}
-      salary_musd_per_person: {year_1: 0, year_2: 0, year_3: 0}
-    manufacturing:
-      minimum: {year_1: 4, year_2: 4, year_3: 4}
-      maximum: {year_1: 18, year_2: 18, year_3: 18}
-      salary_musd_per_person: {year_1: 0.060, year_2: 0.060, year_3: 0.060}
-    sales:
-      minimum: {year_1: 2, year_2: 2, year_3: 2}
-      maximum: {year_1: 10, year_2: 10, year_3: 10}
-      salary_musd_per_person: {year_1: 0.080, year_2: 0.080, year_3: 0.080}
-    support:
-      minimum: {year_1: 2, year_2: 2, year_3: 2}
-      maximum: {year_1: 8, year_2: 8, year_3: 8}
-      salary_musd_per_person: {year_1: 0.050, year_2: 0.050, year_3: 0.050}
-
-support:
-  fixed_headcount:
-    us: {year_1: 0.5, year_2: 0.5, year_3: 0.5}
-    india: {year_1: 0.5, year_2: 0.5, year_3: 0.5}
-    germany: {year_1: 0.5, year_2: 0.5, year_3: 0.5}
-    china: {year_1: 0.5, year_2: 0.5, year_3: 0.5}
-  coverage_ratios:
-    us:
-      rd: {year_1: 0.10, year_2: 0.10, year_3: 0.10}
-      manufacturing: {year_1: 0.05, year_2: 0.05, year_3: 0.05}
-      sales: {year_1: 0.10, year_2: 0.10, year_3: 0.10}
-    india:
-      rd: {year_1: 0.10, year_2: 0.10, year_3: 0.10}
-      manufacturing: {year_1: 0.05, year_2: 0.05, year_3: 0.05}
-      sales: {year_1: 0.10, year_2: 0.10, year_3: 0.10}
-    germany:
-      rd: {year_1: 0.10, year_2: 0.10, year_3: 0.10}
-      manufacturing: {year_1: 0.05, year_2: 0.05, year_3: 0.05}
-      sales: {year_1: 0.10, year_2: 0.10, year_3: 0.10}
-    china:
-      rd: {year_1: 0.10, year_2: 0.10, year_3: 0.10}
-      manufacturing: {year_1: 0.05, year_2: 0.05, year_3: 0.05}
-      sales: {year_1: 0.10, year_2: 0.10, year_3: 0.10}
-
-regional_budget_musd:
-  us: {year_1: 20, year_2: 20, year_3: 20}
-  india: {year_1: 15, year_2: 15, year_3: 15}
-  germany: {year_1: 80, year_2: 85, year_3: 90}
-  china: {year_1: 60, year_2: 65, year_3: 70}
-office_overhead_musd:
-  us: {year_1: 1.5, year_2: 1.5, year_3: 1.5}
-  india: {year_1: 0.8, year_2: 0.8, year_3: 0.8}
-  germany: {year_1: 2.0, year_2: 2.0, year_3: 2.0}
-  china: {year_1: 1.0, year_2: 1.0, year_3: 1.0}
-
-investments:
-  us_rd_upgrade: {cost_musd: 4.0}
-  india_rd_upgrade: {cost_musd: 2.0}
-  germany_capacity_upgrade: {cost_musd: 12.0}
-  china_factory: {cost_musd: 20.0}
-central_allowance_musd: {year_1: 24, year_2: 20, year_3: 0}
+manufacturing:
+  # Starting materials-and-electricity cost in USD/unit; finite and > 0; used in year 1 before research savings.
+  initial_unit_cost_usd: 50
+  # Lowest permitted materials-and-electricity cost in USD/unit; finite, > 0, and <= initial cost; constrains accumulated research savings.
+  minimum_unit_cost_usd: 25
+  # Annual production supported by one worker in units/person/year; finite and > 0; links production to worker count.
+  units_per_worker_per_year: 1000
+  # Manufacturing salary in USD/person/year; finite and > 0; charged for each worker in that year.
+  worker_salary_usd_per_year: 20000
+  # Largest manufacturing team in any year; integer >= 0; bounds each annual worker decision.
+  max_workers: 6
+  # Existing factory output limit in units/year; finite and > 0; caps production before any expansion is available.
+  capacity_units_per_year: 4000
 
 research:
-  regions:
-    us:
-      alpha: {year_1: 8.0, year_2: 8.0, year_3: 8.0}
-      beta: {year_1: 0.40, year_2: 0.40, year_3: 0.40}
-      upgrade_alpha_gain: 2.0
-    india:
-      alpha: {year_1: 5.0, year_2: 5.0, year_3: 5.0}
-      beta: {year_1: 0.20, year_2: 0.20, year_3: 0.20}
-      upgrade_alpha_gain: 1.5
+  # Research salary in USD/person/year; finite and > 0; charged in the research year even though savings begin next year.
+  researcher_salary_usd_per_year: 10000
+  # Largest research team in any year; integer >= 0 with nonnegative marginal savings; bounds each annual researcher decision.
+  max_researchers: 3
+  # Next-year unit-cost saving from the first researcher in USD/unit; finite and > 0; starts each year's diminishing-return sum.
+  first_researcher_saving_usd_per_unit: 4
+  # Reduction in each additional researcher's saving in USD/unit; finite and > 0; shapes the diminishing-return sum.
+  saving_drop_per_additional_researcher: 1
 
-knowledge:
-  process_conversion: {year_1: 0.002, year_2: 0.002, year_3: 0.002}
-  initial_process_saving: 0.05
-  max_process_saving: 0.25
-  material_saving_floor: 0.60
-  initial_development_stock: 0.0
-  max_development_stock: 100.0
-  development_threshold: 30.0
-  maintenance_required: {year_1: 8.0, year_2: 8.0, year_3: 8.0}
+expansion:
+  # One-time expansion payment in USD; finite and > 0; charged in the chosen start year.
+  cost_usd: 50000
+  # Added factory output in units/year; finite and > 0; becomes available one year after a year-1 or year-2 start and then persists.
+  extra_capacity_units_per_year: 2000
 
-factories:
-  capacity:
-    germany: {year_1: 120, year_2: 130, year_3: 140}
-    china: {year_1: 100, year_2: 110, year_3: 120}
-  germany_capacity_gain: {year_1: 50, year_2: 50, year_3: 50}
-  manufacturing_productivity:
-    germany: {year_1: 10, year_2: 10, year_3: 10}
-    china: {year_1: 9, year_2: 9, year_3: 9}
-  manufacturing_effort:
-    germany: {standard: 1.0, high_performance: 1.0}
-    china: {standard: 1.0, high_performance: 1.0}
-  overhead_musd:
-    germany: {year_1: 4.0, year_2: 4.0, year_3: 4.0}
-    china: {year_1: 3.0, year_2: 3.0, year_3: 3.0}
-
-materials:
-  requirement_per_unit:
-    germany: {standard: 2.5, high_performance: 2.5}
-    china: {standard: 2.3, high_performance: 2.3}
-  price_musd_per_material:
-    germany: {year_1: 0.08, year_2: 0.08, year_3: 0.08}
-    china: {year_1: 0.06, year_2: 0.06, year_3: 0.06}
-
-electricity:
-  baseline:
-    germany: {year_1: 50, year_2: 55, year_3: 60}
-    china: {year_1: 35, year_2: 40, year_3: 45}
-  per_unit:
-    germany: {standard: 2.0, high_performance: 2.0}
-    china: {standard: 1.8, high_performance: 1.8}
-  tariffs:
-    germany:
-      thresholds: [0, 100, 250, 500]
-      marginal_rates_musd: [0.005, 0.008, 0.012]
-    china:
-      thresholds: [0, 100, 250, 400]
-      marginal_rates_musd: [0.004, 0.006, 0.010]
-
-shipping_cost_musd_per_unit:
-  germany:
-    us: {standard: 0.05, high_performance: 0.05}
-    india: {standard: 0.06, high_performance: 0.06}
-    germany: {standard: 0.01, high_performance: 0.01}
-    china: {standard: 0.07, high_performance: 0.07}
-  china:
-    us: {standard: 0.07, high_performance: 0.07}
-    india: {standard: 0.04, high_performance: 0.04}
-    germany: {standard: 0.06, high_performance: 0.06}
-    china: {standard: 0.01, high_performance: 0.01}
-
-market:
-  demand_base:
-    us:
-      standard: {year_1: 80, year_2: 84, year_3: 88}
-      high_performance: {year_1: 100, year_2: 105, year_3: 110}
-    india:
-      standard: {year_1: 75, year_2: 80, year_3: 85}
-      high_performance: {year_1: 95, year_2: 100, year_3: 105}
-    germany:
-      standard: {year_1: 70, year_2: 74, year_3: 78}
-      high_performance: {year_1: 90, year_2: 95, year_3: 100}
-    china:
-      standard: {year_1: 85, year_2: 90, year_3: 95}
-      high_performance: {year_1: 110, year_2: 115, year_3: 120}
-  reference_price_musd_per_unit:
-    us:
-      standard: {year_1: 1.20, year_2: 1.20, year_3: 1.20}
-      high_performance: {year_1: 1.60, year_2: 1.60, year_3: 1.60}
-    india:
-      standard: {year_1: 1.00, year_2: 1.00, year_3: 1.00}
-      high_performance: {year_1: 1.40, year_2: 1.40, year_3: 1.40}
-    germany:
-      standard: {year_1: 1.15, year_2: 1.15, year_3: 1.15}
-      high_performance: {year_1: 1.55, year_2: 1.55, year_3: 1.55}
-    china:
-      standard: {year_1: 1.05, year_2: 1.05, year_3: 1.05}
-      high_performance: {year_1: 1.45, year_2: 1.45, year_3: 1.45}
-  price_min_musd_per_unit:
-    us:
-      standard: {year_1: 0.80, year_2: 0.80, year_3: 0.80}
-      high_performance: {year_1: 1.10, year_2: 1.10, year_3: 1.10}
-    india:
-      standard: {year_1: 0.70, year_2: 0.70, year_3: 0.70}
-      high_performance: {year_1: 1.00, year_2: 1.00, year_3: 1.00}
-    germany:
-      standard: {year_1: 0.75, year_2: 0.75, year_3: 0.75}
-      high_performance: {year_1: 1.05, year_2: 1.05, year_3: 1.05}
-    china:
-      standard: {year_1: 0.70, year_2: 0.70, year_3: 0.70}
-      high_performance: {year_1: 1.00, year_2: 1.00, year_3: 1.00}
-  price_max_musd_per_unit:
-    us:
-      standard: {year_1: 1.50, year_2: 1.50, year_3: 1.50}
-      high_performance: {year_1: 2.00, year_2: 2.00, year_3: 2.00}
-    india:
-      standard: {year_1: 1.30, year_2: 1.30, year_3: 1.30}
-      high_performance: {year_1: 1.80, year_2: 1.80, year_3: 1.80}
-    germany:
-      standard: {year_1: 1.45, year_2: 1.45, year_3: 1.45}
-      high_performance: {year_1: 1.95, year_2: 1.95, year_3: 1.95}
-    china:
-      standard: {year_1: 1.35, year_2: 1.35, year_3: 1.35}
-      high_performance: {year_1: 1.85, year_2: 1.85, year_3: 1.85}
-  price_sensitivity:
-    us:
-      standard: {year_1: 20, year_2: 20, year_3: 20}
-      high_performance: {year_1: 20, year_2: 20, year_3: 20}
-    india:
-      standard: {year_1: 18, year_2: 18, year_3: 18}
-      high_performance: {year_1: 18, year_2: 18, year_3: 18}
-    germany:
-      standard: {year_1: 19, year_2: 19, year_3: 19}
-      high_performance: {year_1: 19, year_2: 19, year_3: 19}
-    china:
-      standard: {year_1: 21, year_2: 21, year_3: 21}
-      high_performance: {year_1: 21, year_2: 21, year_3: 21}
-  sales_alpha:
-    us: {year_1: 5.0, year_2: 5.0, year_3: 5.0}
-    india: {year_1: 4.5, year_2: 4.5, year_3: 4.5}
-    germany: {year_1: 4.8, year_2: 4.8, year_3: 4.8}
-    china: {year_1: 5.2, year_2: 5.2, year_3: 5.2}
-  sales_beta:
-    us: {year_1: 0.20, year_2: 0.20, year_3: 0.20}
-    india: {year_1: 0.18, year_2: 0.18, year_3: 0.18}
-    germany: {year_1: 0.19, year_2: 0.19, year_3: 0.19}
-    china: {year_1: 0.20, year_2: 0.20, year_3: 0.20}
+solver:
+  # Solve-time limit in seconds; finite and > 0; stops SCIP after this elapsed time if needed.
+  time_limit_seconds: 120
+  # Relative optimality-gap target; finite in [0, 1); allows SCIP to stop when bound and incumbent are within this fraction.
+  relative_gap: 0.01
