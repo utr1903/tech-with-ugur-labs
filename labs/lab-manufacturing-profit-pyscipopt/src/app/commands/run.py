@@ -1,20 +1,26 @@
-"""One scenario, one solve, independent verification, then persisted reports."""
+"""Orchestrate one scenario from validated input through verified artifacts."""
 
 from __future__ import annotations
 
 from dataclasses import replace
-from hashlib import sha256
 from pathlib import Path
 
-from app.commands.source import read_input
-from app.errors import NoIncumbentError, VerificationError
+from app.errors import NoIncumbentError
 from app.logging_setup import Logger
-from app.model.solve import build_model, solve_model
-from app.reporting.artifacts import write_artifacts
-from app.reporting.console import show_decisions, show_status
-from app.reporting.serialization import RunSource
-from app.scenario import derive_bounds, load_scenario, validate_scenario
+from app.model import DecisionValues, build_model
+from app.results import write_results
+from app.scenario import load_scenario, validate_scenario
+from app.solver import solve_model
 from app.verification import verify_solution
+
+
+def _require_incumbent(
+    result_decisions: DecisionValues | None, status: str
+) -> DecisionValues:
+    """Return decisions or reject a solver outcome without an incumbent."""
+    if result_decisions is None:
+        raise NoIncumbentError(f"Solver status {status}: no feasible incumbent")
+    return result_decisions
 
 
 def run(
@@ -25,36 +31,62 @@ def run(
     relative_gap: float | None,
     log: Logger,
 ) -> None:
-    data = read_input(scenario_path, log=log)
-    scenario = load_scenario(scenario_path, input_bytes=data, log=log)
-    settings = replace(
-        scenario.solver,
-        time_limit_seconds=scenario.solver.time_limit_seconds
-        if time_limit_seconds is None
-        else time_limit_seconds,
-        relative_gap=scenario.solver.relative_gap
-        if relative_gap is None
-        else relative_gap,
+    """Solve one scenario, verify its incumbent, and publish both result files.
+
+    Args:
+        scenario_path: UTF-8 YAML source containing the fixed three-year inputs.
+        output_dir: Destination for ``annual_plan.csv`` and ``solution.json``.
+        time_limit_seconds: Optional positive finite CLI override in seconds;
+            ``None`` retains the YAML value.
+        relative_gap: Optional finite CLI override in ``[0, 1)``; ``None``
+            retains the YAML value.
+        log: Logger passed to every operation boundary.
+
+    Returns:
+        None.
+
+    Raises:
+        ScenarioError: If YAML or effective overrides violate the input contract.
+        ModelError: If model construction or optimization fails.
+        NoIncumbentError: If SCIP finishes without a feasible decision vector.
+        VerificationError: If the independent three-year numerical checks fail.
+        ArtifactError: If either result file cannot be safely persisted.
+
+    Side effects:
+        Reads the scenario, runs SCIP, emits structured logs, and writes files
+        plus the reader-facing console table only after verification succeeds.
+        Existing artifacts remain untouched on all earlier failure paths.
+    """
+    operation_log = log.bind(
+        scenario_path=str(scenario_path), output_dir=str(output_dir)
     )
-    scenario = replace(scenario, solver=settings)
-    validate_scenario(scenario)
-    bounds = derive_bounds(scenario)
-    built = build_model(scenario, bounds, log=log)
-    result = solve_model(built, scenario, log=log)
-    show_status(result)
-    if not result.metadata.has_incumbent or result.decisions is None:
-        raise NoIncumbentError(
-            f"Solver status {result.metadata.status}: no feasible incumbent"
+    operation_log.info("Running manufacturing plan...")
+    try:
+        scenario = load_scenario(scenario_path, log=log)
+        settings = replace(
+            scenario.solver,
+            time_limit_seconds=(
+                scenario.solver.time_limit_seconds
+                if time_limit_seconds is None
+                else time_limit_seconds
+            ),
+            relative_gap=(
+                scenario.solver.relative_gap if relative_gap is None else relative_gap
+            ),
         )
-    verification = verify_solution(scenario, result.decisions, log=log)
-    if not verification.ok:
-        details = "; ".join(
-            f"{v.field}: residual={v.residual:g}, tolerance={v.tolerance:g}"
-            for v in verification.violations
+        scenario = replace(scenario, solver=settings)
+        validate_scenario(scenario)
+        built = build_model(scenario, log=log)
+        result = solve_model(built, scenario.solver, log=log)
+        decisions = _require_incumbent(result.decisions, result.status)
+        verification = verify_solution(scenario, decisions, log=log)
+        write_results(output_dir, scenario, result, verification, log=log)
+    except Exception:
+        operation_log.exception("Running manufacturing plan failed.")
+        raise
+    else:
+        operation_log.info(
+            "Running manufacturing plan succeeded.",
+            status=result.status,
+            total_net_cash_usd=verification.total_net_cash_usd,
         )
-        raise VerificationError(f"Independent verification failed: {details}")
-    source = RunSource(
-        str(scenario_path), sha256(data).hexdigest(), time_limit_seconds, relative_gap
-    )
-    write_artifacts(output_dir, scenario, result, verification, log=log, source=source)
-    show_decisions(scenario, result, verification)

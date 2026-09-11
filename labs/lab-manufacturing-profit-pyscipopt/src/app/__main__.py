@@ -12,6 +12,7 @@ from app.logging_setup import configure_logging, install_global_error_handlers
 
 
 def main() -> int:
+    """Parse CLI arguments, dispatch one run, and map domain failures to exits."""
     log = configure_logging(app_name="manufacturing-profit")
     install_global_error_handlers(log)
     parser = argparse.ArgumentParser(
