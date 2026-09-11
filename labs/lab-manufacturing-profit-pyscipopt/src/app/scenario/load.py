@@ -13,11 +13,13 @@ from app.scenario.construction import construct_scenario
 from app.scenario.validation import validate_scenario
 
 
-def load_scenario(path: Path, *, log: Logger) -> Scenario:
+def load_scenario(
+    path: Path, *, log: Logger, input_bytes: bytes | None = None
+) -> Scenario:
     """Load, convert, and validate one YAML scenario."""
     log.info("Loading scenario...", path=str(path))
     try:
-        raw = yaml.safe_load(path.read_text(encoding="utf-8"))
+        raw = yaml.safe_load(path.read_bytes() if input_bytes is None else input_bytes)
         scenario = construct_scenario(raw)
         validate_scenario(scenario)
     except ScenarioError:
