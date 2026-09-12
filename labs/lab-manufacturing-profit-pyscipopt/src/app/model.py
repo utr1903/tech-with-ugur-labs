@@ -11,6 +11,7 @@ from pyscipopt import MatrixVariable, Model, Variable, quicksum
 
 from app.errors import ModelError, ScenarioError
 from app.logging_setup import Logger
+from app.model_logging import add_constraint, format_expression, log_variable
 from app.scenario import FloatArray, Scenario, validate_scenario
 
 _YEARS = 3
@@ -115,7 +116,7 @@ def build_model(scenario: Scenario, *, log: Logger) -> BuiltModel:
         validate_scenario(scenario)
         model = Model("manufacturing_profit")
         model.hideOutput()
-        variables = _create_variables(model, scenario)
+        variables = _create_variables(model, scenario, log=log)
         add_capacity_constraints(model, variables, scenario, log=log)
         add_research_constraints(model, variables, scenario, log=log)
         add_cash_objective(model, variables, scenario, log=log)
@@ -152,7 +153,8 @@ def add_capacity_constraints(
         variables: Three-element worker, production, and expansion arrays. Workers
             are people, production is units/year, and expansion starts are binary.
         scenario: Demand and worker/factory capacity inputs in units/year.
-        log: Logger receiving entry, success, and failure events.
+        log: Logger receiving each installed named equation, plus entry, success,
+            and failure events.
 
     Returns:
         None.
@@ -172,18 +174,36 @@ def add_capacity_constraints(
     )
     operation_log.info("Adding capacity constraints...")
     try:
-        model.addMatrixCons(
-            variables.units_produced
-            <= variables.workers * scenario.units_per_worker_per_year
+        for year in range(_YEARS):
+            add_constraint(
+                model,
+                variables.units_produced[year]
+                <= variables.workers[year] * scenario.units_per_worker_per_year,
+                name=f"staffing_year_{year + 1}",
+                log=operation_log,
+            )
+        for year in range(_YEARS):
+            add_constraint(
+                model,
+                variables.units_produced[year] <= scenario.demand_units[year],
+                name=f"demand_year_{year + 1}",
+                log=operation_log,
+            )
+        add_constraint(
+            model,
+            quicksum(variables.expansion_start) <= 1,
+            name="expansion_at_most_once",
+            log=operation_log,
         )
-        model.addMatrixCons(variables.units_produced <= scenario.demand_units)
-        model.addCons(quicksum(variables.expansion_start) <= 1)
         for year in range(_YEARS):
             expansion_available = quicksum(variables.expansion_start[:year])
-            model.addCons(
+            add_constraint(
+                model,
                 variables.units_produced[year]
                 <= scenario.capacity_units_per_year
-                + scenario.extra_capacity_units_per_year * expansion_available
+                + scenario.extra_capacity_units_per_year * expansion_available,
+                name=f"factory_capacity_year_{year + 1}",
+                log=operation_log,
             )
     except Exception as err:
         operation_log.exception("Adding capacity constraints failed.")
@@ -211,7 +231,8 @@ def add_research_constraints(
         variables: Three-element researcher and unit-cost arrays. Researchers are
             people and unit costs are USD/unit in year 1–3 order.
         scenario: Initial/floor costs and diminishing savings in USD/unit.
-        log: Logger receiving entry, success, and failure events.
+        log: Logger receiving each installed named equation, plus entry, success,
+            and failure events.
 
     Returns:
         None.
@@ -231,7 +252,12 @@ def add_research_constraints(
     )
     operation_log.info("Adding research constraints...")
     try:
-        model.addCons(variables.unit_cost[0] == scenario.initial_unit_cost_usd)
+        add_constraint(
+            model,
+            variables.unit_cost[0] == scenario.initial_unit_cost_usd,
+            name="initial_unit_cost",
+            log=operation_log,
+        )
         for year in range(_YEARS - 1):
             researchers = variables.researchers[year]
             new_saving = (
@@ -241,8 +267,11 @@ def add_research_constraints(
                 * (researchers - 1)
                 / 2
             )
-            model.addCons(
-                variables.unit_cost[year + 1] == variables.unit_cost[year] - new_saving
+            add_constraint(
+                model,
+                variables.unit_cost[year + 1] == variables.unit_cost[year] - new_saving,
+                name=f"research_cost_update_year_{year + 2}",
+                log=operation_log,
             )
     except Exception as err:
         operation_log.exception("Adding research constraints failed.")
@@ -269,7 +298,8 @@ def add_cash_objective(
         variables: Three-element production, cost, staffing, and expansion arrays,
             plus the scalar USD cash auxiliary.
         scenario: USD/unit price and cost, USD/year salaries, and expansion USD.
-        log: Logger receiving entry, success, and failure events.
+        log: Logger receiving each installed named equation, plus entry, success,
+            and failure events.
 
     Returns:
         None.
@@ -298,12 +328,22 @@ def add_cash_objective(
             - scenario.expansion_cost_usd * variables.expansion_start[year]
             for year in range(_YEARS)
         )
-        model.addCons(variables.cash_auxiliary <= net_cash)
+        add_constraint(
+            model,
+            variables.cash_auxiliary <= net_cash,
+            name="cumulative_net_cash",
+            log=operation_log,
+        )
         model.setObjective(variables.cash_auxiliary, "maximize")
     except Exception as err:
         operation_log.exception("Adding cash objective failed.")
         raise ModelError("Could not add cash objective") from err
     else:
+        operation_log.info(
+            "Setting objective succeeded.",
+            sense=str(model.getObjectiveSense()),
+            expression=format_expression(model.getObjective()),
+        )
         operation_log.info("Adding cash objective succeeded.", constraints=1)
 
 
@@ -335,25 +375,35 @@ def _matrix_variable(
     name: str,
     upper: FloatArray | float,
     *,
+    log: Logger,
     lower: FloatArray | float = 0.0,
     kind: Literal["C", "I", "B"] = "C",
 ) -> MatrixVariable:
-    """Create one three-year SCIP array and narrow its incomplete return type."""
+    """Create a three-year array, check its type, and log each installed domain.
+
+    Failures propagate to the model-building boundary. Success logs carry SCIP
+    names, types, and original bounds only after array creation succeeds.
+    """
     value = model.addMatrixVar(
         shape=(_YEARS,), name=name, vtype=kind, lb=lower, ub=upper
     )
     if not isinstance(value, MatrixVariable):
         raise ModelError(f"SCIP did not create MatrixVariable {name}")
+    for variable in value:
+        log_variable(variable, log=log)
     return value
 
 
-def _create_variables(model: Model, scenario: Scenario) -> ModelVariables:
+def _create_variables(
+    model: Model, scenario: Scenario, *, log: Logger
+) -> ModelVariables:
     """Create finite annual variable domains in people, units, USD/unit, and USD.
 
     Production uses the smallest demand/staff/capacity limit. Unit cost stays
     between its floor and initial value, and final-year expansion is disabled.
     The cash lower bound covers all possible production cost, salaries, and one
-    expansion; its upper bound is all possible sales revenue.
+    expansion; its upper bound is all possible sales revenue. Each successfully
+    created scalar domain is logged immediately through ``log``.
     """
     production_upper = _production_upper(scenario)
     production_total = _finite_bound(
@@ -370,26 +420,33 @@ def _create_variables(model: Model, scenario: Scenario) -> ModelVariables:
         "cash_auxiliary upper",
         scenario.selling_price_usd_per_unit * production_total,
     )
-    workers = _matrix_variable(model, "workers", float(scenario.max_workers), kind="I")
+    workers = _matrix_variable(
+        model, "workers", float(scenario.max_workers), kind="I", log=log
+    )
     researchers = _matrix_variable(
-        model, "researchers", float(scenario.max_researchers), kind="I"
+        model, "researchers", float(scenario.max_researchers), kind="I", log=log
     )
     expansion_start = _matrix_variable(
         model,
         "expansion_start",
         np.array([1.0, 1.0, 0.0], dtype=np.float64),
         kind="B",
+        log=log,
     )
-    units_produced = _matrix_variable(model, "units_produced", production_upper)
+    units_produced = _matrix_variable(
+        model, "units_produced", production_upper, log=log
+    )
     unit_cost = _matrix_variable(
         model,
         "unit_cost",
         float(scenario.initial_unit_cost_usd),
         lower=float(scenario.minimum_unit_cost_usd),
+        log=log,
     )
     cash_auxiliary = model.addVar(name="cash_auxiliary", lb=cash_lower, ub=cash_upper)
     if not isinstance(cash_auxiliary, Variable):
         raise ModelError("SCIP did not create Variable cash_auxiliary")
+    log_variable(cash_auxiliary, log=log)
     return ModelVariables(
         workers=workers,
         researchers=researchers,
