@@ -87,18 +87,20 @@ test("duplicate call IDs relay once and correlate output", async () => {
 	);
 	expect(s.relay).toHaveBeenCalledOnce();
 });
-test("failed relay sends correlated safe error and remains usable", async () => {
+test("failed relay disposes the session and requires a new Start", async () => {
 	const s = setup();
 	s.relay.mockRejectedValueOnce(new Error("secret"));
 	await s.controller.start();
 	s.calls[0]?.({ id: "fail", question: "q" });
-	await vi.waitFor(() =>
-		expect(s.transports[0]?.output).toHaveBeenCalledWith("fail", {
-			error: "Knowledge request failed. Try another question.",
-		}),
-	);
+	await vi.waitFor(() => expect(s.states.at(-1)?.status).toBe("Error"));
+	expect(s.states.at(-1)?.error).toContain("Start again");
 	expect(s.states.at(-1)?.error).not.toContain("secret");
-	s.calls[0]?.({ id: "next", question: "q" });
+	expect(s.transports[0]?.dispose).toHaveBeenCalledOnce();
+	expect(s.transports[0]?.output).not.toHaveBeenCalled();
+	s.calls[0]?.({ id: "stale", question: "q" });
+	expect(s.relay).toHaveBeenCalledOnce();
+	await s.controller.start();
+	s.calls[1]?.({ id: "next", question: "q" });
 	await vi.waitFor(() =>
 		expect(s.states.at(-1)?.answer?.answer).toBe("canary"),
 	);
@@ -148,4 +150,22 @@ test("Stop during connection suppresses late success and failure", async () => {
 	await p;
 	expect(t.dispose).toHaveBeenCalled();
 	expect(states.at(-1)?.status).toBe("Stopped");
+});
+
+test("a late relay failure cannot dispose a fresh session", async () => {
+	const s = setup();
+	const d = deferred<Answer>();
+	s.relay.mockReturnValueOnce(d.promise);
+	await s.controller.start();
+	s.calls[0]?.({ id: "old", question: "q" });
+	await s.controller.start();
+	d.reject(Error("late failure"));
+	await Promise.resolve();
+	await Promise.resolve();
+	expect(s.states.at(-1)?.status).toBe("Ready");
+	expect(s.transports[1]?.dispose).not.toHaveBeenCalled();
+	s.calls[1]?.({ id: "fresh", question: "q" });
+	await vi.waitFor(() =>
+		expect(s.states.at(-1)?.answer?.answer).toBe("canary"),
+	);
 });

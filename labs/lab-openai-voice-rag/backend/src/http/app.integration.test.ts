@@ -3,7 +3,10 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { expect, it } from "vitest";
 import { createCorpus } from "../corpus/index.js";
-import { scriptedEmbed } from "../corpus/scripted-embed.js";
+import {
+	scriptedEmbed,
+	scriptedEmbeddingIdentity,
+} from "../corpus/scripted-embed.js";
 import { createLogger } from "../logger.js";
 import { createScriptedProvider } from "../provider/scripted.js";
 import { createApp } from "./app.js";
@@ -19,6 +22,7 @@ it("serves grounded HTTP answers from real persisted PostgreSQL evidence", async
 	const logger = createLogger({ appName: "http-test" });
 	logger.level = "silent";
 	const corpus = createCorpus({
+		embeddingIdentity: scriptedEmbeddingIdentity,
 		databaseUrl,
 		documentsRoot,
 		embed: scriptedEmbed,

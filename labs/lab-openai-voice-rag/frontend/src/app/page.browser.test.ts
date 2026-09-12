@@ -71,7 +71,7 @@ test("readiness, real ingestion, simulated relay, sources and two microphone ses
 	await page.getByRole("button", { name: "Stop", exact: true }).click();
 	await ended(page);
 });
-test("token and relay failures show safe retryable errors", async ({
+test("token and relay failures require Start and release microphone tracks", async ({
 	page,
 }) => {
 	await page.route("**/api/realtime/token", (route) =>
@@ -94,9 +94,13 @@ test("token and relay failures show safe retryable errors", async ({
 	await page.getByLabel("Simulated question").fill("canary?");
 	await page.getByRole("button", { name: "Ask", exact: true }).click();
 	await expect(page.getByRole("main").getByRole("alert")).toHaveText(
-		"Knowledge request failed. Try another question.",
+		"Knowledge request failed. Start again to ask another question.",
 	);
+	await expect(page.getByRole("status")).toHaveText("Error");
+	await ended(page);
 	await page.unroute("**/api/agent");
+	await page.getByRole("button", { name: "Start", exact: true }).click();
+	await expect(page.getByRole("status")).toHaveText("Ready");
 	await page.getByRole("button", { name: "Ask", exact: true }).click();
 	await expect(page.getByRole("region", { name: "Answer" })).toBeVisible();
 	await page.getByRole("button", { name: "Stop", exact: true }).click();

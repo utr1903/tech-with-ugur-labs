@@ -2,11 +2,17 @@ import { serve } from "@hono/node-server";
 import OpenAI from "openai";
 import { readConfig } from "./config.js";
 import { createCorpus } from "./corpus/index.js";
-import { scriptedEmbed } from "./corpus/scripted-embed.js";
+import {
+	scriptedEmbed,
+	scriptedEmbeddingIdentity,
+} from "./corpus/scripted-embed.js";
 import { createApp } from "./http/app.js";
 import { safeError } from "./http/errors.js";
 import { createLogger, installGlobalErrorHandlers } from "./logger.js";
-import { createEmbedding } from "./provider/embedding.js";
+import {
+	createEmbedding,
+	openAIEmbeddingIdentity,
+} from "./provider/embedding.js";
 import { createOpenAIProvider } from "./provider/openai.js";
 import { createScriptedProvider } from "./provider/scripted.js";
 
@@ -21,6 +27,9 @@ try {
 	const corpus = createCorpus({
 		...config,
 		embed: client ? createEmbedding(client) : scriptedEmbed,
+		embeddingIdentity: client
+			? openAIEmbeddingIdentity
+			: scriptedEmbeddingIdentity,
 		logger,
 	});
 	await corpus.migrate();

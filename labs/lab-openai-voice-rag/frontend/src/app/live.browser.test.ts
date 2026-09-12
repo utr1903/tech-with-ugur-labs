@@ -5,6 +5,7 @@ import {
 	installTelemetry,
 	resetTelemetry,
 } from "./live-telemetry.browser";
+import { completionUsage } from "./live-usage";
 
 test.skip(
 	process.env.RUN_LIVE_CANARY !== "1",
@@ -121,6 +122,7 @@ test("actual live voice canary, correlated evidence, audio transcript and fresh 
 					e.type === "response.function_call_arguments.done" ||
 					e.type === "response.output_audio_transcript.done",
 			),
+			realtimeUsage: completionUsage(telemetry.events),
 			remoteAudioBytes: telemetry.bytes,
 			ownerPlaybackConfirmation:
 				"PENDING — automated capture does not establish intelligibility",

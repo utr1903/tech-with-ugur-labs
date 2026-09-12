@@ -2,12 +2,13 @@ import type { Logger } from "../logger.js";
 import { ingestCorpus } from "./ingest.js";
 import { retrieveCorpus } from "./retrieve.js";
 import { createStore } from "./store.js";
-import type { Embed } from "./types.js";
+import type { Embed, EmbeddingIdentity } from "./types.js";
 
 type Options = {
 	databaseUrl: string;
 	documentsRoot: string;
 	embed: Embed;
+	embeddingIdentity: EmbeddingIdentity;
 	logger: Logger;
 	chunkLength?: number;
 	topK?: number;
@@ -23,6 +24,12 @@ function limit(value: number | undefined, fallback: number, max: number) {
 }
 export function createCorpus(options: Options) {
 	const chunkLength = limit(options.chunkLength, 800, 10000);
+	const embeddingFingerprint = JSON.stringify({
+		provider: options.embeddingIdentity.provider,
+		model: options.embeddingIdentity.model,
+		dimensions: options.embeddingIdentity.dimensions,
+		chunking: { version: "fixed-characters-v1", length: chunkLength },
+	});
 	const topK = limit(options.topK, 5, 50);
 	const contextBudget = limit(options.contextBudget, 6000, 50000);
 	const fileBytes = limit(options.fileBytes, 262144, 1048576);
@@ -59,6 +66,7 @@ export function createCorpus(options: Options) {
 						ingestCorpus({
 							store,
 							...options,
+							embeddingFingerprint,
 							chunkLength,
 							fileBytes,
 							totalBytes,

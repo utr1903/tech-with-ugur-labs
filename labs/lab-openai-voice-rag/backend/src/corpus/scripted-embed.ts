@@ -1,4 +1,10 @@
 import { createHash } from "node:crypto";
+import type { EmbeddingIdentity } from "./types.js";
+export const scriptedEmbeddingIdentity: EmbeddingIdentity = {
+	provider: "scripted",
+	model: "sha256-word-features-v1",
+	dimensions: 1536,
+};
 
 function addWord(vector: number[], word: string) {
 	const hash = createHash("sha256").update(word).digest();

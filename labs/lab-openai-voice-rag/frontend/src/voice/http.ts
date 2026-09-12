@@ -1,4 +1,4 @@
-import type { Answer, Token } from "./transport";
+import type { Answer, Token } from "./transport.js";
 
 async function request(
 	path: string,

@@ -7,7 +7,7 @@ import pg from "pg";
 import { afterAll, beforeAll, expect, test } from "vitest";
 import { createLogger } from "../logger.js";
 import { createCorpus } from "./index.js";
-import { scriptedEmbed } from "./scripted-embed.js";
+import { scriptedEmbed, scriptedEmbeddingIdentity } from "./scripted-embed.js";
 
 const databaseUrl = process.env.TEST_DATABASE_URL;
 if (!databaseUrl || !new URL(databaseUrl).pathname.endsWith("/voice_rag_test"))
@@ -24,6 +24,7 @@ beforeAll(async () => {
 	await db.execute(sql`CREATE SCHEMA public`);
 	await db.execute(sql`DROP SCHEMA IF EXISTS drizzle CASCADE`);
 	corpus = createCorpus({
+		embeddingIdentity: scriptedEmbeddingIdentity,
 		databaseUrl,
 		documentsRoot,
 		embed: scriptedEmbed,
@@ -58,6 +59,7 @@ test("persists, refreshes atomically and retrieves the adjacent recovery code", 
 	expect(result.sources.map((s) => s.ordinal)).toEqual([0, 1]);
 	await corpus.close();
 	corpus = createCorpus({
+		embeddingIdentity: scriptedEmbeddingIdentity,
 		databaseUrl,
 		documentsRoot,
 		embed: scriptedEmbed,
@@ -95,7 +97,13 @@ test("installs vector extension and rejects malformed vectors without altering s
 			throw new Error("provider failed");
 		},
 	]) {
-		const failing = createCorpus({ databaseUrl, documentsRoot, embed, logger });
+		const failing = createCorpus({
+			embeddingIdentity: scriptedEmbeddingIdentity,
+			databaseUrl,
+			documentsRoot,
+			embed,
+			logger,
+		});
 		await expect(failing.ingest()).rejects.toThrow();
 		await failing.close();
 		expect((await corpus.retrieve("amber valve")).context).toContain(
@@ -130,6 +138,7 @@ test("serializes refreshes and bounds citation-bearing context", async () => {
 	expect(updates[0]).toMatchObject({ changed: 1 });
 	expect(updates[1]).toMatchObject({ unchanged: 1 });
 	const bounded = createCorpus({
+		embeddingIdentity: scriptedEmbeddingIdentity,
 		databaseUrl,
 		documentsRoot,
 		embed: scriptedEmbed,
@@ -158,6 +167,7 @@ test("keeps provider error contents out of corpus logs while preserving rejectio
 		"edited for provider failure",
 	);
 	const failing = createCorpus({
+		embeddingIdentity: scriptedEmbeddingIdentity,
 		databaseUrl,
 		documentsRoot,
 		logger: safeLogger,

@@ -1,4 +1,10 @@
-import type { Call, Dependencies, State, Token, Transport } from "./transport";
+import type {
+	Call,
+	Dependencies,
+	State,
+	Token,
+	Transport,
+} from "./transport.js";
 
 type Session = {
 	generation: number;
@@ -24,10 +30,10 @@ export function createController(deps: Dependencies) {
 		old?.abort.abort();
 		old?.transport?.dispose();
 	}
-	function fail(session: Session) {
+	function fail(session: Session, error = connectionError) {
 		if (!current(session)) return;
 		dispose();
-		deps.change({ status: "Error", error: connectionError });
+		deps.change({ status: "Error", error });
 	}
 	async function relay(session: Session, call: Call) {
 		if (!current(session) || !session.token || session.seen.has(call.id))
@@ -44,14 +50,10 @@ export function createController(deps: Dependencies) {
 			session.transport?.output(call.id, result);
 			publish(session, { status: "Ready", answer: result });
 		} catch {
-			if (!current(session)) return;
-			const error = "Knowledge request failed. Try another question.";
-			try {
-				session.transport?.output(call.id, { error });
-				publish(session, { status: "Ready", error });
-			} catch {
-				fail(session);
-			}
+			fail(
+				session,
+				"Knowledge request failed. Start again to ask another question.",
+			);
 		}
 	}
 	async function start() {

@@ -11,15 +11,23 @@ type Options = {
 	store: Store;
 	documentsRoot: string;
 	embed: Embed;
+	embeddingFingerprint: string;
 	chunkLength: number;
 	fileBytes: number;
 	totalBytes: number;
 };
-async function stageChanges(options: Options, existing: Map<string, string>) {
+async function stageChanges(
+	options: Options,
+	existing: Map<string, typeof documents.$inferSelect>,
+) {
 	const files = await readDocuments(options.documentsRoot, options);
-	const changed = files.filter(
-		(file) => existing.get(file.filename) !== file.hash,
-	);
+	const changed = files.filter((file) => {
+		const cached = existing.get(file.filename);
+		return (
+			cached?.hash !== file.hash ||
+			cached.embeddingFingerprint !== options.embeddingFingerprint
+		);
+	});
 	const texts = changed.flatMap((file) =>
 		chunkText(file.text, options.chunkLength),
 	);
@@ -48,7 +56,7 @@ export async function ingestCorpus(options: Options): Promise<Refresh> {
 	const existing = new Map(
 		(await options.store.db.select().from(documents)).map((file) => [
 			file.filename,
-			file.hash,
+			file,
 		]),
 	);
 	const { files, staged } = await stageChanges(options, existing);
@@ -63,10 +71,17 @@ export async function ingestCorpus(options: Options): Promise<Refresh> {
 			await tx.delete(chunks).where(eq(chunks.filename, file.filename));
 			await tx
 				.insert(documents)
-				.values({ filename: file.filename, hash: file.hash })
+				.values({
+					filename: file.filename,
+					hash: file.hash,
+					embeddingFingerprint: options.embeddingFingerprint,
+				})
 				.onConflictDoUpdate({
 					target: documents.filename,
-					set: { hash: file.hash },
+					set: {
+						hash: file.hash,
+						embeddingFingerprint: options.embeddingFingerprint,
+					},
 				});
 			if (rows.length) await tx.insert(chunks).values(rows);
 		}

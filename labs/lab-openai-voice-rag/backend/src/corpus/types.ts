@@ -1,3 +1,8 @@
+export type EmbeddingIdentity = {
+	provider: string;
+	model: string;
+	dimensions: 1536;
+};
 export type Source = {
 	id: string;
 	filename: string;

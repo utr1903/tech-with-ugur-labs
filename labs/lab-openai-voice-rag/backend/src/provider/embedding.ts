@@ -1,6 +1,11 @@
 import type OpenAI from "openai";
-import type { Embed } from "../corpus/types.js";
+import type { Embed, EmbeddingIdentity } from "../corpus/types.js";
 import { SafeError } from "../http/errors.js";
+export const openAIEmbeddingIdentity: EmbeddingIdentity = {
+	provider: "openai",
+	model: "text-embedding-3-small",
+	dimensions: 1536,
+};
 export function createEmbedding(client: OpenAI): Embed {
 	return async (texts, signal) => {
 		try {
@@ -8,7 +13,11 @@ export function createEmbedding(client: OpenAI): Embed {
 			for (let start = 0; start < texts.length; start += 32) {
 				const batch = texts.slice(start, start + 32);
 				const result = await client.embeddings.create(
-					{ model: "text-embedding-3-small", dimensions: 1536, input: batch },
+					{
+						model: openAIEmbeddingIdentity.model,
+						dimensions: openAIEmbeddingIdentity.dimensions,
+						input: batch,
+					},
 					{ signal },
 				);
 				const ordered = result.data.sort((a, b) => a.index - b.index);

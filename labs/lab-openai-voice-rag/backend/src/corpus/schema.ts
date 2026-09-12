@@ -8,6 +8,7 @@ import {
 export const documents = pgTable("documents", {
 	filename: text("filename").primaryKey(),
 	hash: text("hash").notNull(),
+	embeddingFingerprint: text("embedding_fingerprint"),
 });
 export const chunks = pgTable(
 	"chunks",
