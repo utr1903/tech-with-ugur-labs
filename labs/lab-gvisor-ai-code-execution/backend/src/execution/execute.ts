@@ -14,6 +14,7 @@ import {
 	type ExecutionResult,
 	emptyResult,
 } from "./types.js";
+export class ExecutionBusy extends Error {}
 export class Executor {
 	private readonly ledger: Ledger;
 	constructor(
@@ -26,6 +27,7 @@ export class Executor {
 	async execute(
 		input: Parameters<ExecutePython>[0],
 		signal?: AbortSignal,
+		onRegistered?: (executionId: string) => Promise<void>,
 	): Promise<ExecutionResult> {
 		const fields = {
 			threadId: input.threadId,
@@ -36,10 +38,11 @@ export class Executor {
 		this.logger.info(fields, "Executing Python...");
 		try {
 			const row = await this.ledger.register(input, templateDigest);
+			await onRegistered?.(row.id);
 			const claim = await this.ledger.claim(row.id);
 			if (!claim) {
 				if (row.result) return row.result;
-				throw new Error("Execution is already being reconciled.");
+				throw new ExecutionBusy("Execution is already being reconciled.");
 			}
 			try {
 				const result = await this.run(claim, signal);

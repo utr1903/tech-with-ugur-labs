@@ -11,12 +11,23 @@
 		"typecheck": "tsc --noEmit",
 		"lint": "biome check .",
 		"format": "biome check --write .",
-		"knip": "knip"
+		"knip": "knip",
+		"start": "tsx src/index.ts",
+		"build:image": "node scripts/build-image.mjs",
+		"smoke:live": "node scripts/smoke-live.mjs"
 	},
 	"dependencies": {
+		"@hono/node-server": "2.1.1",
 		"@kubernetes/client-node": "2.0.0",
+		"@langchain/core": "1.2.11",
+		"@langchain/langgraph": "1.4.15",
+		"@langchain/langgraph-checkpoint-postgres": "1.0.5",
+		"hono": "4.13.7",
+		"openai": "7.15.0",
 		"pg": "8.23.0",
-		"pino": "10.3.1"
+		"pino": "10.3.1",
+		"tsx": "4.21.0",
+		"zod": "4.6.2"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.13",
