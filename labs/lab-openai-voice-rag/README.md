@@ -1,31 +1,118 @@
 # Markdown voice knowledge assistant
 
-A local Markdown corpus backed by PostgreSQL and pgvector. Keyless verification uses deterministic **simulated embeddings**, not live model inference. The Hono backend owns ingestion, retrieval, and serialized managed sessions; the browser service is being added to this lab.
+Ask questions about a local Markdown folder and inspect the actual retrieved sources. PostgreSQL and pgvector store the document chunks; a Next.js browser page proxies application requests to a Hono backend.
 
-Requirements: Docker Compose and a working Docker engine. Start the local services:
+The default **simulated transport** accepts typed questions and uses deterministic simulated embeddings and a scripted tool session. It exercises ingestion, vector retrieval, conversation routing, sources, and microphone acquisition/release. It does **not** recognize speech, synthesize speech, or perform live model inference.
+
+## Start locally
+
+Requirements: Docker Engine with Docker Compose, a browser, and a free localhost port 3000. Run from this lab directory:
 
 ```sh
 docker compose up --build
 ```
 
-Markdown lives in `tmp/documents`, mounted read-only into the backend. PostgreSQL data persists in `tmp/postgres`; PostgreSQL has no published port. The backend automatically applies checked-in Drizzle migrations and refreshes the corpus at startup. Only edited files are embedded again; refreshes commit replacements and deletions atomically.
+Open [localhost:3000](http://localhost:3000). Wait for the services to become ready, click **Start**, and allow microphone access. In simulated mode enter:
 
-Run checks against the pinned Node 24 backend container:
+> What is the amber valve recovery code?
+
+The fictional handbook in `tmp/documents/handbook.md` contains **ORCHID-47** in an adjacent chunk. The answer includes filenames, chunk ordinals, and source text. **Stop** releases microphone tracks, closes any voice connection, clears displayed results, and prevents a late response from entering the next session. Each Start creates a fresh backend conversation. If microphone permission is denied, grant it in browser settings and Start again. Use localhost: browsers require a secure context for microphone access.
+
+## Edit and refresh
+
+Markdown files in `tmp/documents` are mounted read-only into the backend. Edit or add a Markdown file on your host, then refresh:
 
 ```sh
-docker compose run --rm backend npm test
-docker compose run --rm backend npm run test:integration
-docker compose run --rm backend npm run typecheck
-docker compose run --rm backend npm run lint
-docker compose run --rm backend npm run knip
+docker compose exec frontend npm run corpus:refresh
 ```
 
-Integration tests use the dedicated `voice_rag_test` database and reset its schema. Keep `TEST_DATABASE_URL` pointed at that database. Existing PostgreSQL data initialized before the test database was added must be initialized with the supplied SQL separately or recreated after backing up any needed data.
+The command reports added, changed, deleted, and unchanged counts as JSON logs. Only new or edited documents are embedded again. Deleting a Markdown file on the host and running the same command removes its stored chunks. Startup also applies checked-in Drizzle migrations and refreshes the folder automatically. Replacements/deletions are committed atomically; a failed refresh preserves the previous corpus.
 
-Corpus defaults: 256 KiB per Markdown file, 2 MiB aggregate, 800 characters per chunk, five vector hits plus same-document neighbors, and 6,000 context characters. Symlinks escaping the document root are rejected. Sources include stable IDs, filenames, and ordinals. Simulated word-feature vectors and live `text-embedding-3-small` vectors both use 1,536 dimensions; malformed vectors are rejected.
+PostgreSQL data persists in `tmp/postgres` across `docker compose down` and container rebuilds. Source, dependency, and frontend build storage are separate, so source bind mounts do not replace installed dependencies. After changing a package lockfile, recreate the dependency volumes before rebuilding:
 
-Pinned runtime: Node 24.14.0, PostgreSQL 17 with pgvector 0.8.2. Exact npm dependency versions are recorded in `backend/package.json` and `backend/package-lock.json`. Use `npm run db:generate` to generate schema migrations; `npm run format` formats and fixes lint findings.
+```sh
+docker compose down --volumes
+docker compose up --build
+```
 
-The default `MODE=scripted` uses a deterministic tool session and derives answers from retrieved document text, with abstention for unrelated evidence. This verifies local application behavior without paid inference. Live mode uses the managed Agents API in `openai@7.15.0`, `gpt-6-astra`, and server-only `text-embedding-3-small`; Realtime uses `gpt-realtime-2.1` and the `ask_knowledge_base` function. Set `MODE=live` and `OPENAI_API_KEY` in the shell that starts Compose. The key remains on the backend; the browser receives an ephemeral Realtime secret. Live mode refuses startup without a key. Actual account access and paid voice/agent inference have not been verified.
+This removes named dependency/build volumes, not the PostgreSQL bind directory. To reset the corpus database, stop Compose and move `tmp/postgres` to a backup location before starting again. For example, if the destination does not already exist:
 
-The backend listens on container port 3001 without publishing a host port. HTTP routes are `GET /api/ready`, `POST /api/realtime/token`, `POST /api/agent` (JSON `conversationId` and `question`), and `POST /api/ingest`. Readiness is available only after migrations and initial ingestion. Every token creates a fresh conversation; sessions expire after 30 minutes and capacity is 100. Turns serialize within each conversation, allow four retrieval calls, and have a 30-second total deadline including queue time. Questions are limited to 2,000 characters and JSON bodies to 8 KiB. Errors use stable messages with provider details withheld.
+```sh
+docker compose down
+mv tmp/postgres tmp/postgres-backup
+docker compose up --build
+```
+
+The new database is empty and the Markdown folder is ingested again. Keep the backup until you have verified any data you need. Temporary PostgreSQL, audio recordings, and browser reports are ignored by git.
+
+**Embedding mode changes require a fresh database.** Cached document digests currently do not include the provider/model identity; switching between simulated and live mode with persisted data can reuse incompatible stored vectors. Back up/move the database directory as above before either mode switch. Restarting alone does not invalidate unchanged documents.
+
+## Architecture and boundaries
+
+```text
+Browser ── local HTTP ── Next.js :3000 ── internal HTTP ── Hono :3001
+   │                                                      │
+   │ live microphone/audio + ephemeral credential         ├─ Drizzle ─ pgvector/PostgreSQL
+   └────────────────────────── OpenAI Realtime             ├─ local Markdown ingestion
+                                                          └─ live OpenAI embeddings + managed Agents API
+```
+
+Only `127.0.0.1:3000` is published. The backend and PostgreSQL have no published ports. The permanent `OPENAI_API_KEY` is forwarded only to the backend; Next.js does not read or forward it to client code. Live token requests return an ephemeral Realtime secret to the browser for direct WebRTC SDP negotiation with `/v1/realtime/calls`. It is not printed by application logs or rendered in the page.
+
+Both transports route completed `ask_knowledge_base` calls through `POST /api/agent` with a conversation ID and question. The backend uses the managed Agents API, whose separate `retrieve_documents` function performs the real local database lookup. Function outputs remain correlated by call ID. Realtime question turns force the knowledge tool; speech delivery turns disable tools and use their own answer context to avoid recursive retrieval or mixing another turn's answer. Delivery waits for the active response to finish.
+
+The backend owns serialized, isolated conversation state: 100 sessions, 30-minute expiry, 2,000-character questions, 8 KiB JSON requests, at most four retrieval calls per turn, and a 30-second deadline including queue time. Browser token/SDP requests have 20-second deadlines and answer requests 35 seconds. Stop aborts outstanding HTTP/SDP operations and disposes partial resources; browser microphone acquisition itself cannot be cancelled, so a late acquired stream is stopped immediately. The UI shows safe retry instructions rather than provider error details.
+
+Corpus limits: 256 KiB per Markdown file, 2 MiB aggregate, 800-character chunks, five vector hits with same-document neighbors, and 6,000 context characters. Vectors have 1,536 dimensions and are validated. Symlinks escaping the document root are rejected. Simulated word-feature embeddings and scripted abstention are only a verification approximation, and do not establish live semantic retrieval or answer quality.
+
+In live mode microphone audio goes directly to OpenAI Realtime. Questions and retrieved excerpts go from the backend to OpenAI embeddings/managed agents. PostgreSQL retains document text/vectors locally; managed session state is held by the provider. Backend logs may include document filenames and operation metadata. The optional live test intentionally saves transcripts, evidence and remote audio locally in `frontend/test-results`; inspect/remove those artifacts as needed. This local lab has no authentication or production deployment configuration.
+
+## Checks
+
+These commands run the pinned Node 24 service tooling. Start Compose first:
+
+```sh
+docker compose exec backend npm test
+docker compose exec backend npm run test:integration
+docker compose exec backend npm run typecheck
+docker compose exec backend npm run lint
+docker compose exec backend npm run knip
+docker compose exec frontend npm test
+docker compose exec frontend npm run typecheck
+docker compose exec frontend npm run lint
+docker compose exec frontend npm run knip
+docker compose run --rm --no-deps -v /app/.next frontend npm run build
+docker compose run --build --rm browser npm run test:browser
+```
+
+The production build uses a separate temporary `.next` mount so it does not overwrite the running development build. The browser image installs Chromium and Linux dependencies through `npm run browser:install`; it uses the frontend network namespace so tests access `http://localhost:3000` with real secure-context microphone APIs and a fake device. Scripted browser checks cover readiness, real ingestion, canary/source output, track release, a fresh second conversation, safe token/relay failures and stale response suppression. Unit tests exercise overlapping starts/stops, late token/answer/connection completions, call deduplication, correlation and voice delivery sequencing.
+
+Backend integration tests reset the dedicated `voice_rag_test` schema. `TEST_DATABASE_URL` must target that test database. The supplied initialization SQL creates it on a fresh PostgreSQL directory; an older database directory may need a fresh initialization after backing up required data.
+
+Formatting uses `npm run format` in either service. Schema generation uses `docker compose exec backend npm run db:generate`; migrations are checked in and applied on startup. Next.js lifecycle instrumentation and application operation logs use pino JSON; framework-owned startup/build output follows Next's own format.
+
+## Optional paid live voice check
+
+Live inference has **not been verified** for this deliverable. It requires a valid application key and actual account/model access. Managed Agents API permissions include `api.agents.read`, `api.agents.write`, and `api.responses.write`. This lab uses `openai@7.15.0` managed `client.beta.agents`, not the separate developer-managed Agents SDK. Models are `gpt-6-astra`, `gpt-realtime-2.1` with voice `marin`, and `text-embedding-3-small` (1,536 dimensions).
+
+Back up/move `tmp/postgres` before switching modes, then export `MODE=live` and `OPENAI_API_KEY` in the shell starting Compose. Keep the key out of files, browser variables and command history. Run the same reader entrypoint:
+
+```sh
+docker compose up --build
+```
+
+Live startup refuses a missing key. Open localhost:3000, Start, and speak the canary question. Check the returned source and hear the reply, then Stop and repeat in a fresh session. Document/account/model access errors may require backend logs; page errors deliberately withhold provider details. Provider access and speech intelligibility require actual live checks.
+
+For an automated prerecorded canary, place your own WAV recording at `tmp/audio/question.wav`: several seconds of silence, the spoken question "What is the amber valve recovery code?", then silence. Chromium fake audio devices can loop the recording; leave enough silence to allow the answer to finish. Opt in explicitly in a shell where the live services are already running:
+
+```sh
+RUN_LIVE_CANARY=1 LIVE_AUDIO_FILE=/audio/question.wav docker compose run --build --rm browser npm run test:browser
+```
+
+The harness requires backend mode `live` and a real supplied WAV. It does not intercept/fabricate provider output. It captures completed Realtime function arguments, actual backend answer/source output, correlated returned tool results, a canary-bearing audio transcript, remote WebM audio and elapsed time, then Stops and starts a fresh second session. Query retrieval in live mode calls the actual embedding provider. Successful startup on a fresh database also embeds the document corpus with that provider.
+
+A passing automated canary establishes captured provider/application output, **not intelligibility**. Play back both attached session audio files and separately record the owner's confirmation that the canary reply is audible and understandable. The JSON report explicitly leaves that confirmation pending. Never report live voice verification solely from scripted tests, mocked provider tests, transcript text, or silent audio packets.
+
+## Pins and limitations
+
+Node **24.14.0**, PostgreSQL **17**, pgvector **0.8.2**, Next.js **16.3.5**, React/React DOM **19.3.0**, Playwright **1.63.0**, OpenAI SDK **7.15.0**, Hono **4.13.7**, Drizzle ORM **0.45.2**, and pino **10.3.1** are pinned. Docker image digests and exact npm dependencies/lockfiles are checked in. Next.js requires no local Node installation when using Compose. Real provider access, browser/network compatibility and voice quality remain opt-in checks; simulated verification incurs no API charges.

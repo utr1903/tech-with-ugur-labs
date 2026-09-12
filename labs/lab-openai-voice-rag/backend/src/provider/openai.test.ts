@@ -147,7 +147,7 @@ it("bounds embedding batches and requests 1536 dimensions", async () => {
 });
 it("routes Realtime tools and reads the top-level ephemeral value", async () => {
 	const client = new OpenAI({
-		apiKey: "permanent-fixture",
+		apiKey: "YOUR_OPENAI_API_KEY",
 		fetch: async (input, init) => {
 			expect(String(input)).toContain("/realtime/client_secrets");
 			expect(JSON.parse(String(init?.body))).toMatchObject({

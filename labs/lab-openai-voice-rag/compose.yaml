@@ -25,8 +25,51 @@ services:
       - ./backend:/app
       - backend_dependencies:/app/node_modules
       - ./tmp/documents:/documents:ro
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://localhost:3001/api/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
     depends_on:
       postgres:
         condition: service_healthy
+  frontend:
+    build: ./frontend
+    environment:
+      BACKEND_URL: http://backend:3001
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./frontend:/app
+      - frontend_dependencies:/app/node_modules
+      - frontend_build:/app/.next
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://localhost:3000/api/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    depends_on:
+      backend:
+        condition: service_healthy
+  browser:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.browser
+    profiles: [test]
+    network_mode: service:frontend
+    environment:
+      BROWSER_BASE_URL: http://localhost:3000
+      RUN_LIVE_CANARY: ${RUN_LIVE_CANARY:-0}
+      LIVE_AUDIO_FILE: ${LIVE_AUDIO_FILE:-}
+    volumes:
+      - ./frontend:/app
+      - frontend_dependencies:/app/node_modules
+      - ./tmp/audio:/audio:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+    command: ["npm", "run", "test:browser"]
 volumes:
+  frontend_dependencies:
+  frontend_build:
   backend_dependencies:
