@@ -1,0 +1,46 @@
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: fixed-python-executor
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+    - apiGroups: ["batch"]
+      apiVersions: ["v1"]
+      operations: ["CREATE", "UPDATE"]
+      resources: ["jobs"]
+    - apiGroups: [""]
+      apiVersions: ["v1"]
+      operations: ["CREATE", "UPDATE"]
+      resources: ["pods", "pods/ephemeralcontainers"]
+  variables:
+  - name: p
+    expression: 'dyn(object).kind == "Job" ? dyn(object).spec.template.spec : dyn(object).spec'
+  validations:
+  - expression: '!has(request.subResource) || request.subResource != "ephemeralcontainers"'
+    message: 'Ephemeral containers are forbidden.'
+  - expression: 'size(variables.p.containers) == 1 && size(variables.p.containers[0].env) == 1 && has(variables.p.containers[0].env[0].value) && size(bytes(variables.p.containers[0].env[0].value)) <= 16384'
+    message: 'Only one bounded source value is permitted.'
+  - expression: >-
+      request.operation == "UPDATE" ? dyn(variables.p) == dyn(dyn(object).kind == "Job" ? dyn(oldObject).spec.template.spec : dyn(oldObject).spec) : (dyn(object).kind == "Job" ? dyn(variables.p) == {"automountServiceAccountToken": dyn(false), "containers": dyn([{"command": dyn(["python", "-I", "-B", "-m", "app"]), "env": dyn([{"name": dyn("PYTHON_SOURCE"), "value": dyn(variables.p.containers[0].env[0].value)}]), "image": dyn({{ .Values.runnerImage | quote }}), "imagePullPolicy": dyn("Never"), "name": dyn("runner"), "resources": dyn({"limits": dyn({"cpu": dyn("500m"), "ephemeral-storage": dyn("32Mi"), "memory": dyn("128Mi")}), "requests": dyn({"cpu": dyn("500m"), "ephemeral-storage": dyn("32Mi"), "memory": dyn("128Mi")})}), "securityContext": dyn({"allowPrivilegeEscalation": dyn(false), "capabilities": dyn({"drop": dyn(["ALL"])}), "readOnlyRootFilesystem": dyn(true)}), "terminationMessagePath": dyn("/dev/termination-log"), "terminationMessagePolicy": dyn("File"), "volumeMounts": dyn([{"mountPath": dyn("/work"), "name": dyn("work")}])}]), "dnsPolicy": dyn("ClusterFirst"), "enableServiceLinks": dyn(false), "restartPolicy": dyn("Never"), "runtimeClassName": dyn("gvisor"), "schedulerName": dyn("default-scheduler"), "securityContext": dyn({"fsGroup": dyn(65532), "runAsGroup": dyn(65532), "runAsNonRoot": dyn(true), "runAsUser": dyn(65532), "seccompProfile": dyn({"type": dyn("RuntimeDefault")})}), "serviceAccount": dyn("runner"), "serviceAccountName": dyn("runner"), "terminationGracePeriodSeconds": dyn(1), "volumes": dyn([{"emptyDir": dyn({"medium": dyn("Memory"), "sizeLimit": dyn("16Mi")}), "name": dyn("work")}])} : dyn(variables.p) == (request.operation == "UPDATE" ? dyn(dyn(oldObject).spec) : {"automountServiceAccountToken": dyn(false), "containers": dyn([{"command": dyn(["python", "-I", "-B", "-m", "app"]), "env": dyn([{"name": dyn("PYTHON_SOURCE"), "value": dyn(variables.p.containers[0].env[0].value)}]), "image": dyn({{ .Values.runnerImage | quote }}), "imagePullPolicy": dyn("Never"), "name": dyn("runner"), "resources": dyn({"limits": dyn({"cpu": dyn("500m"), "ephemeral-storage": dyn("32Mi"), "memory": dyn("128Mi")}), "requests": dyn({"cpu": dyn("500m"), "ephemeral-storage": dyn("32Mi"), "memory": dyn("128Mi")})}), "securityContext": dyn({"allowPrivilegeEscalation": dyn(false), "capabilities": dyn({"drop": dyn(["ALL"])}), "readOnlyRootFilesystem": dyn(true)}), "terminationMessagePath": dyn("/dev/termination-log"), "terminationMessagePolicy": dyn("File"), "volumeMounts": dyn([{"mountPath": dyn("/work"), "name": dyn("work")}])}]), "dnsPolicy": dyn("ClusterFirst"), "enableServiceLinks": dyn(false), "restartPolicy": dyn("Never"), "runtimeClassName": dyn("gvisor"), "schedulerName": dyn("default-scheduler"), "securityContext": dyn({"fsGroup": dyn(65532), "runAsGroup": dyn(65532), "runAsNonRoot": dyn(true), "runAsUser": dyn(65532), "seccompProfile": dyn({"type": dyn("RuntimeDefault")})}), "serviceAccount": dyn("runner"), "serviceAccountName": dyn("runner"), "terminationGracePeriodSeconds": dyn(1), "volumes": dyn([{"emptyDir": dyn({"medium": dyn("Memory"), "sizeLimit": dyn("16Mi")}), "name": dyn("work")}]), "priority": dyn(0), "preemptionPolicy": dyn("PreemptLowerPriority"), "tolerations": dyn([{"key": dyn("node.kubernetes.io/not-ready"), "operator": dyn("Exists"), "effect": dyn("NoExecute"), "tolerationSeconds": dyn(300)}, {"key": dyn("node.kubernetes.io/unreachable"), "operator": dyn("Exists"), "effect": dyn("NoExecute"), "tolerationSeconds": dyn(300)}])}))
+    message: 'Execution Pods must exactly match the fixed runner specification.'
+  - expression: >-
+      dyn(object).kind != "Job" || (request.operation == "UPDATE" ? dyn(dyn(object).spec) == dyn(dyn(oldObject).spec) : dyn(dyn(object).spec) == {"activeDeadlineSeconds": dyn(20), "backoffLimit": dyn(0), "completionMode": dyn("NonIndexed"), "completions": dyn(1), "manualSelector": dyn(false), "parallelism": dyn(1), "podReplacementPolicy": dyn("TerminatingOrFailed"), "selector": dyn({"matchLabels": dyn({"batch.kubernetes.io/controller-uid": dyn(dyn(object).metadata.uid)})}), "suspend": dyn(false), "ttlSecondsAfterFinished": dyn(60), "template": dyn(dyn(object).spec.template)})
+    message: 'Execution Jobs must exactly match the fixed Job specification.'
+  - expression: 'dyn(object).kind != "Job" || !has(dyn(object).spec.template.metadata.annotations) || size(dyn(object).spec.template.metadata.annotations) == 0'
+    message: 'Runner template annotations are forbidden.'
+  - expression: '!has(dyn(object).metadata.annotations) || size(dyn(object).metadata.annotations) == 0 || (dyn(object).kind == "Pod" && request.operation == "UPDATE" && dyn(object).metadata.annotations.all(k, k in ["cni.projectcalico.org/containerID", "cni.projectcalico.org/podIP", "cni.projectcalico.org/podIPs"]))'
+    message: 'Runtime override annotations are forbidden.'
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: fixed-python-executor
+spec:
+  policyName: fixed-python-executor
+  validationActions: [Deny]
+  matchResources:
+    namespaceSelector:
+      matchLabels:
+        kubernetes.io/metadata.name: executor
