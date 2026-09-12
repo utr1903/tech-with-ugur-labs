@@ -111,78 +111,195 @@ three years; only the three demand values vary by year.
 
 ## Follow the equations
 
-The names and order below match `model.py`. Arrays are ordered year 1, year 2,
-year 3.
+The names and order below match `model.py`. The subscript $t$ means year
+$t \in \{1,2,3\}$; arrays in Python use the same year order. For readability,
+input names below use spaces instead of underscores and omit unit suffixes.
+For example, “worker output” is `units_per_worker_per_year`, “initial cost” is
+`initial_unit_cost_usd`, and “price” is `selling_price_usd_per_unit`. The input
+table above gives their full YAML names and units.
+
+### Variable types and bounds
+
+Workers and researchers are whole people. Expansion starts are binary, with the
+last year's start fixed at zero because its benefit would fall outside the horizon:
+
+$$
+\begin{aligned}
+\mathrm{workers}_t &\in \mathbb{Z},
+&0 \le \mathrm{workers}_t &\le \text{max workers} \\
+\mathrm{researchers}_t &\in \mathbb{Z},
+&0 \le \mathrm{researchers}_t &\le \text{max researchers} \\
+\mathrm{expansion\_start}_t &\in \{0,1\},
+&\mathrm{expansion\_start}_3 &= 0
+\end{aligned}
+$$
+
+Production is continuous volume in units/year. Before adding the timed capacity
+constraints, the code computes a safe annual upper bound, $U_t$:
+
+$$
+U_t = \min\!\left\{
+\begin{aligned}
+&\mathrm{demand}_t, \\
+&\text{max workers} \times \text{worker output}, \\
+&\text{base capacity} + \text{extra capacity}
+\end{aligned}
+\right\}
+$$
+
+$$
+\begin{aligned}
+\mathrm{units\_produced}_t &\in \mathbb{R},
+&0 \le \mathrm{units\_produced}_t &\le U_t \\
+\mathrm{unit\_cost}_t &\in \mathbb{R},
+&\text{minimum cost} \le \mathrm{unit\_cost}_t &\le \text{initial cost}
+\end{aligned}
+$$
+
+Unit cost is USD/unit. Its bounds do not determine it by themselves: the research
+equations below fix its value. The production bound allows expanded capacity in
+principle; the next constraints enforce when that capacity actually becomes available.
 
 ### Decisions and capacity
 
-Capacity constraints are added in this order. First, production must respect
-worker output and demand:
+Production must respect worker output and demand in every year:
 
-```text
-units_produced <= workers * units_per_worker_per_year
-units_produced <= demand_units
-```
+$$
+\begin{aligned}
+\mathrm{units\_produced}_t
+&\le \mathrm{workers}_t \times \text{worker output} \\
+\mathrm{units\_produced}_t &\le \mathrm{demand}_t
+\end{aligned}
+$$
 
-Next, at most one `expansion_start` can be 1; the year-3 variable is fixed at zero
-because its benefit would fall outside the horizon. A year-1 start gives
-availability `[0, 1, 1]`; a year-2 start gives `[0, 0, 1]`. In general,
-availability contains only earlier starts:
+At most one expansion may start. Availability contains only earlier starts:
+a year-1 start gives `[0, 1, 1]`; a year-2 start gives `[0, 0, 1]`.
+Availability is a derived expression, not another decision variable.
 
-```text
-expansion_available[year] = sum(expansion_start[earlier_year])
+$$
+\begin{aligned}
+\sum_{t=1}^{3} \mathrm{expansion\_start}_t &\le 1 \\
+\mathrm{expansion\_available}_t
+&= \sum_{k=1}^{t-1} \mathrm{expansion\_start}_k \\
+\mathrm{units\_produced}_t
+&\le \text{base capacity} \\
+&\quad + \text{extra capacity} \times \mathrm{expansion\_available}_t
+\end{aligned}
+$$
 
-units_produced <= capacity_units_per_year
-                  + extra_capacity_units_per_year * expansion_available
-```
-
-The investment never increases capacity in its payment year. Worker teams are
-chosen independently each year, with no hiring, firing, or ramp-up cost.
+The empty sum for year 1 is zero. The investment never increases capacity in its
+payment year. Worker teams are chosen independently each year, with no hiring,
+firing, or ramp-up cost.
 
 ### Research and unit cost
 
-For `researchers` equal to `r`, the saving created in that year is the sum of an
-arithmetic sequence:
+For $r = \mathrm{researchers}_t$, new saving is the sum of an arithmetic sequence.
+“First saving” is `first_researcher_saving_usd_per_unit`; “saving drop” is
+`saving_drop_per_additional_researcher`. The result is USD per future unit:
 
-```text
-new_saving = first_researcher_saving_usd_per_unit * r
-             - saving_drop_per_additional_researcher * r * (r - 1) / 2
+$$
+\mathrm{new\_saving}_t
+= \text{first saving} \times r
+- \text{saving drop} \times \frac{r(r-1)}{2}
+$$
 
-unit_cost[year_1] = initial_unit_cost_usd
-unit_cost[next_year] = unit_cost[current_year] - new_saving[current_year]
-unit_cost[year] >= minimum_unit_cost_usd
-```
+$$
+\begin{aligned}
+\mathrm{unit\_cost}_1 &= \text{initial cost} \\
+\mathrm{unit\_cost}_{t+1}
+&= \mathrm{unit\_cost}_t - \mathrm{new\_saving}_t
+&&\text{for } t \in \{1,2\} \\
+\mathrm{unit\_cost}_t &\ge \text{minimum cost}
+&&\text{for } t \in \{1,2,3\}
+\end{aligned}
+$$
 
-The term `r * (r - 1)` makes research savings nonlinear. Savings accumulate
-because each next-year cost starts from the current cost. The minimum is a model
-constraint: the solver must choose research staffing that respects it; the code
-does not silently clip a result. There is no year-4 cost equation.
+The term $r(r-1)$ makes research savings nonlinear. Savings accumulate because
+each next-year cost starts from the current cost. The minimum is enforced by the
+variable's lower bound: the solver must choose research staffing that respects
+it; the code does not silently clip a result. There is no year-4 cost equation.
 
-### Cumulative net cash
+### Cumulative net cash and objective
 
-For each year:
+For each year, revenue and spending are in USD. “Worker salary” and “researcher
+salary” are the annual salary inputs; “expansion cost” is `expansion.cost_usd`.
 
-```text
-revenue = selling_price_usd_per_unit * units_produced
-production_cost = unit_cost * units_produced
-worker_salaries = worker_salary_usd_per_year * workers
-researcher_salaries = researcher_salary_usd_per_year * researchers
-expansion_spending = expansion.cost_usd * expansion_start
+$$
+\begin{aligned}
+\mathrm{revenue}_t &= \text{price} \times \mathrm{units\_produced}_t \\
+\mathrm{production\_cost}_t
+&= \mathrm{unit\_cost}_t \times \mathrm{units\_produced}_t \\
+\mathrm{worker\_salaries}_t &= \text{worker salary} \times \mathrm{workers}_t \\
+\mathrm{researcher\_salaries}_t
+&= \text{researcher salary} \times \mathrm{researchers}_t \\
+\mathrm{expansion\_spending}_t
+&= \text{expansion cost} \times \mathrm{expansion\_start}_t \\
+\mathrm{annual\_net\_cash}_t
+&= \mathrm{revenue}_t - \mathrm{production\_cost}_t \\
+&\quad - \mathrm{worker\_salaries}_t - \mathrm{researcher\_salaries}_t \\
+&\quad - \mathrm{expansion\_spending}_t
+\end{aligned}
+$$
 
-annual_net_cash = revenue - production_cost - worker_salaries
-                  - researcher_salaries - expansion_spending
-objective = sum(annual_net_cash across all three years)
-```
+The business objective is:
+
+$$
+\max \; \sum_{t=1}^{3} \mathrm{annual\_net\_cash}_t
+$$
 
 Production cost includes materials and electricity. Worker and researcher
-salaries are separate costs. The `unit_cost * units_produced` term is the second
-nonlinear expression in the model.
+salaries are separate costs. The product
+$\mathrm{unit\_cost}_t \times \mathrm{units\_produced}_t$ is the second nonlinear
+expression in the model.
+
+Because PySCIPOpt's objective interface is linear, `model.py` creates one
+continuous scalar `cash_auxiliary`, measured in USD. The solver maximizes it
+subject to the nonlinear cash constraint:
+
+$$
+\begin{aligned}
+\max \;&\mathrm{cash\_auxiliary} \\
+\text{subject to }\;&\mathrm{cash\_auxiliary}
+\le \sum_{t=1}^{3} \mathrm{annual\_net\_cash}_t
+\end{aligned}
+$$
+
+Its finite bounds use $U_{\mathrm{total}} = \sum_{t=1}^{3} U_t$. The lower bound
+covers maximum possible production spending, both maximum teams in all three
+years, and one expansion. Ignoring revenue here makes it safely conservative.
+The upper bound is maximum possible revenue before any spending:
+
+$$
+\begin{aligned}
+L_{\mathrm{cash}} = -\bigl(&\text{initial cost} \times U_{\mathrm{total}} \\
+&+ 3 \times \text{worker salary} \times \text{max workers} \\
+&+ 3 \times \text{researcher salary} \times \text{max researchers} \\
+&+ \text{expansion cost}\bigr) \\
+U_{\mathrm{cash}} &= \text{price} \times U_{\mathrm{total}} \\
+\mathrm{cash\_auxiliary} &\in \mathbb{R} \\
+L_{\mathrm{cash}} \le \mathrm{cash\_auxiliary} &\le U_{\mathrm{cash}}
+\end{aligned}
+$$
 
 This teaching objective treats cumulative net cash as profit planning. Expansion
 is paid immediately. There is no depreciation, tax, discounting, financing,
-salvage value, or cash-balance constraint. Because PySCIPOpt's objective interface
-is linear, `model.py` creates one scalar `cash_auxiliary`, constrains it to be no
-greater than the nonlinear cumulative cash expression, and maximizes it.
+salvage value, or cash-balance constraint.
+
+## Read the model setup logs
+
+At the default `LOG_LEVEL=info`, construction emits JSON logs after each variable
+and constraint is successfully added. Variable events include its SCIP name,
+type, and numeric lower and upper bounds. Constraint events include a descriptive
+name, the mathematical expression with the scenario's coefficients, and its
+bounds; `null` means that side is unbounded. The objective is logged after it is
+set, too.
+
+SCIP variable names use zero-based indices: `workers_0` means the year-1 worker
+team, `workers_1` means year 2, and `workers_2` means year 3. Constraint names use
+explicit year numbers. The logged equations collect variable terms on one side;
+for example, `1 * units_produced_0 - 1000 * workers_0 <= 0` is the same staffing
+constraint as the README's production inequality. These are model definitions,
+not solved decision values; the verified annual table follows the solve.
 
 ## Read the result files
 
