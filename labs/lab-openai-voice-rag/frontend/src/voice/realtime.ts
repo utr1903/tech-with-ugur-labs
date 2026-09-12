@@ -41,7 +41,10 @@ function channelReady(channel: RTCDataChannel, signal: AbortSignal) {
 		signal.addEventListener("abort", error, { once: true });
 	});
 }
-export function createRealtime(platform: Platform = browser): Transport {
+export function createRealtime(
+	platform: Platform = browser,
+	observer?: { observe(stream: MediaStream): void; dispose(): void },
+): Transport {
 	let disposed = false;
 	let stream: MediaStream | undefined;
 	let peer: RTCPeerConnection | undefined;
@@ -53,6 +56,7 @@ export function createRealtime(platform: Platform = browser): Transport {
 		if (disposed) return;
 		disposed = true;
 		abort.abort();
+		observer?.dispose();
 		channel?.close();
 		peer?.close();
 		for (const track of stream?.getTracks() ?? []) track.stop();
@@ -82,7 +86,13 @@ export function createRealtime(platform: Platform = browser): Transport {
 		audio.autoplay = true;
 		peer.ontrack = (e) => {
 			if (!disposed && audio) {
-				audio.srcObject = e.streams[0] ?? new MediaStream([e.track]);
+				const remote = e.streams[0] ?? new MediaStream([e.track]);
+				audio.srcObject = remote;
+				try {
+					observer?.observe(remote);
+				} catch {
+					/* Visualization must preserve playback. */
+				}
 				void audio.play().catch(fail);
 			}
 		};

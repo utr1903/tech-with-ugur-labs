@@ -2,6 +2,8 @@
 
 Ask questions about a local Markdown folder and inspect the actual retrieved sources. PostgreSQL and pgvector store the document chunks; a Next.js browser page proxies application requests to a Hono backend.
 
+The teal robot orb changes size and contour with incoming agent audio in live mode. It never measures microphone audio or invents speech activity in simulated mode. Reduced-motion preferences keep the orb still, with readable speaking feedback.
+
 The default **simulated transport** accepts typed questions and uses deterministic simulated embeddings and a scripted tool session. It exercises ingestion, vector retrieval, conversation routing, sources, and microphone acquisition/release. It does **not** recognize speech, synthesize speech, or perform live model inference.
 
 ## Start locally

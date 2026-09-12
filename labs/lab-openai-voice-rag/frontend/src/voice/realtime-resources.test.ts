@@ -76,3 +76,54 @@ test("Stop during SDP disposes peer/channel/audio and ignores late answer", asyn
 	expect(audio.pause).toHaveBeenCalledOnce();
 	expect(remote).not.toHaveBeenCalled();
 });
+test("remote stream observation failure preserves playback and late tracks cannot restart it", async () => {
+	const remote = {} as MediaStream;
+	const microphone = { getTracks: () => [] } as unknown as MediaStream;
+	const observer = {
+		observe: vi.fn(() => {
+			throw Error("Analysis unsupported");
+		}),
+		dispose: vi.fn(),
+	};
+	const audio = {
+		play: vi.fn(async () => {}),
+		pause: vi.fn(),
+		remove: vi.fn(),
+		srcObject: null as MediaStream | null,
+	};
+	const channel = Object.assign(new EventTarget(), {
+		readyState: "open",
+		send: vi.fn(),
+		close: vi.fn(),
+	});
+	const peer = {
+		ontrack: null as ((event: { streams: MediaStream[] }) => void) | null,
+		addTrack: vi.fn(),
+		createDataChannel: () => channel,
+		createOffer: async () => ({ sdp: "offer" }),
+		setLocalDescription: async () => {},
+		setRemoteDescription: async () => {},
+		close: vi.fn(),
+	};
+	const transport = createRealtime(
+		{
+			acquire: async () => microphone,
+			peer: () => peer as unknown as RTCPeerConnection,
+			audio: () => audio as unknown as HTMLAudioElement,
+			fetch: vi.fn(async () => new Response("answer")),
+		},
+		observer,
+	);
+	const fail = vi.fn();
+	await transport.start(token, () => {}, fail);
+	peer.ontrack?.({ streams: [remote] });
+	expect(audio.srcObject).toBe(remote);
+	expect(audio.play).toHaveBeenCalledOnce();
+	expect(observer.observe).toHaveBeenCalledExactlyOnceWith(remote);
+	expect(fail).not.toHaveBeenCalled();
+	transport.dispose();
+	peer.ontrack?.({ streams: [remote] });
+	expect(audio.play).toHaveBeenCalledOnce();
+	expect(observer.dispose).toHaveBeenCalledOnce();
+	expect(audio.srcObject).toBeNull();
+});
