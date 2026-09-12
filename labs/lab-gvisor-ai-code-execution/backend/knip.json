@@ -1,0 +1,10 @@
+{
+	"entry": [
+		"src/execution/execute.ts",
+		"src/execution/kubernetes.ts",
+		"src/database/pool.ts",
+		"src/database/schema.ts",
+		"src/logger.ts"
+	],
+	"project": ["src/**/*.ts"]
+}
