@@ -1,0 +1,1 @@
+CREATE INDEX "chat_completed_history" ON "chat_turns" USING btree ("chat_id","status","id");

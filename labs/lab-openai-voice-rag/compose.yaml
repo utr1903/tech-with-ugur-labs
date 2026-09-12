@@ -1,0 +1,75 @@
+services:
+  postgres:
+    image: pgvector/pgvector:0.8.2-pg17@sha256:feb68f4f15446397d8cac7f4fe48fe4586de83160d1fc48b46283312d1a33966
+    environment:
+      POSTGRES_USER: voice_rag
+      POSTGRES_PASSWORD: local-development-only
+      POSTGRES_DB: voice_rag
+    volumes:
+      - ./tmp/postgres:/var/lib/postgresql/data
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/test-database.sql:ro
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U voice_rag -d voice_rag]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  backend:
+    build: ./backend
+    environment:
+      DATABASE_URL: postgresql://voice_rag:local-development-only@postgres:5432/voice_rag
+      TEST_DATABASE_URL: postgresql://voice_rag:local-development-only@postgres:5432/voice_rag_test
+      DOCUMENTS_ROOT: /documents
+      MODE: ${MODE:-scripted}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+    volumes:
+      - ./backend:/app
+      - backend_dependencies:/app/node_modules
+      - ./tmp/documents:/documents:ro
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://localhost:3001/api/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+    depends_on:
+      postgres:
+        condition: service_healthy
+  frontend:
+    build: ./frontend
+    environment:
+      BACKEND_URL: http://backend:3001
+    ports:
+      - "127.0.0.1:3000:3000"
+    volumes:
+      - ./frontend:/app
+      - frontend_dependencies:/app/node_modules
+      - frontend_build:/app/.next
+    healthcheck:
+      test: [CMD, node, -e, "fetch('http://localhost:3000/api/ready').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+    depends_on:
+      backend:
+        condition: service_healthy
+  browser:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.browser
+    profiles: [test]
+    network_mode: service:frontend
+    environment:
+      BROWSER_BASE_URL: http://localhost:3000
+      RUN_LIVE_CANARY: ${RUN_LIVE_CANARY:-0}
+      LIVE_AUDIO_FILE: ${LIVE_AUDIO_FILE:-}
+    volumes:
+      - ./frontend:/app
+      - frontend_dependencies:/app/node_modules
+      - ./tmp/audio:/audio:ro
+    depends_on:
+      frontend:
+        condition: service_healthy
+    command: ["npm", "run", "test:browser"]
+volumes:
+  frontend_dependencies:
+  frontend_build:
+  backend_dependencies:

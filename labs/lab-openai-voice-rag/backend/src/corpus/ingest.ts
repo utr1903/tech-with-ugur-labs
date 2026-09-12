@@ -1,0 +1,121 @@
+import { createHash } from "node:crypto";
+import { eq, inArray } from "drizzle-orm";
+import type { Logger } from "../logger.js";
+import { logOperation } from "../operation.js";
+import { chunkText } from "./chunk.js";
+import { readDocuments } from "./files.js";
+import { chunks, documents } from "./schema.js";
+import type { Store } from "./store.js";
+import type { Embed, Refresh } from "./types.js";
+import { validateVectors } from "./vectors.js";
+
+type Options = {
+	logger: Logger;
+	store: Store;
+	documentsRoot: string;
+	embed: Embed;
+	embeddingFingerprint: string;
+	chunkLength: number;
+	fileBytes: number;
+	totalBytes: number;
+};
+async function stageChanges(
+	options: Options,
+	existing: Map<string, typeof documents.$inferSelect>,
+) {
+	const files = await readDocuments(options.documentsRoot, options);
+	const changed = files.filter((file) => {
+		const cached = existing.get(file.filename);
+		return (
+			cached?.hash !== file.hash ||
+			cached.embeddingFingerprint !== options.embeddingFingerprint
+		);
+	});
+	const partitioned = await logOperation(
+		options.logger,
+		"Chunk documents",
+		{ documentCount: changed.length, chunkLength: options.chunkLength },
+		async () =>
+			changed.map((file) => ({
+				file,
+				texts: chunkText(file.text, options.chunkLength),
+			})),
+		(result) => ({
+			chunkCount: result.reduce((count, item) => count + item.texts.length, 0),
+		}),
+	);
+	const texts = partitioned.flatMap((item) => item.texts);
+	const vectors = await logOperation(
+		options.logger,
+		"Embed documents",
+		{ chunkCount: texts.length, documentCount: changed.length },
+		async () => {
+			const result = texts.length ? await options.embed(texts) : [];
+			validateVectors(result, texts.length);
+			return result;
+		},
+		(result) => ({ vectorCount: result.length }),
+	);
+	let position = 0;
+	const staged = partitioned.map(({ file, texts }) => ({
+		file,
+		rows: texts.map((text, ordinal) => {
+			const embedding = vectors[position++];
+			if (!embedding) throw new Error("Missing staged embedding");
+			return {
+				id: createHash("sha256")
+					.update(`${file.filename}\0${file.hash}\0${ordinal}`)
+					.digest("hex"),
+				filename: file.filename,
+				ordinal,
+				text,
+				embedding,
+			};
+		}),
+	}));
+	return { files, staged };
+}
+export async function ingestCorpus(options: Options): Promise<Refresh> {
+	const existing = new Map(
+		(await options.store.db.select().from(documents)).map((file) => [
+			file.filename,
+			file,
+		]),
+	);
+	const { files, staged } = await stageChanges(options, existing);
+	const filenames = new Set(files.map((file) => file.filename));
+	const deleted = [...existing.keys()].filter(
+		(filename) => !filenames.has(filename),
+	);
+	await options.store.db.transaction(async (tx) => {
+		if (deleted.length)
+			await tx.delete(documents).where(inArray(documents.filename, deleted));
+		for (const { file, rows } of staged) {
+			await tx.delete(chunks).where(eq(chunks.filename, file.filename));
+			await tx
+				.insert(documents)
+				.values({
+					filename: file.filename,
+					hash: file.hash,
+					embeddingFingerprint: options.embeddingFingerprint,
+				})
+				.onConflictDoUpdate({
+					target: documents.filename,
+					set: {
+						hash: file.hash,
+						embeddingFingerprint: options.embeddingFingerprint,
+					},
+				});
+			if (rows.length) await tx.insert(chunks).values(rows);
+		}
+	});
+	const added = staged.filter(
+		({ file }) => !existing.has(file.filename),
+	).length;
+	return {
+		added,
+		changed: staged.length - added,
+		deleted: deleted.length,
+		unchanged: files.length - staged.length,
+	};
+}
