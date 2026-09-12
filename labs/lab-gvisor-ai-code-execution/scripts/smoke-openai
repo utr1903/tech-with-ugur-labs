@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+lab=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+: "${GVISOR_STATE_DIR:?Set the owned bootstrap state directory}"
+cluster=${GVISOR_CLUSTER_NAME:-gvisor-code-execution}
+kubeconfig=${GVISOR_KUBECONFIG:-$GVISOR_STATE_DIR/cache/kubeconfig}
+mode=$(kubectl --kubeconfig "$kubeconfig" --context "kind-$cluster" -n executor-app get deployment chat-backend -o 'jsonpath={.spec.template.spec.containers[0].env[?(@.name=="MODEL_MODE")].value}')
+if test "$mode" != openai; then
+ printf 'Live smoke requires a backend deployed in OpenAI mode; scripted responses cannot satisfy this gate.\n' >&2
+ exit 1
+fi
+npm --prefix "$lab/backend" run smoke:live

@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+: "${GVISOR_STATE_DIR:?Set bootstrap state directory}"
+cluster=${GVISOR_CLUSTER_NAME:-gvisor-code-execution}
+kubeconfig=${GVISOR_KUBECONFIG:-$GVISOR_STATE_DIR/cache/kubeconfig}
+pids=()
+trap 'for pid in "${pids[@]}"; do kill "$pid" 2>/dev/null || true; done' EXIT
+for pair in chat-backend:3001 chat-frontend:3000; do
+ service=${pair%:*}; port=${pair#*:}
+ kubectl --kubeconfig "$kubeconfig" --context "kind-$cluster" -n executor-app port-forward --address=127.0.0.1 "service/$service" "$port:$port" &
+ pids+=("$!")
+done
+wait

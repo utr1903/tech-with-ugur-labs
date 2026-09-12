@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+: "${GVISOR_DOCKER_CONTEXT:?Set owned Docker context}"
+: "${GVISOR_STATE_DIR:?Set owned bootstrap state directory}"
+cluster=${GVISOR_CLUSTER_NAME:-gvisor-code-execution}
+case "$cluster" in gvisor-code-execution|gvisor-ai-code-execution-*) ;; *) printf 'Refusing a cluster outside lab naming scope\n' >&2; exit 1 ;; esac
+node="$cluster-control-plane"
+test "$(docker --context "$GVISOR_DOCKER_CONTEXT" inspect "$node" --format '{{index .Config.Labels "io.x-k8s.kind.cluster"}}')" = "$cluster"
+test -f "$GVISOR_STATE_DIR/cache/kubeconfig"
+DOCKER_CONTEXT=$GVISOR_DOCKER_CONTEXT kind delete cluster --name "$cluster"
+printf 'Deleted only named lab cluster. Private local state remains at %s; remove it after reviewing evidence.\n' "$GVISOR_STATE_DIR"

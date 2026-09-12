@@ -36,7 +36,7 @@
         "containers": [
           {
             "name": "runner",
-            "image": "docker.io/library/twu-python-runner@sha256:dde9fa8caa1050c39a5c877d3aacb0c5431b7d946622e0d4b55a1eb8aa503a47",
+            "image": "docker.io/library/twu-python-runner@sha256:2d7e2527d98e59290939c655fa49b893db3e143ace09157615379a25a3a9d923",
             "imagePullPolicy": "Never",
             "command": [
               "python",

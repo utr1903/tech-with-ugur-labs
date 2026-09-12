@@ -1,0 +1,10 @@
+{
+	"$schema": "https://biomejs.dev/schemas/2.5.13/schema.json",
+	"files": { "includes": ["**", "!package-lock.json"] },
+	"linter": {
+		"rules": {
+			"complexity": { "noExcessiveCognitiveComplexity": "error" },
+			"preset": "recommended"
+		}
+	}
+}

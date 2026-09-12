@@ -28,6 +28,8 @@ spec:
       containers:
       - name: postgres
         image: {{ .Values.postgresImage | quote }}
+        # Detect a dead Pod TCP peer without expiring locks held by live kernels.
+        args: ["-c", "tcp_keepalives_idle=5", "-c", "tcp_keepalives_interval=2", "-c", "tcp_keepalives_count=3", "-c", "tcp_user_timeout=10000"]
         env:
         - {name: POSTGRES_USER, value: chat}
         - {name: POSTGRES_DB, value: chat}
