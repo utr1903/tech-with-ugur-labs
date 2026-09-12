@@ -1,19 +1,23 @@
 #!/usr/bin/env bash
 # A live byte-recording canary prevents timeouts against dead targets from passing.
 set -euo pipefail
-cluster=gvisor-code-execution
+cluster=${GVISOR_CLUSTER_NAME:-gvisor-code-execution}
 node="${cluster}-control-plane"
 context="kind-${cluster}"
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 evidence_dir=${1:-/tmp/gvisor-network-smoke}
 mkdir -p "$evidence_dir"
-k() { kubectl --context "$context" "$@"; }
+rm -f -- "$evidence_dir/result.json"
+source "$script_dir/platform.sh"
+load_platform
+kubeconfig=${GVISOR_KUBECONFIG:-${KUBECONFIG:-/tmp/gvisor-runtime-cache/kubeconfig}}
+k() { kubectl --kubeconfig "$kubeconfig" --context "$context" "$@"; }
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 
 if ! k get namespace executor > /dev/null 2> "$evidence_dir/prerequisite.stderr"; then
   fail 'expected live canary controls and gVisor denials; executor bootstrap unavailable'
 fi
-k apply -f "$script_dir/canary.yaml"
+render_manifest "$script_dir/canary.yaml" | k apply -f -
 k rollout status deployment/canary -n runtime-canary --timeout=240s
 k create namespace policy-probe --dry-run=client -o yaml | k apply -f -
 k delete networkpolicy default-deny-all -n policy-probe --ignore-not-found
@@ -21,6 +25,21 @@ pod_ip=$(k get pod -n runtime-canary -l app=runtime-canary -o jsonpath='{.items[
 service_ip=$(k get service canary -n runtime-canary -o jsonpath='{.spec.clusterIP}')
 node_ip=$(k get node "$node" -o jsonpath='{.status.addresses[?(@.type=="InternalIP")].address}')
 test -n "$pod_ip" && test -n "$service_ip" && test -n "$node_ip" || fail 'missing canary routing target'
+
+# Deployment readiness can precede EndpointSlice and kube-proxy propagation.
+# Require this canary's actual service and node-port forwarding before controls.
+routes_ready=false
+for _ in $(seq 1 60); do
+  docker exec "$node" iptables-save > "$evidence_dir/canary-ready-iptables.txt"
+  if grep -F -- "--to-destination $pod_ip:8080" "$evidence_dir/canary-ready-iptables.txt" > /dev/null &&
+     grep -F -- "-d $service_ip/32" "$evidence_dir/canary-ready-iptables.txt" | grep -F -- '--dport 8080' > /dev/null &&
+     grep -F -- 'runtime-canary/canary' "$evidence_dir/canary-ready-iptables.txt" | grep -F -- '--dport 30080' > /dev/null; then
+    routes_ready=true
+    break
+  fi
+  sleep 1
+done
+test "$routes_ready" = true || fail 'canary service/node forwarding did not become ready within bounded deadline'
 
 probe() {
   local name=$1 namespace=$2 runtime=$3 expected=$4
@@ -50,7 +69,7 @@ $runtime
           type: RuntimeDefault
       containers:
         - name: probe
-          image: python:3.12.12-slim-bookworm@sha256:2986c55feb36e6cae00fa1fefb454283e4b33f35e75ff8bdd123b134130be301
+          image: python:3.12.12-slim-bookworm@sha256:$python_digest
           command: [python, -I, -u, -c]
           args:
             - |
@@ -120,10 +139,19 @@ import pathlib
 import sys
 directory = pathlib.Path(sys.argv[1])
 records = [json.loads(line) for line in (directory / 'canary.jsonl').read_text().splitlines()]
-for prefix in ('runc-policy-baseline', 'runc-policy-after'):
-    for path in ('pod', 'service', 'node'):
-        assert any(prefix + '-' + path in record.get('data', '') and record.get('received_bytes', 0) > 0 for record in records), (prefix, path, records)
-assert not any('gvisor-denied' in record.get('data', '') or 'runc-policy-denied' in record.get('data', '') for record in records), records
+def validate(records):
+    allowed = {f'GET /{prefix}-{path} HTTP/1.0\r\n\r\n'
+               for prefix in ('runc-policy-baseline', 'runc-policy-after')
+               for path in ('pod', 'service', 'node')}
+    observed = []
+    for record in records:
+        count = record.get('received_bytes', 0)
+        if count:
+            data = record.get('data', '')
+            assert data in allowed and count == len(data.encode('ascii')), record
+            observed.append(data)
+    assert set(observed) == allowed and len(observed) == len(allowed), records
+validate(records)
 PY
 docker exec "$node" cat /etc/containerd/config.toml /etc/containerd/runsc.toml > "$evidence_dir/runtime-config.txt"
 docker exec "$node" iptables-save > "$evidence_dir/iptables.txt"

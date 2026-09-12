@@ -37,6 +37,7 @@ spec:
               import json
               import socket
               import sys
+              import time
               listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
               listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
               listener.bind(('0.0.0.0', 8080))
@@ -46,7 +47,20 @@ spec:
                   with connection:
                       connection.settimeout(5)
                       try:
-                          data = connection.recv(4096)
+                          data = b''
+                          deadline = time.monotonic() + 5
+                          while len(data) < 4096 and not data.endswith(b'\r\n\r\n'):
+                              remaining = deadline - time.monotonic()
+                              if remaining <= 0:
+                                  break
+                              connection.settimeout(remaining)
+                              try:
+                                  chunk = connection.recv(4096 - len(data))
+                              except (OSError, TimeoutError):
+                                  break
+                              if not chunk:
+                                  break
+                              data += chunk
                           sys.stdout.write(json.dumps({'peer': peer[0], 'received_bytes': len(data), 'data': data.decode('ascii', errors='replace')}) + '\n')
                           sys.stdout.flush()
                           if data:

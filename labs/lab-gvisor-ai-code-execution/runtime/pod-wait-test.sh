@@ -2,12 +2,16 @@
 # Integration test against the named disposable cluster, without runtime mocks.
 set -euo pipefail
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
-k() { kubectl --context kind-gvisor-code-execution "$@"; }
+source "$script_dir/platform.sh"
+load_platform
+cluster=${GVISOR_CLUSTER_NAME:-gvisor-code-execution}
+kubeconfig=${GVISOR_KUBECONFIG:-${KUBECONFIG:-/tmp/gvisor-runtime-cache/kubeconfig}}
+k() { kubectl --kubeconfig "$kubeconfig" --context "kind-$cluster" "$@"; }
 source "$script_dir/pod-wait.sh"
 cleanup() { k delete job pod-wait-probe -n executor --ignore-not-found --wait=true --cascade=foreground; }
 trap cleanup EXIT
 cleanup
-sed -e 's/name: runtime-smoke/name: pod-wait-probe/' -e '/^spec:$/a\  suspend: true' "$script_dir/python-job.yaml" | k apply -f -
+render_manifest "$script_dir/python-job.yaml" | sed -e 's/name: runtime-smoke/name: pod-wait-probe/' | awk '/^spec:$/ {print; print "  suspend: true"; next} {print}' | k apply -f -
 if k wait pod -n executor -l job-name=pod-wait-probe --for=condition=Ready --timeout=3s; then
   printf 'FAIL: suspended Job unexpectedly had a Ready pod\n' >&2
   exit 1

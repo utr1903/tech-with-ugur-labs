@@ -1,13 +1,17 @@
 #!/usr/bin/env bash
 # Real runtime contract: missing/mislabeled handlers and runc fallback must fail.
 set -euo pipefail
-cluster=gvisor-code-execution
+cluster=${GVISOR_CLUSTER_NAME:-gvisor-code-execution}
 node="${cluster}-control-plane"
 context="kind-${cluster}"
 script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 evidence_dir=${1:-/tmp/gvisor-runtime-smoke}
 mkdir -p "$evidence_dir"
-k() { kubectl --context "$context" "$@"; }
+rm -f -- "$evidence_dir/result.json"
+source "$script_dir/platform.sh"
+load_platform
+kubeconfig=${GVISOR_KUBECONFIG:-${KUBECONFIG:-/tmp/gvisor-runtime-cache/kubeconfig}}
+k() { kubectl --kubeconfig "$kubeconfig" --context "$context" "$@"; }
 source "$script_dir/pod-wait.sh"
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 runtime_backed_up=false
@@ -33,7 +37,7 @@ if ! k get namespace executor > /dev/null 2> "$evidence_dir/prerequisite.stderr"
 fi
 k delete job runtime-smoke invalid-runtime-smoke -n executor --ignore-not-found --wait=true --cascade=foreground
 k delete pod -n executor -l 'job-name in (runtime-smoke,invalid-runtime-smoke)' --ignore-not-found --wait=true
-k apply -f "$script_dir/python-job.yaml"
+render_manifest "$script_dir/python-job.yaml" | k apply -f -
 if ! pod=$(wait_job_ready_pod runtime-smoke executor 240); then
   k get events -n executor -o json > "$evidence_dir/runtime-events.json"
   fail 'expected gVisor Job to launch Python; pod did not become ready'
@@ -96,7 +100,7 @@ docker exec "$node" cp /etc/containerd/config.toml /etc/containerd/config.before
 runtime_backed_up=true
 docker exec "$node" sh -c 'sed -i "s/runtimes.runsc/runtimes.disabled-runsc/g" /etc/containerd/config.toml && systemctl restart containerd'
 docker exec "$node" cat /etc/containerd/config.toml > "$evidence_dir/invalid-handler-config.toml"
-sed -e 's/name: runtime-smoke/name: invalid-runtime-smoke/' "$script_dir/python-job.yaml" | k apply -f -
+render_manifest "$script_dir/python-job.yaml" | sed -e 's/name: runtime-smoke/name: invalid-runtime-smoke/' | k apply -f -
 invalid_pod=''
 for _ in $(seq 1 30); do
   invalid_pod=$(k get pod -n executor -l job-name=invalid-runtime-smoke -o jsonpath='{.items[0].metadata.name}' 2>/dev/null || true)
@@ -126,7 +130,7 @@ assert not any(container.get('labels', {}).get('io.kubernetes.pod.name') == sys.
 PY
 k delete job invalid-runtime-smoke -n executor --wait=true --cascade=foreground
 restore_handler
-k apply -f "$script_dir/python-job.yaml"
+render_manifest "$script_dir/python-job.yaml" | k apply -f -
 restored_pod=$(wait_job_ready_pod runtime-smoke executor 240)
 capture_stdout "$evidence_dir/restored-python.stdout" "$restored_pod"
 cmp "$evidence_dir/expected.stdout" "$evidence_dir/restored-python.stdout" || fail 'restored configured gvisor handler did not execute benign Python'
