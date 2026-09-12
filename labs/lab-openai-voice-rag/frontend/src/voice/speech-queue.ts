@@ -3,6 +3,7 @@ type Phrase = {
 	key: string;
 	id?: string;
 	generating: boolean;
+	invalidated: boolean;
 	timer: ReturnType<typeof setTimeout>;
 };
 export function createSpeechQueue(
@@ -28,6 +29,7 @@ export function createSpeechQueue(
 		active = {
 			key,
 			generating: true,
+			invalidated: false,
 			timer: setTimeout(() => {
 				dispose();
 				fail();
@@ -53,12 +55,7 @@ export function createSpeechQueue(
 			},
 		});
 	}
-	function clear() {
-		generation++;
-		pending = [];
-		const old = active;
-		active = undefined;
-		if (!old) return;
+	function cancel(old: Phrase & { id: string }) {
 		clearTimeout(old.timer);
 		if (old.generating) {
 			const cancelledEvent = `cancel:${generation}`;
@@ -66,10 +63,21 @@ export function createSpeechQueue(
 			send({
 				type: "response.cancel",
 				event_id: cancelledEvent,
-				...(old.id ? { response_id: old.id } : {}),
+				response_id: old.id,
 			});
 		}
 		send({ type: "output_audio_buffer.clear" });
+		active = undefined;
+		deliver();
+	}
+	function clear() {
+		generation++;
+		pending = [];
+		if (!active) return;
+		// Out-of-band responses require an ID; retain identity and deadline
+		// until creation arrives so replacement audio cannot overlap cleanup.
+		active.invalidated = true;
+		if (active.id) cancel({ ...active, id: active.id });
 	}
 	function dispose() {
 		cancelledEvents.clear();
@@ -96,8 +104,10 @@ export function createSpeechQueue(
 			active &&
 			metadata?.phrase_id === active.key &&
 			typeof response?.id === "string"
-		)
+		) {
 			active.id = response.id;
+			if (active.invalidated) cancel({ ...active, id: response.id });
+		}
 	}
 	function event(e: Event) {
 		if (e.type === "error") {

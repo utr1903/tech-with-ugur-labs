@@ -19,6 +19,13 @@ test("own cancel race is tolerated, unrelated errors still fail", () => {
 		fail = vi.fn();
 	const q = createSpeechQueue(send, fail);
 	q.say("First.");
+	q.event({
+		type: "response.created",
+		response: {
+			id: "first-response",
+			metadata: send.mock.calls[0]?.[0].response.metadata,
+		},
+	});
 	q.clear();
 	const cancel = send.mock.calls.find(
 		([e]) => e.type === "response.cancel",
