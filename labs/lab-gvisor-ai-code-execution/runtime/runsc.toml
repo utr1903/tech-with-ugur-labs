@@ -1,0 +1,4 @@
+binary_name = "/usr/local/bin/runsc"
+[runsc_config]
+  platform = "systrap"
+  network = "none"
