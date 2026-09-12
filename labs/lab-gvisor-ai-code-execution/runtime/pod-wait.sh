@@ -7,6 +7,7 @@ wait_job_ready_pod() {
   test -n "$uid" || return 1
   while test "$SECONDS" -lt "$deadline"; do
     remaining=$((deadline - SECONDS))
+    test "$remaining" -gt 0 || break
     pod=$(k --request-timeout="${remaining}s" get pods -n "$namespace" -l "batch.kubernetes.io/controller-uid=${uid}" -o json | python3 -c '
 import json
 import sys
