@@ -1,98 +1,105 @@
 import { expect, test, vi } from "vitest";
 import { createProtocol } from "./protocol";
 
-test("completed allowed function emits question; duplicates remain correlated by controller", () => {
-	const send = vi.fn();
+test("canonical transcription passes unchanged and duplicates are ignored", () => {
 	const call = vi.fn();
-	const fail = vi.fn();
-	const p = createProtocol(send, call, fail);
+	const p = createProtocol(
+		() => {},
+		call,
+		() => {},
+		() => {},
+	);
+	p.event({ type: "input_audio_buffer.committed", item_id: "a" });
 	p.event({
-		type: "response.function_call_arguments.done",
-		name: "ask_knowledge_base",
-		call_id: "abc",
-		arguments: '{"question":"amber?"}',
+		type: "conversation.item.input_audio_transcription.completed",
+		item_id: "a",
+		transcript: "What is the amber valve recovery code?",
 	});
-	expect(call).toHaveBeenCalledWith({ id: "abc", question: "amber?" });
-	expect(fail).not.toHaveBeenCalled();
+	p.event({
+		type: "conversation.item.input_audio_transcription.completed",
+		item_id: "a",
+		transcript: "duplicate",
+	});
+	expect(call).toHaveBeenCalledExactlyOnceWith({
+		id: "a",
+		question: "What is the amber valve recovery code?",
+	});
 });
-test("delivery disables recursive tools and restores forced question tool", () => {
+test("speech waits for matching playback stopped rather than response done", () => {
 	const send = vi.fn();
 	const p = createProtocol(
 		send,
 		() => {},
 		() => {},
-	);
-	p.output("abc", { answer: "canary", sources: [] });
-	expect(send).toHaveBeenNthCalledWith(1, {
-		type: "conversation.item.create",
-		item: {
-			type: "function_call_output",
-			call_id: "abc",
-			output: '{"answer":"canary","sources":[]}',
-		},
-	});
-	expect(send.mock.calls[1]?.[0]).toMatchObject({
-		type: "response.create",
-		response: { tool_choice: "none" },
-	});
-	p.event({ type: "response.done" });
-	expect(send.mock.calls.at(-1)?.[0]).toMatchObject({
-		type: "session.update",
-		session: { tool_choice: { type: "function", name: "ask_knowledge_base" } },
-	});
-});
-test("unknown function or malformed arguments produces safe failure", () => {
-	const fail = vi.fn();
-	const p = createProtocol(
 		() => {},
-		() => {},
-		fail,
 	);
+	p.say("First.");
+	p.say("Second.");
+	const metadata = send.mock.calls[0]?.[0].response.metadata;
+	p.event({ type: "response.created", response: { id: "r1", metadata } });
 	p.event({
-		type: "response.function_call_arguments.done",
-		name: "other",
-		call_id: "x",
-		arguments: "{}",
+		type: "response.done",
+		response: { id: "r1", status: "completed" },
+	});
+	expect(send).toHaveBeenCalledTimes(1);
+	p.event({ type: "output_audio_buffer.stopped", response_id: "other" });
+	expect(send).toHaveBeenCalledTimes(1);
+	p.event({ type: "output_audio_buffer.stopped", response_id: "r1" });
+	expect(send).toHaveBeenCalledTimes(2);
+	p.dispose();
+});
+
+test("out-of-order transcription and obsolete speech events cannot cross turns", () => {
+	const send = vi.fn(),
+		call = vi.fn(),
+		interrupt = vi.fn();
+	const p = createProtocol(send, call, () => {}, interrupt);
+	p.event({ type: "input_audio_buffer.committed", item_id: "old" });
+	p.event({ type: "input_audio_buffer.speech_started" });
+	p.event({ type: "input_audio_buffer.committed", item_id: "new" });
+	p.event({
+		type: "conversation.item.input_audio_transcription.completed",
+		item_id: "old",
+		transcript: "stale",
 	});
 	p.event({
-		type: "response.function_call_arguments.done",
-		name: "ask_knowledge_base",
-		call_id: "x",
-		arguments: "broken",
+		type: "conversation.item.input_audio_transcription.completed",
+		item_id: "new",
+		transcript: "fresh",
 	});
-	expect(fail).toHaveBeenCalledTimes(2);
-});
-test("speech delivery waits for the active question response to finish", () => {
-	const send = vi.fn();
-	const p = createProtocol(
-		send,
-		() => {},
-		() => {},
-	);
-	p.event({ type: "response.created" });
-	p.output("abc", { answer: "canary", sources: [] });
-	expect(
-		send.mock.calls.filter(([e]) => e.type === "response.create"),
-	).toHaveLength(0);
-	p.event({ type: "response.done" });
-	expect(
-		send.mock.calls.filter(([e]) => e.type === "response.create"),
-	).toHaveLength(1);
-});
-test("multiple tool results serialize their spoken delivery responses", () => {
-	const send = vi.fn();
-	const p = createProtocol(
-		send,
-		() => {},
-		() => {},
-	);
-	p.output("abc", { answer: "first", sources: [] });
-	p.output("def", { answer: "second", sources: [] });
-	expect(
-		send.mock.calls.filter(([e]) => e.type === "response.create"),
-	).toHaveLength(1);
-	p.event({ type: "response.done" });
-	expect(
-		send.mock.calls.filter(([e]) => e.type === "response.create"),
-	).toHaveLength(2);
+	expect(call).toHaveBeenCalledExactlyOnceWith({
+		id: "new",
+		question: "fresh",
+	});
+	expect(interrupt).toHaveBeenCalledOnce();
+	p.say("Old.");
+	const oldMetadata = send.mock.calls.at(-1)?.[0].response.metadata;
+	p.event({
+		type: "response.created",
+		response: { id: "old-response", metadata: oldMetadata },
+	});
+	p.clearSpeech();
+	p.say("New.");
+	p.say("Queued.");
+	const newMetadata = send.mock.calls.at(-1)?.[0].response.metadata;
+	p.event({
+		type: "response.created",
+		response: { id: "new-response", metadata: newMetadata },
+	});
+	const count = send.mock.calls.length;
+	for (const type of [
+		"response.done",
+		"output_audio_buffer.stopped",
+		"output_audio_buffer.cleared",
+	]) {
+		p.event({
+			type,
+			response_id: "old-response",
+			response: { id: "old-response", status: "completed" },
+		});
+	}
+	expect(send).toHaveBeenCalledTimes(count);
+	p.event({ type: "output_audio_buffer.stopped", response_id: "new-response" });
+	expect(send).toHaveBeenCalledTimes(count + 1);
+	p.dispose();
 });

@@ -1,10 +1,7 @@
-import type { Answer, Token } from "./transport.js";
+import { readAnswer } from "./stream-parser";
+import type { AgentEvent, Answer, Token } from "./transport";
 
-async function request(
-	path: string,
-	body: unknown,
-	signal: AbortSignal,
-): Promise<unknown> {
+async function request(path: string, body: unknown, signal: AbortSignal) {
 	const response = await fetch(path, {
 		method: "POST",
 		headers: { "Content-Type": "application/json" },
@@ -12,48 +9,42 @@ async function request(
 		signal,
 	});
 	if (!response.ok) throw Error("Request failed");
-	return response.json();
+	return response;
 }
 export async function fetchToken(signal: AbortSignal): Promise<Token> {
-	const data = await request(
-		"/api/realtime/token",
-		{},
-		AbortSignal.any([signal, AbortSignal.timeout(20_000)]),
-	);
+	const data = await (
+		await request(
+			"/api/realtime/token",
+			{},
+			AbortSignal.any([signal, AbortSignal.timeout(20000)]),
+		)
+	).json();
 	if (
 		!data ||
-		typeof data !== "object" ||
-		!("mode" in data) ||
-		!("conversationId" in data) ||
-		typeof data.conversationId !== "string" ||
-		(data.mode !== "scripted" && data.mode !== "live")
+		(data.mode !== "scripted" && data.mode !== "live") ||
+		(data.mode === "live" && typeof data.clientSecret !== "string")
 	)
-		throw Error("Invalid session");
-	if (
-		data.mode === "live" &&
-		(!("clientSecret" in data) || typeof data.clientSecret !== "string")
-	)
-		throw Error("Invalid session");
-	return data as Token;
+		throw Error("Invalid token");
+	return {
+		mode: data.mode,
+		...(data.clientSecret ? { clientSecret: data.clientSecret } : {}),
+	};
 }
 export async function fetchAnswer(
-	token: Token,
-	question: string,
+	sessionId: string,
+	query: string,
 	signal: AbortSignal,
+	onEvent: (event: AgentEvent) => void,
 ): Promise<Answer> {
-	const data = await request(
+	const response = await request(
 		"/api/agent",
-		{ conversationId: token.conversationId, question },
-		AbortSignal.any([signal, AbortSignal.timeout(35_000)]),
+		{ sessionId, query },
+		AbortSignal.any([signal, AbortSignal.timeout(35000)]),
 	);
 	if (
-		!data ||
-		typeof data !== "object" ||
-		!("answer" in data) ||
-		typeof data.answer !== "string" ||
-		!("sources" in data) ||
-		!Array.isArray(data.sources)
+		!response.body ||
+		!response.headers.get("Content-Type")?.includes("application/x-ndjson")
 	)
-		throw Error("Invalid answer");
-	return data as Answer;
+		throw Error("Invalid answer stream");
+	return readAnswer(response.body, onEvent);
 }

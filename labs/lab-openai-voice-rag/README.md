@@ -4,7 +4,7 @@ Ask questions about a local Markdown folder and inspect the actual retrieved sou
 
 The teal robot orb changes size and contour with incoming agent audio in live mode. It never measures microphone audio or invents speech activity in simulated mode. Reduced-motion preferences keep the orb still, with readable speaking feedback.
 
-The default **simulated transport** accepts typed questions and uses deterministic simulated embeddings and a scripted tool session. It exercises ingestion, vector retrieval, conversation routing, sources, and microphone acquisition/release. It does **not** recognize speech, synthesize speech, or perform live model inference.
+The default **simulated transport** accepts typed questions and uses deterministic simulated embeddings and a scripted document agent. It exercises ingestion, vector retrieval, persistent chat history, sources, and microphone acquisition/release. It does **not** recognize speech, synthesize speech, or perform live model inference.
 
 ## Start locally
 
@@ -21,7 +21,7 @@ Open [localhost:3000](http://localhost:3000). Wait for the services to become re
 
 > What is the amber valve recovery code?
 
-The fictional handbook in `tmp/documents/handbook.md` contains **ORCHID-47** in an adjacent chunk. The answer includes filenames, chunk ordinals, and source text. **Stop** releases microphone tracks, closes any voice connection, clears displayed results, and prevents a late response from entering the next session. Each Start creates a fresh backend conversation. If microphone permission is denied, grant it in browser settings and Start again. Use localhost: browsers require a secure context for microphone access.
+The fictional handbook in `tmp/documents/handbook.md` contains **ORCHID-47** in an adjacent chunk. The answer includes filenames, chunk ordinals, and source text. **Stop** releases microphone tracks, closes any voice connection, clears displayed results, and prevents a late response from entering the next session. Each Start generates a fresh browser UUID. Questions in that connection share its chat; PostgreSQL keeps completed turns across requests. Stop retains the database records and a later Start creates another chat. If microphone permission is denied, grant it in browser settings and Start again. Use localhost: browsers require a secure context for microphone access.
 
 ## Edit and refresh
 
@@ -59,18 +59,19 @@ Browser ── local HTTP ── Next.js :3000 ── internal HTTP ── Hono 
    │                                                      │
    │ live microphone/audio + ephemeral credential         ├─ Drizzle ─ pgvector/PostgreSQL
    └────────────────────────── OpenAI Realtime             ├─ local Markdown ingestion
-                                                          └─ live OpenAI embeddings + managed Agents API
+                                                          └─ live OpenAI embeddings + Responses API
 ```
 
 Only `127.0.0.1:3000` is published. The backend and PostgreSQL have no published ports. The permanent `OPENAI_API_KEY` is forwarded only to the backend; Next.js does not read or forward it to client code. Live token requests return an ephemeral Realtime secret to the browser for direct WebRTC SDP negotiation with `/v1/realtime/calls`. It is not printed by application logs or rendered in the page.
 
-Both transports route completed `ask_knowledge_base` calls through `POST /api/agent` with a conversation ID and question. The backend uses the managed Agents API, whose separate `retrieve_documents` function performs the real local database lookup. Function outputs remain correlated by call ID. Realtime question turns force the knowledge tool; speech delivery turns disable tools and use their own answer context to avoid recursive retrieval or mixing another turn's answer. Delivery waits for the active response to finish.
+The browser sends `POST /api/agent` with `{sessionId, query}`. In live mode `query` is the completed `gpt-4o-transcribe` transcript, shown as the recognized question. Realtime has no retrieval tools or automatic response generation. The backend loads local completed chat history and uses `gpt-4.1-mini-2025-04-14` through Responses with `store:false`: first a forced `retrieve_documents` call, then a tools-disabled final answer stream.
 
-The backend owns serialized, isolated conversation state: 100 sessions, 30-minute expiry, 2,000-character questions, 8 KiB JSON requests, at most four retrieval calls per turn, and a 30-second deadline including queue time. Browser token/SDP requests have 20-second deadlines and answer requests 35 seconds. Stop aborts outstanding HTTP/SDP operations and disposes partial resources; browser microphone acquisition itself cannot be cancelled, so a late acquired stream is stopped immediately. A failed knowledge request ends the browser session, releases microphone/connection resources, and directs you to **Start again** for a new conversation. The UI withholds provider error details and never automatically replays a failed paid turn.
+The response is NDJSON: `status`, `sources`, text `delta`, and a final `done` after saving the complete answer to PostgreSQL. The page displays sources and text as they arrive. Complete phrases enter a sequential voice queue immediately; citations stay on screen. Each speech response uses isolated supplied text, no conversation history and no tools. The queue waits for the matching `output_audio_buffer.stopped` playback event; `response.done` alone does not advance it. Reading faithfully is prompted model behavior, rather than deterministic text-to-speech.
 
+The backend serializes each chat, bounds scheduling to 100 active chats and four active-plus-pending turns per chat, and retains failed/cancelled turns separately from completed history. History includes up to 20 whole turns / 40,000 characters. Questions are limited to 2,000 characters, JSON requests to 8 KiB, and turns to 30 seconds including queue time. Browser token/SDP requests have 20-second deadlines and answer requests 35 seconds. Stop aborts requests and disposes voice resources; late microphone acquisition is stopped immediately. A new utterance interrupts the current request and clears active and queued audio while keeping the same chat. A failed knowledge request allows another question in that connection; a connection failure requires Start again. No failed turn is automatically retried.
 Corpus limits: 256 KiB per Markdown file, 2 MiB aggregate, 800-character chunks, five vector hits with same-document neighbors, and 6,000 context characters. Vectors have 1,536 dimensions and are validated. Symlinks escaping the document root are rejected. Simulated word-feature embeddings and scripted abstention are only a verification approximation, and do not establish live semantic retrieval or answer quality.
 
-In live mode microphone audio goes directly to OpenAI Realtime. Questions and retrieved excerpts go from the backend to OpenAI embeddings/managed agents. PostgreSQL retains document text/vectors locally; managed session state is held by the provider. Backend logs include user questions, document filenames and operation counts/durations. Avoid asking questions you do not want retained in local logs; document contents, API keys and ephemeral credentials are withheld. The optional live test intentionally saves transcripts, evidence and remote audio locally in `frontend/test-results`; inspect/remove those artifacts as needed. This local lab has no authentication or production deployment configuration.
+In live mode microphone audio goes directly to OpenAI Realtime. Questions and retrieved excerpts go from the backend to OpenAI embeddings/Responses. PostgreSQL retains document text/vectors, chat UUIDs, questions, completed answers/sources and failed/cancelled turn records locally. No managed provider session stores chat history. Backend logs include user questions, document filenames and operation counts/durations. Avoid asking questions you do not want retained in local logs; document contents, API keys and ephemeral credentials are withheld. The optional live test intentionally saves transcripts, evidence and remote audio locally in `frontend/test-results`; inspect/remove those artifacts as needed. This local lab has no authentication or production deployment configuration.
 
 ## Checks
 
@@ -78,10 +79,10 @@ These commands run the pinned Node 24 service tooling. Start Compose first:
 
 ```sh
 docker compose exec backend npm test
-docker compose run --rm --no-deps -v "$PWD/frontend/src/voice:/frontend/src/voice:ro" backend npm run test:integration
-docker compose run --rm --no-deps -v "$PWD/frontend/src/voice:/frontend/src/voice:ro" backend npm run typecheck
+docker compose exec backend npm run test:integration
+docker compose exec backend npm run typecheck
 docker compose exec backend npm run lint
-docker compose run --rm --no-deps -v "$PWD/frontend/src/voice:/frontend/src/voice:ro" backend npm run knip
+docker compose exec backend npm run knip
 docker compose exec frontend npm test
 docker compose exec frontend npm run typecheck
 docker compose exec frontend npm run lint
@@ -90,9 +91,8 @@ docker compose run --rm --no-deps -v /app/.next frontend npm run build
 docker compose run --build --rm browser npm run test:browser
 ```
 
-The production build uses a separate temporary `.next` mount so it does not overwrite the running development build. The browser image installs Chromium and Linux dependencies through `npm run browser:install`; it uses the frontend network namespace so tests access `http://localhost:3000` with real secure-context microphone APIs and a fake device. Scripted browser checks cover readiness, real ingestion, canary/source output, track release, a fresh second conversation, safe token/relay failures and stale response suppression. Unit tests exercise overlapping starts/stops, late token/answer/connection completions, call deduplication, correlation and voice delivery sequencing.
+The production build uses a separate temporary `.next` mount so it does not overwrite the running development build. The browser image installs Chromium and Linux dependencies through `npm run browser:install`; it uses the frontend network namespace so tests access `http://localhost:3000` with real secure-context microphone APIs and a fake device. Scripted browser checks cover readiness, real ingestion, canary/source output, track release, same-chat second turn and fresh Start, safe token/relay failures and stale response suppression. Unit tests exercise overlapping starts/stops, late token/answer/connection completions, transcript deduplication, UTF-8 streaming, interruption and matching playback sequencing.
 
-The read-only voice-source mount is test tooling only: the backend integration test runs the browser controller and HTTP parsing against the actual Hono app/graph with a failing provider seam. It proves terminal invalidation, disposal, rejection of the old ID, and success after a fresh Start; production services have no cross-service source imports. The same mount lets backend typecheck/knip resolve those integration-test imports.
 
 Backend integration tests reset the dedicated `voice_rag_test` schema. `TEST_DATABASE_URL` must target that test database. The supplied initialization SQL creates it on a fresh PostgreSQL directory; an older database directory may need a fresh initialization after backing up required data.
 
@@ -100,7 +100,7 @@ Formatting uses `npm run format` in either service. Schema generation uses `dock
 
 ## Optional paid live voice check
 
-Live inference has **not been verified** for this deliverable. It requires a valid application key and actual account/model access. Managed Agents API permissions include `api.agents.read`, `api.agents.write`, and `api.responses.write`. This lab uses `openai@7.15.0` managed `client.beta.agents`, not the separate developer-managed Agents SDK. Models are `gpt-6-astra`, `gpt-realtime-2.1` with voice `marin`, and `text-embedding-3-small` (1,536 dimensions).
+Live inference has **not been verified** for this deliverable. It requires a valid application key and actual account/model access. Models are `gpt-4.1-mini-2025-04-14` for Responses, `gpt-4o-transcribe` for input transcripts, `gpt-realtime-2.1` with voice `marin`, and `text-embedding-3-small` (1,536 dimensions). The key needs access to those models and the Responses, embeddings and Realtime endpoints.
 
 Edit the lab root `.env` created above: set `MODE=live` and enter your application key as `OPENAI_API_KEY`. Keep this local, ignored file private. Shell variables override Compose’s `.env` values, so clear conflicting exports. Recreate the services with the same reader entrypoint:
 
@@ -116,9 +116,9 @@ For an automated prerecorded canary, place your own WAV recording at `tmp/audio/
 RUN_LIVE_CANARY=1 LIVE_AUDIO_FILE=/audio/question.wav docker compose run --build --rm browser npm run test:browser
 ```
 
-The harness requires backend mode `live` and a real supplied WAV. It does not intercept/fabricate provider output. It captures completed Realtime function arguments, actual backend answer/source output, correlated returned tool results, a canary-bearing audio transcript, remote WebM audio and elapsed time, then Stops and starts a fresh second session. Query retrieval in live mode calls the actual embedding provider. Successful startup also embeds the document corpus with that provider when the stored fingerprint differs or is missing. Realtime `response.done` events contribute only observed numeric input/output/total token counts to `realtimeUsage`; an empty list means usage was unavailable, not zero.
+The harness requires backend mode `live` and a real supplied WAV. It does not intercept/fabricate provider output. It captures canonical input transcripts, actual NDJSON frames with observation timestamps, speech response events/timestamps and remote WebM audio. It observes two completed turns sharing a chat UUID, then Stops and repeats with a fresh UUID. Frame and event timestamps are observations, not guaranteed latency or audible playback measurements. Query retrieval in live mode calls the actual embedding provider. Successful startup also embeds the document corpus with that provider when the stored fingerprint differs or is missing. Realtime `response.done` events contribute only observed numeric input/output/total token counts to `realtimeUsage`; an empty list means usage was unavailable, not zero.
 
-Record actual Embeddings and managed Agents usage separately from the provider dashboard for the run’s project, models, and start/end time (include startup document embeddings and query embeddings). Save the observed token counts and any reported cost with the local canary report; account for other project traffic or use an isolated project. If Realtime completion usage is absent, record it from the dashboard too. Mark unavailable or delayed usage as pending; never infer zero or invent costs. Dashboard usage and owner audio confirmation remain manual evidence.
+Record actual Embeddings and Responses usage separately from the provider dashboard for the run’s project, models, and start/end time (include startup document embeddings and query embeddings). Save the observed token counts and any reported cost with the local canary report; account for other project traffic or use an isolated project. If Realtime completion usage is absent, record it from the dashboard too. Mark unavailable or delayed usage as pending; never infer zero or invent costs. Dashboard usage and owner audio confirmation remain manual evidence.
 
 A passing automated canary establishes captured provider/application output, **not intelligibility**. Play back both attached session audio files and separately record the owner's confirmation that the canary reply is audible and understandable. The JSON report explicitly leaves that confirmation pending. Never report live voice verification solely from scripted tests, mocked provider tests, transcript text, or silent audio packets.
 

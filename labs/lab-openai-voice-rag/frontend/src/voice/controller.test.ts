@@ -1,171 +1,172 @@
 import { expect, test, vi } from "vitest";
 import { createController } from "./controller";
-import type { Answer, Call, State, Token, Transport } from "./transport";
+import type { AgentEvent, Call, State, Transport } from "./transport";
 
-function deferred<T>() {
-	let resolve!: (value: T) => void;
-	let reject!: (err: Error) => void;
-	const promise = new Promise<T>((a, b) => {
-		resolve = a;
-		reject = b;
-	});
-	return { promise, resolve, reject };
-}
 function setup() {
 	const states: State[] = [];
-	const transports: Transport[] = [];
-	const calls: ((call: Call) => void)[] = [];
-	const token: Token = { mode: "scripted", conversationId: "fresh" };
-	const relay = vi.fn(
-		async (): Promise<Answer> => ({ answer: "canary", sources: [] }),
-	);
-	const fetchToken = vi.fn(async () => token);
-	const factory = () => {
-		const transport = {
-			start: vi.fn(async (_token: Token, call: (call: Call) => void) => {
-				calls.push(call);
-			}),
-			dispose: vi.fn(),
-			output: vi.fn(),
-			question: vi.fn(),
-		};
-		transports.push(transport);
-		return transport;
+	let call!: (c: Call) => void;
+	let interrupt!: () => void;
+	let emit!: (e: AgentEvent) => void;
+	let reject!: (err: Error) => void;
+	let fail!: () => void;
+	let finish!: (a: { answer: string; sources: [] }) => void;
+	const requests: { id: string; query: string; signal: AbortSignal }[] = [];
+	const t = {
+		start: async (
+			_: unknown,
+			c: (c: Call) => void,
+			_f: () => void,
+			i: () => void,
+		) => {
+			call = c;
+			fail = _f;
+			interrupt = i;
+		},
+		say: vi.fn(),
+		clearSpeech: vi.fn(),
+		question: vi.fn(),
+		dispose: vi.fn(),
+	} satisfies Transport;
+	let id = 0;
+	const c = createController({
+		sessionId: () => `chat-${++id}`,
+		token: async () => ({ mode: "scripted" }),
+		transport: () => t,
+		change: (s) => states.push(s),
+		relay: (id, query, signal, onEvent) => {
+			requests.push({ id, query, signal });
+			emit = onEvent;
+			return new Promise((resolve, rejectPromise) => {
+				reject = rejectPromise;
+				finish = resolve;
+			});
+		},
+	});
+	return {
+		c,
+		t,
+		states,
+		requests,
+		call: (x: Call) => call(x),
+		interrupt: () => interrupt(),
+		emit: (e: AgentEvent) => emit(e),
+		fail: () => fail(),
+		reject: () => reject(Error("private provider detail")),
+		finish: () => finish({ answer: "First.", sources: [] }),
 	};
-	const controller = createController({
-		token: fetchToken,
-		relay,
+}
+test("UUID stays across turns and changes every Start; partial UI and speech precede done", async () => {
+	const s = setup();
+	await s.c.start();
+	s.call({ id: "a", question: "amber valve?" });
+	s.emit({ type: "delta", text: "First." });
+	expect(s.states.at(-1)).toMatchObject({
+		query: "amber valve?",
+		answer: { answer: "First." },
+	});
+	expect(s.t.say).toHaveBeenCalledWith("First.");
+	s.finish();
+	await Promise.resolve();
+	s.call({ id: "b", question: "next?" });
+	expect(s.requests.map((r) => r.id)).toEqual(["chat-1", "chat-1"]);
+	await s.c.start();
+	s.call({ id: "c", question: "fresh?" });
+	expect(s.requests.at(-1)?.id).toBe("chat-2");
+	s.c.stop();
+});
+test("interrupt aborts only current turn and suppresses late deltas", async () => {
+	const s = setup();
+	await s.c.start();
+	s.call({ id: "a", question: "old" });
+	s.interrupt();
+	expect(s.requests[0]?.signal.aborted).toBe(true);
+	s.emit({ type: "delta", text: "Late." });
+	expect(s.t.say).not.toHaveBeenCalled();
+	s.call({ id: "b", question: "new" });
+	expect(s.requests.at(-1)?.id).toBe("chat-1");
+	s.c.stop();
+});
+
+test("request error allows next question in same chat, never retries", async () => {
+	const s = setup();
+	await s.c.start();
+	s.call({ id: "a", question: "first" });
+	s.reject();
+	await Promise.resolve();
+	expect(s.states.at(-1)).toMatchObject({
+		status: "Ready",
+		mode: "scripted",
+		error: "Knowledge request failed. Ask another question to continue.",
+	});
+	expect(s.requests).toHaveLength(1);
+	expect(s.t.dispose).not.toHaveBeenCalled();
+	s.call({ id: "b", question: "next" });
+	expect(s.requests.at(-1)?.id).toBe("chat-1");
+	s.c.stop();
+});
+test("duplicate transcripts do not interrupt or repeat a request", async () => {
+	const s = setup();
+	await s.c.start();
+	s.call({ id: "a", question: "q" });
+	s.call({ id: "a", question: "duplicate" });
+	expect(s.requests).toHaveLength(1);
+	expect(s.requests[0]?.signal.aborted).toBe(false);
+	s.c.stop();
+});
+test("connection failure disposes and makes later calls inert", async () => {
+	const s = setup();
+	await s.c.start();
+	s.call({ id: "a", question: "q" });
+	s.fail();
+	expect(s.states.at(-1)?.status).toBe("Error");
+	expect(s.t.dispose).toHaveBeenCalledOnce();
+	expect(s.requests[0]?.signal.aborted).toBe(true);
+	s.emit({ type: "delta", text: "late." });
+	s.call({ id: "b", question: "q" });
+	expect(s.requests).toHaveLength(1);
+	expect(s.t.say).not.toHaveBeenCalled();
+});
+test("Stop ignores token arriving late without allocating transport", async () => {
+	let resolve!: (token: { mode: "scripted" }) => void;
+	const factory = vi.fn();
+	const states: State[] = [];
+	const c = createController({
+		sessionId: () => "uuid",
+		token: () =>
+			new Promise((r) => {
+				resolve = r;
+			}),
 		transport: factory,
+		relay: vi.fn(),
 		change: (s) => states.push(s),
 	});
-	return { controller, states, transports, calls, relay, fetchToken, factory };
-}
-test("repeated Start disposes first transport; Stop disposes active transport", async () => {
-	const s = setup();
-	await s.controller.start();
-	await s.controller.start();
-	expect(s.transports).toHaveLength(2);
-	expect(s.transports[0]?.dispose).toHaveBeenCalledOnce();
-	s.controller.stop();
-	expect(s.transports[1]?.dispose).toHaveBeenCalledOnce();
-	expect(s.states.at(-1)?.status).toBe("Stopped");
-});
-test("Stop ignores a late token without allocating transport", async () => {
-	const s = setup();
-	const d = deferred<Token>();
-	s.fetchToken.mockReturnValue(d.promise);
-	const pending = s.controller.start();
-	s.controller.stop();
-	d.resolve({ mode: "scripted", conversationId: "late" });
-	await pending;
-	expect(s.transports).toHaveLength(0);
-	expect(s.states.at(-1)?.status).toBe("Stopped");
-});
-test("late answer after Stop cannot render or send output", async () => {
-	const s = setup();
-	const d = deferred<Answer>();
-	s.relay.mockReturnValue(d.promise);
-	await s.controller.start();
-	s.calls[0]?.({ id: "a", question: "q" });
-	s.controller.stop();
-	d.resolve({ answer: "stale", sources: [] });
-	await vi.waitFor(() => expect(s.relay).toHaveBeenCalledOnce());
-	await Promise.resolve();
-	expect(s.states.some((x) => x.answer)).toBe(false);
-	expect(s.transports[0]?.output).not.toHaveBeenCalled();
-});
-test("duplicate call IDs relay once and correlate output", async () => {
-	const s = setup();
-	await s.controller.start();
-	s.calls[0]?.({ id: "call-7", question: "q" });
-	s.calls[0]?.({ id: "call-7", question: "q" });
-	await vi.waitFor(() =>
-		expect(s.transports[0]?.output).toHaveBeenCalledWith("call-7", {
-			answer: "canary",
-			sources: [],
-		}),
-	);
-	expect(s.relay).toHaveBeenCalledOnce();
-});
-test("failed relay disposes the session and requires a new Start", async () => {
-	const s = setup();
-	s.relay.mockRejectedValueOnce(new Error("secret"));
-	await s.controller.start();
-	s.calls[0]?.({ id: "fail", question: "q" });
-	await vi.waitFor(() => expect(s.states.at(-1)?.status).toBe("Error"));
-	expect(s.states.at(-1)?.error).toContain("Start again");
-	expect(s.states.at(-1)?.error).not.toContain("secret");
-	expect(s.transports[0]?.dispose).toHaveBeenCalledOnce();
-	expect(s.transports[0]?.output).not.toHaveBeenCalled();
-	s.calls[0]?.({ id: "stale", question: "q" });
-	expect(s.relay).toHaveBeenCalledOnce();
-	await s.controller.start();
-	s.calls[1]?.({ id: "next", question: "q" });
-	await vi.waitFor(() =>
-		expect(s.states.at(-1)?.answer?.answer).toBe("canary"),
-	);
-});
-test("failed token renders usable safe error", async () => {
-	const s = setup();
-	s.fetchToken.mockRejectedValue(new Error("secret"));
-	await s.controller.start();
-	expect(s.states.at(-1)?.error).toBe(
-		"Connection failed. Check the services and microphone permission, then Start again.",
-	);
-});
-test("failed transport start disposes partial resources", async () => {
-	const s = setup();
-	const t = s.factory();
-	t.start = vi.fn(async () => {
-		throw Error("secret");
-	});
-	const states: State[] = [];
-	const c = createController({
-		token: s.fetchToken,
-		relay: s.relay,
-		transport: () => t,
-		change: (x) => states.push(x),
-	});
-	await c.start();
-	expect(t.dispose).toHaveBeenCalledOnce();
-	expect(states.at(-1)?.error).toBeTruthy();
-});
-test("Stop during connection suppresses late success and failure", async () => {
-	const s = setup();
-	const d = deferred<void>();
-	void d.promise.catch(() => {});
-	const t = s.factory();
-	t.start = vi.fn(() => d.promise);
-	const states: State[] = [];
-	const c = createController({
-		token: s.fetchToken,
-		relay: s.relay,
-		transport: () => t,
-		change: (x) => states.push(x),
-	});
-	const p = c.start();
-	await Promise.resolve();
+	const pending = c.start();
 	c.stop();
-	d.reject(Error("late"));
-	await p;
-	expect(t.dispose).toHaveBeenCalled();
+	resolve({ mode: "scripted" });
+	await pending;
+	expect(factory).not.toHaveBeenCalled();
 	expect(states.at(-1)?.status).toBe("Stopped");
 });
 
-test("a late relay failure cannot dispose a fresh session", async () => {
-	const s = setup();
-	const d = deferred<Answer>();
-	s.relay.mockReturnValueOnce(d.promise);
-	await s.controller.start();
-	s.calls[0]?.({ id: "old", question: "q" });
-	await s.controller.start();
-	d.reject(Error("late failure"));
-	await Promise.resolve();
-	await Promise.resolve();
-	expect(s.states.at(-1)?.status).toBe("Ready");
-	expect(s.transports[1]?.dispose).not.toHaveBeenCalled();
-	s.calls[1]?.({ id: "fresh", question: "q" });
-	await vi.waitFor(() =>
-		expect(s.states.at(-1)?.answer?.answer).toBe("canary"),
-	);
+test("late connection success does not overwrite a turn already searching", async () => {
+	const states: State[] = [];
+	const t: Transport = {
+		start: async (_token, call) => {
+			call({ id: "early", question: "q" });
+		},
+		say() {},
+		clearSpeech() {},
+		question() {},
+		dispose() {},
+	};
+	const c = createController({
+		sessionId: () => "uuid",
+		token: async () => ({ mode: "live" }),
+		transport: () => t,
+		relay: () => new Promise(() => {}),
+		change: (s) => states.push(s),
+	});
+	await c.start();
+	expect(states.at(-1)?.status).toBe("Searching");
+	c.stop();
 });

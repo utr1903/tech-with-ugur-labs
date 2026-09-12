@@ -6,6 +6,14 @@ type Telemetry = {
 	tracks: MediaStreamTrack[];
 	recordings: Blob[];
 	recorders: MediaRecorder[];
+	firstRecordedAudioAt?: number;
+	agent: {
+		sessionId: string;
+		query: string;
+		startedAt: number;
+		frames: { at: number; event: Record<string, unknown> }[];
+		error?: string;
+	}[];
 };
 declare global {
 	interface Window {
@@ -20,6 +28,7 @@ export async function installTelemetry(page: Page) {
 			tracks: [],
 			recordings: [],
 			recorders: [],
+			agent: [],
 		};
 		const Native = window.RTCPeerConnection;
 		window.RTCPeerConnection = class extends Native {
@@ -31,7 +40,10 @@ export async function installTelemetry(page: Page) {
 						mimeType: "audio/webm;codecs=opus",
 					});
 					recorder.addEventListener("dataavailable", (e) => {
-						if (e.data.size) telemetry.recordings.push(e.data);
+						if (e.data.size) {
+							telemetry.firstRecordedAudioAt ??= performance.now();
+							telemetry.recordings.push(e.data);
+						}
 					});
 					telemetry.recorders.push(recorder);
 					recorder.start(250);
@@ -41,14 +53,72 @@ export async function installTelemetry(page: Page) {
 				const channel = super.createDataChannel(label, options);
 				const send = channel.send.bind(channel);
 				channel.send = ((data: string) => {
-					telemetry.sent.push(JSON.parse(data));
+					telemetry.sent.push({
+						...JSON.parse(data),
+						observedAt: performance.now(),
+					});
 					send(data);
 				}) as typeof channel.send;
 				channel.addEventListener("message", (e) =>
-					telemetry.events.push(JSON.parse(String(e.data))),
+					telemetry.events.push({
+						...JSON.parse(String(e.data)),
+						observedAt: performance.now(),
+					}),
 				);
 				return channel;
 			}
+		};
+		function consume(buffer: string, turn: Telemetry["agent"][number]) {
+			let n = buffer.indexOf("\n");
+			while (n >= 0) {
+				turn.frames.push({
+					at: performance.now(),
+					event: JSON.parse(buffer.slice(0, n)),
+				});
+				buffer = buffer.slice(n + 1);
+				n = buffer.indexOf("\n");
+			}
+			return buffer;
+		}
+		async function captureStream(
+			response: Response,
+			turn: Telemetry["agent"][number],
+		) {
+			const reader = response.clone().body?.getReader();
+			if (!reader) return;
+			const decoder = new TextDecoder();
+			let buffer = "";
+
+			try {
+				while (true) {
+					const part = await reader.read();
+					if (part.done) break;
+					buffer += decoder.decode(part.value, { stream: true });
+					buffer = consume(buffer, turn);
+				}
+			} catch {
+				turn.error = "Stream capture failed";
+			} finally {
+				reader.releaseLock();
+			}
+		}
+		const nativeFetch = window.fetch.bind(window);
+		window.fetch = async (input, init) => {
+			const startedAt = performance.now();
+			const response = await nativeFetch(input, init);
+			if (String(input).endsWith("/api/agent")) {
+				const payload = JSON.parse(String(init?.body));
+				const turn = {
+					sessionId: payload.sessionId,
+					query: payload.query,
+					startedAt,
+					frames: [] as { at: number; event: Record<string, unknown> }[],
+					error: undefined as string | undefined,
+				};
+				telemetry.agent.push(turn);
+				void captureStream(response, turn);
+			}
+			return response;
 		};
 		const acquire = navigator.mediaDevices.getUserMedia.bind(
 			navigator.mediaDevices,
@@ -65,8 +135,10 @@ export async function resetTelemetry(page: Page) {
 	await page.evaluate(() => {
 		const t = window.liveTelemetry;
 		t.events.length = 0;
+		t.firstRecordedAudioAt = undefined;
 		t.sent.length = 0;
 		t.recordings.length = 0;
+		t.agent.length = 0;
 		t.recorders.length = 0;
 	});
 }
@@ -93,6 +165,8 @@ export async function captureAudio(page: Page) {
 		});
 		return {
 			events: t.events,
+			agent: t.agent,
+			firstRecordedAudioAt: t.firstRecordedAudioAt,
 			sent: t.sent,
 			bytes: audio.size,
 			base64,

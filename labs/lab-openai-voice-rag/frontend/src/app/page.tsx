@@ -16,6 +16,7 @@ export default function Page() {
 	const controller = useRef<ReturnType<typeof createController> | null>(null);
 	useEffect(() => {
 		const c = createController({
+			sessionId: () => crypto.randomUUID(),
 			token: fetchToken,
 			relay: fetchAnswer,
 			transport: (mode) => {
@@ -129,6 +130,12 @@ export default function Page() {
 					</form>
 				)}
 			</div>
+			{state.query && (
+				<section aria-label="Recognized question">
+					<h2>Question</h2>
+					<p>{state.query}</p>
+				</section>
+			)}
 			{state.answer && (
 				<section aria-label="Answer">
 					<h2>Answer</h2>

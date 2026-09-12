@@ -1,4 +1,5 @@
 import { createProtocol } from "./protocol";
+import { channelReady } from "./realtime-channel";
 import type { Transport } from "./transport";
 
 type Platform = {
@@ -13,34 +14,6 @@ const browser: Platform = {
 	audio: () => document.createElement("audio"),
 	fetch: (...args) => fetch(...args),
 };
-function channelReady(channel: RTCDataChannel, signal: AbortSignal) {
-	return new Promise<void>((resolve, reject) => {
-		const cleanup = () => {
-			channel.removeEventListener("open", open);
-			channel.removeEventListener("error", error);
-			signal.removeEventListener("abort", error);
-		};
-		const open = () => {
-			cleanup();
-			resolve();
-		};
-		const error = () => {
-			cleanup();
-			reject(Error("Connection interrupted"));
-		};
-		if (signal.aborted) {
-			error();
-			return;
-		}
-		if (channel.readyState === "open") {
-			open();
-			return;
-		}
-		channel.addEventListener("open", open, { once: true });
-		channel.addEventListener("error", error, { once: true });
-		signal.addEventListener("abort", error, { once: true });
-	});
-}
 export function createRealtime(
 	platform: Platform = browser,
 	observer?: { observe(stream: MediaStream): void; dispose(): void },
@@ -56,6 +29,7 @@ export function createRealtime(
 		if (disposed) return;
 		disposed = true;
 		abort.abort();
+		protocol?.dispose();
 		observer?.dispose();
 		channel?.close();
 		peer?.close();
@@ -79,6 +53,7 @@ export function createRealtime(
 		acquired: MediaStream,
 		call: Parameters<Transport["start"]>[1],
 		fail: () => void,
+		interrupt: () => void,
 	) {
 		stream = acquired;
 		peer = platform.peer();
@@ -105,7 +80,7 @@ export function createRealtime(
 		};
 		for (const track of stream.getTracks()) peer.addTrack(track, stream);
 		channel = peer.createDataChannel("oai-events");
-		protocol = createProtocol(send, call, fail);
+		protocol = createProtocol(send, call, fail, interrupt);
 		channel.onmessage = (e) => {
 			if (disposed) return;
 			try {
@@ -153,7 +128,22 @@ export function createRealtime(
 			type: "session.update",
 			session: {
 				type: "realtime",
-				tool_choice: { type: "function", name: "ask_knowledge_base" },
+				tools: [],
+				tool_choice: "none",
+				audio: {
+					input: {
+						transcription: {
+							model: "gpt-4o-transcribe",
+							prompt:
+								"Transcribe verbatim. Preserve ordinary color and component names.",
+						},
+						turn_detection: {
+							type: "server_vad",
+							create_response: false,
+							interrupt_response: false,
+						},
+					},
+				},
 			},
 		});
 	}
@@ -161,6 +151,7 @@ export function createRealtime(
 		token: Parameters<Transport["start"]>[0],
 		call: Parameters<Transport["start"]>[1],
 		fail: () => void,
+		interrupt: () => void,
 	) {
 		try {
 			if (!token.clientSecret) throw Error("Missing ephemeral credential");
@@ -169,7 +160,7 @@ export function createRealtime(
 				for (const track of acquired.getTracks()) track.stop();
 				return;
 			}
-			attach(acquired, call, fail);
+			attach(acquired, call, fail, interrupt);
 			await negotiate(token.clientSecret);
 		} catch (err) {
 			if (disposed) return;
@@ -181,8 +172,11 @@ export function createRealtime(
 	return {
 		start,
 		dispose,
-		output(id, result) {
-			protocol?.output(id, result);
+		say(text) {
+			protocol?.say(text);
+		},
+		clearSpeech() {
+			protocol?.clearSpeech();
 		},
 		question() {},
 	};

@@ -39,9 +39,9 @@ test("readiness, real ingestion, simulated relay, sources and two microphone ses
 	expect((await request.get("/api/ready")).ok()).toBe(true);
 	expect((await request.post("/api/ingest")).ok()).toBe(true);
 	const ids: string[] = [];
-	page.on("response", async (response) => {
-		if (response.url().endsWith("/api/realtime/token") && response.ok())
-			ids.push((await response.json()).conversationId);
+	page.on("request", (request) => {
+		if (request.url().endsWith("/api/agent"))
+			ids.push(request.postDataJSON().sessionId);
 	});
 	await page.goto("/");
 	await page.getByRole("button", { name: "Start", exact: true }).click();
@@ -61,17 +61,29 @@ test("readiness, real ingestion, simulated relay, sources and two microphone ses
 	await expect(page.getByRole("region", { name: "Answer" })).toContainText(
 		"handbook.md",
 	);
+	await expect(page.getByRole("status")).toHaveText("Ready");
+	await page
+		.getByLabel("Simulated question")
+		.fill("What is the amber valve inspection interval?");
+	await page.getByRole("button", { name: "Ask", exact: true }).click();
+	await expect(page.getByRole("status")).toHaveText("Ready");
+	expect(ids[0]).toBe(ids[1]);
 	await page.getByRole("button", { name: "Stop", exact: true }).click();
 	await ended(page);
 	await expect(page.getByRole("region", { name: "Answer" })).toHaveCount(0);
 	await page.getByRole("button", { name: "Start", exact: true }).click();
 	await expect(page.getByRole("status")).toHaveText("Ready");
-	await expect.poll(() => ids.length).toBe(2);
-	expect(ids[0]).not.toBe(ids[1]);
+	await page
+		.getByLabel("Simulated question")
+		.fill("What is the amber valve recovery code?");
+	await page.getByRole("button", { name: "Ask", exact: true }).click();
+	await expect(page.getByRole("status")).toHaveText("Ready");
+	expect(ids).toHaveLength(3);
+	expect(ids[0]).not.toBe(ids[2]);
 	await page.getByRole("button", { name: "Stop", exact: true }).click();
 	await ended(page);
 });
-test("token and relay failures require Start and release microphone tracks", async ({
+test("token failure ends connection; request failure recovers without Start", async ({
 	page,
 }) => {
 	await page.route("**/api/realtime/token", (route) =>
@@ -94,12 +106,10 @@ test("token and relay failures require Start and release microphone tracks", asy
 	await page.getByLabel("Simulated question").fill("canary?");
 	await page.getByRole("button", { name: "Ask", exact: true }).click();
 	await expect(page.getByRole("main").getByRole("alert")).toHaveText(
-		"Knowledge request failed. Start again to ask another question.",
+		"Knowledge request failed. Ask another question to continue.",
 	);
-	await expect(page.getByRole("status")).toHaveText("Error");
-	await ended(page);
+	await expect(page.getByRole("status")).toHaveText("Ready");
 	await page.unroute("**/api/agent");
-	await page.getByRole("button", { name: "Start", exact: true }).click();
 	await expect(page.getByRole("status")).toHaveText("Ready");
 	await page.getByRole("button", { name: "Ask", exact: true }).click();
 	await expect(page.getByRole("region", { name: "Answer" })).toBeVisible();
@@ -134,7 +144,7 @@ test("late answer after Stop cannot enter a fresh session", async ({
 	await expect(page.getByRole("status")).toHaveText("Ready");
 	await page.getByLabel("Simulated question").fill("canary?");
 	await page.getByRole("button", { name: "Ask", exact: true }).click();
-	await expect(page.getByRole("status")).toHaveText("Retrieving");
+	await expect(page.getByRole("status")).toHaveText("Searching");
 	await incoming;
 	await page.getByRole("button", { name: "Stop", exact: true }).click();
 	await ended(page);

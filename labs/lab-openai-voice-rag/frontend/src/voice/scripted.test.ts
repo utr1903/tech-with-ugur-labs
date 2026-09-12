@@ -1,7 +1,7 @@
 import { expect, test, vi } from "vitest";
 import { createScripted } from "./scripted";
 
-const token = { mode: "scripted" as const, conversationId: "a" };
+const token = { mode: "scripted" as const };
 test("Stop during microphone acquisition releases a late stream", async () => {
 	let resolve!: (s: MediaStream) => void;
 	const stop = vi.fn();
@@ -14,6 +14,7 @@ test("Stop during microphone acquisition releases a late stream", async () => {
 		token,
 		() => {},
 		() => {},
+		() => {},
 	);
 	t.dispose();
 	expect(resolve).toBeTypeOf("function");
@@ -21,13 +22,18 @@ test("Stop during microphone acquisition releases a late stream", async () => {
 	await pending;
 	expect(stop).toHaveBeenCalledOnce();
 });
-test("simulated question emits exact tool correlation; disposal releases microphone", async () => {
+test("simulated question emits exact typed query; disposal releases microphone", async () => {
 	const stop = vi.fn();
 	const call = vi.fn();
 	const t = createScripted(
 		async () => ({ getTracks: () => [{ stop }] }) as unknown as MediaStream,
 	);
-	await t.start(token, call, () => {});
+	await t.start(
+		token,
+		call,
+		() => {},
+		() => {},
+	);
 	t.question("canary?");
 	expect(call).toHaveBeenCalledWith({
 		id: expect.any(String),

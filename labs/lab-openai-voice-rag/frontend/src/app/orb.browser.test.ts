@@ -75,7 +75,6 @@ test("incoming remote samples change orb scale and contour, Stop resets both", a
 		route.fulfill({
 			json: {
 				mode: "live",
-				conversationId: "orb-browser",
 				clientSecret: "TEST_EPHEMERAL_PLACEHOLDER",
 			},
 		}),
@@ -138,9 +137,7 @@ test("token failure releases the context prepared by Start", async ({
 		),
 	).toBe(1);
 });
-test("orb decoration fits a narrow tablet viewport", async ({
-	page,
-}) => {
+test("orb decoration fits a narrow tablet viewport", async ({ page }) => {
 	await page.setViewportSize({ width: 653, height: 844 });
 	await page.goto("/");
 	await expect(

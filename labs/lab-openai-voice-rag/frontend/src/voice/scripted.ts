@@ -16,7 +16,8 @@ export function createScripted(acquire: () => Promise<MediaStream>): Transport {
 		question(question) {
 			if (!disposed) emit?.({ id: crypto.randomUUID(), question });
 		},
-		output() {},
+		say() {},
+		clearSpeech() {},
 		dispose() {
 			if (disposed) return;
 			disposed = true;

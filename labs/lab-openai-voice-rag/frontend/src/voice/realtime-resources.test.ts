@@ -10,7 +10,6 @@ function deferred<T>() {
 }
 const token = {
 	mode: "live" as const,
-	conversationId: "a",
 	clientSecret: "YOUR_EPHEMERAL_KEY",
 };
 test("late live microphone is stopped before peer allocation", async () => {
@@ -25,6 +24,7 @@ test("late live microphone is stopped before peer allocation", async () => {
 	});
 	const pending = t.start(
 		token,
+		() => {},
 		() => {},
 		() => {},
 	);
@@ -63,6 +63,7 @@ test("Stop during SDP disposes peer/channel/audio and ignores late answer", asyn
 	});
 	const pending = t.start(
 		token,
+		() => {},
 		() => {},
 		() => {},
 	);
@@ -115,7 +116,12 @@ test("remote stream observation failure preserves playback and late tracks canno
 		observer,
 	);
 	const fail = vi.fn();
-	await transport.start(token, () => {}, fail);
+	await transport.start(
+		token,
+		() => {},
+		fail,
+		() => {},
+	);
 	peer.ontrack?.({ streams: [remote] });
 	expect(audio.srcObject).toBe(remote);
 	expect(audio.play).toHaveBeenCalledOnce();
