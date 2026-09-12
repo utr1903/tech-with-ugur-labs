@@ -30,9 +30,6 @@ export async function logOperation<T>(
 					err instanceof SafeError ? err.status : 502,
 				),
 				durationMs: performance.now() - started,
-				cancelled:
-					err instanceof Error &&
-					(err.name === "AbortError" || err.name === "TimeoutError"),
 			},
 			`${name} failed.`,
 		);

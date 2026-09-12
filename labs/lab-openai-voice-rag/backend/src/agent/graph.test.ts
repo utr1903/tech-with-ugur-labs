@@ -225,3 +225,29 @@ it("includes the user query in successful and failed request operation logs", as
 	});
 	expect(lines.join("")).not.toContain("ORCHID-47");
 });
+
+it("reports safe deadline status without inferred cancellation metadata", async () => {
+	const lines: string[] = [];
+	const captured = pino(
+		{},
+		{
+			write: (line) => {
+				lines.push(line);
+			},
+		},
+	);
+	const graph = createGraph({
+		provider: createScriptedProvider(),
+		retrieve: () => new Promise(() => {}),
+		logger: captured,
+		deadlineMs: 10,
+	});
+	await expect(graph.turn(await graph.create(), "amber")).rejects.toThrow(
+		"deadline",
+	);
+	const failure = lines
+		.map((line) => JSON.parse(line))
+		.find((entry) => entry.msg === "Agent turn failed.");
+	expect(failure).toMatchObject({ err: { status: 504 } });
+	expect(failure).not.toHaveProperty("cancelled");
+});
