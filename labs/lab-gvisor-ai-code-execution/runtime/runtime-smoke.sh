@@ -8,6 +8,7 @@ script_dir=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)
 evidence_dir=${1:-/tmp/gvisor-runtime-smoke}
 mkdir -p "$evidence_dir"
 k() { kubectl --context "$context" "$@"; }
+source "$script_dir/pod-wait.sh"
 fail() { printf 'FAIL: %s\n' "$*" >&2; exit 1; }
 runtime_backed_up=false
 restore_handler() {
@@ -33,11 +34,10 @@ fi
 k delete job runtime-smoke invalid-runtime-smoke -n executor --ignore-not-found --wait=true --cascade=foreground
 k delete pod -n executor -l 'job-name in (runtime-smoke,invalid-runtime-smoke)' --ignore-not-found --wait=true
 k apply -f "$script_dir/python-job.yaml"
-if ! k wait pod -n executor -l job-name=runtime-smoke --for=condition=Ready --timeout=240s; then
+if ! pod=$(wait_job_ready_pod runtime-smoke executor 240); then
   k get events -n executor -o json > "$evidence_dir/runtime-events.json"
   fail 'expected gVisor Job to launch Python; pod did not become ready'
 fi
-pod=$(k get pod -n executor -l job-name=runtime-smoke -o jsonpath='{.items[0].metadata.name}')
 k get pod "$pod" -n executor -o json > "$evidence_dir/python-pod.json"
 capture_stdout "$evidence_dir/python.stdout" "$pod"
 printf '42\n' > "$evidence_dir/expected.stdout"
@@ -127,8 +127,7 @@ PY
 k delete job invalid-runtime-smoke -n executor --wait=true --cascade=foreground
 restore_handler
 k apply -f "$script_dir/python-job.yaml"
-k wait pod -n executor -l job-name=runtime-smoke --for=condition=Ready --timeout=240s
-restored_pod=$(k get pod -n executor -l job-name=runtime-smoke -o jsonpath='{.items[0].metadata.name}')
+restored_pod=$(wait_job_ready_pod runtime-smoke executor 240)
 capture_stdout "$evidence_dir/restored-python.stdout" "$restored_pod"
 cmp "$evidence_dir/expected.stdout" "$evidence_dir/restored-python.stdout" || fail 'restored configured gvisor handler did not execute benign Python'
 k delete job runtime-smoke -n executor --wait=true --cascade=foreground

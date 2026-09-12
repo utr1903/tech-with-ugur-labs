@@ -16,6 +16,8 @@ bash runtime/network-smoke.sh
 
 Tests write machine-readable results and raw runtime/policy/canary evidence beneath `/tmp/gvisor-runtime-smoke` and `/tmp/gvisor-network-smoke`. Successful tests remove their Jobs and canary namespaces. A failed test preserves resources for inspection; the handler drill has an exit trap that restores the original configuration.
 
+Runtime readiness first discovers a pod owned by the current Job UID, then waits for that exact pod within one 240-second budget. To verify bounded absence and delayed pod creation against the cluster, run `bash runtime/pod-wait-test.sh`; it removes its own suspended test Job afterward.
+
 To remove this cluster:
 
 ```sh
