@@ -1,116 +1,112 @@
-import type { Evidence, Source } from "../corpus/types.js";
+import { createQueue } from "../chat/queue.js";
+import type { ChatStore } from "../chat/store.js";
+import type { Evidence } from "../corpus/types.js";
 import { SafeError, safeError } from "../http/errors.js";
 import type { Logger } from "../logger.js";
 import { logOperation } from "../operation.js";
-import type { ManagedSession, Pending, Provider } from "../provider/types.js";
-import { createConversations } from "./conversations.js";
+import type { AgentEvent, Provider } from "../provider/types.js";
 import { createTurnDeadline } from "./turn-deadline.js";
 
 type Options = {
 	provider: Provider;
+	chats: ChatStore;
 	retrieve: (question: string, signal?: AbortSignal) => Promise<Evidence>;
 	logger: Logger;
 	deadlineMs?: number;
-	ttlMs?: number;
-	maxSessions?: number;
-	now?: () => number;
+	maxChats?: number;
+	maxPending?: number;
 };
-function toolQuestion(call: Pending): string {
-	if (
-		call.name !== "retrieve_documents" ||
-		!call.turnId ||
-		!call.callId ||
-		!call.arguments ||
-		typeof call.arguments !== "object" ||
-		!("question" in call.arguments) ||
-		typeof call.arguments.question !== "string" ||
-		!call.arguments.question.trim() ||
-		call.arguments.question.length > 2000
-	)
-		throw new SafeError("Invalid provider action");
-	return call.arguments.question;
-}
-async function execute(
-	session: ManagedSession,
-	question: string,
+async function checkedRetrieval(
 	options: Options,
+	question: string,
 	signal: AbortSignal,
 ) {
-	let step = await session.turn(question, signal);
+	const evidence = await options.retrieve(question, signal);
 	signal.throwIfAborted();
-	const seen = new Set<string>();
-	const sources = new Map<string, Source>();
-	let calls = 0;
-	while (step.type === "pending") {
-		if (!step.calls.length) throw new SafeError("Invalid provider action");
-		const pending = step.calls;
-		for (const call of pending) {
-			const key = `${call.turnId}:${call.callId}`;
-			if (seen.has(key) || ++calls > 4)
-				throw new SafeError("Provider tool limit exceeded");
-			seen.add(key);
-			const evidence = await options.retrieve(toolQuestion(call), signal);
-			signal.throwIfAborted();
-			for (const source of evidence.sources) sources.set(source.id, source);
-			step = await session.output(call, evidence, signal);
-			signal.throwIfAborted();
-		}
+	return evidence;
+}
+function checkedEmit(
+	signal: AbortSignal,
+	emit: (event: AgentEvent) => void,
+	event: AgentEvent,
+) {
+	signal.throwIfAborted();
+	emit(event);
+}
+async function execute(
+	options: Options,
+	sessionId: string,
+	query: string,
+	emit: (event: AgentEvent) => void,
+	boundary: ReturnType<typeof createTurnDeadline>,
+) {
+	let id: number | undefined;
+	const signal = boundary.signal;
+	try {
+		signal.throwIfAborted();
+		id = await options.chats.begin(sessionId, query);
+		signal.throwIfAborted();
+		const history = await options.chats.history(sessionId);
+		signal.throwIfAborted();
+		emit({ type: "status", stage: "searching" });
+		const result = await Promise.race([
+			options.provider.run({
+				history,
+				query,
+				retrieve: (question, signal) =>
+					checkedRetrieval(options, question, signal),
+				emit: (event) => checkedEmit(signal, emit, event),
+				signal,
+			}),
+			boundary.cancelled,
+		]);
+		signal.throwIfAborted();
+		if (!result.answer.trim() || result.answer.length > 12000)
+			throw new SafeError("Invalid provider answer");
+		await options.chats.complete(id, result);
+		signal.throwIfAborted();
+		emit({ type: "done", ...result });
+		return result;
+	} catch (err) {
+		if (id !== undefined)
+			await options.chats.fail(id, signal.aborted ? "cancelled" : "failed");
+		throw safeError(err);
 	}
-	if (calls === 0) throw new SafeError("Provider skipped retrieval");
-	if (!step.answer.trim() || step.answer.length > 12000)
-		throw new SafeError("Invalid provider answer");
-	return { answer: step.answer, sources: [...sources.values()] };
 }
 export function createGraph(options: Options) {
-	const sessions = createConversations(
-		options.provider,
-		options.ttlMs ?? 1800000,
-		options.maxSessions ?? 100,
-		options.now ?? Date.now,
-	);
+	const enqueue = createQueue(options.maxChats, options.maxPending);
 	return {
-		create: async () => sessions.create(),
-		remove: sessions.remove,
-		turn: (id: string, question: string) =>
-			logOperation(
-				options.logger,
-				"Agent turn",
-				{ conversationId: id, query: question },
-				async () => {
-					const item = sessions.get(id);
-					const boundary = createTurnDeadline(
-						item.controller.signal,
-						options.deadlineMs ?? 30000,
-					);
-					const work = item.queue
-						.then(() => {
-							if (item.closed || sessions.get(id) !== item)
-								throw new SafeError("Unknown conversation", 404);
-							boundary.signal.throwIfAborted();
-							return execute(item.session, question, options, boundary.signal);
-						})
-						.catch((err) => {
-							const safe = safeError(err);
-							sessions.remove(id, safe);
-							throw safe;
-						});
-
-					item.queue = work.catch(() => {});
-					try {
-						const result = await Promise.race([work, boundary.cancelled]);
-						return result;
-					} catch (err) {
-						sessions.remove(id);
-						const safe = safeError(err);
-						throw safe;
-					} finally {
-						boundary.close();
-					}
-				},
-				(result) => ({
-					sourceCount: result.sources.length,
-					answerCharacters: result.answer.length,
-				}),
-			),
+		turn: (
+			sessionId: string,
+			query: string,
+			emit: (event: AgentEvent) => void,
+			lifecycle: AbortSignal,
+		) => {
+			const boundary = createTurnDeadline(
+				lifecycle,
+				options.deadlineMs ?? 30000,
+			);
+			let work: Promise<unknown>;
+			try {
+				work = enqueue(sessionId, boundary.signal, () =>
+					logOperation(
+						options.logger,
+						"Agent turn",
+						{ sessionId, query },
+						() => execute(options, sessionId, query, emit, boundary),
+						(result) => ({
+							sourceCount: result.sources.length,
+							answerCharacters: result.answer.length,
+						}),
+					),
+				);
+			} catch (err) {
+				boundary.close();
+				throw err;
+			}
+			return Promise.race([work, boundary.cancelled]).finally(() =>
+				boundary.close(),
+			);
+		},
 	};
 }

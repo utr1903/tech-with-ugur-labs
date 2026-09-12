@@ -25,3 +25,5 @@ export const chunks = pgTable(
 		uniqueIndex("chunk_document_ordinal").on(table.filename, table.ordinal),
 	],
 );
+
+export { chats, turns } from "../chat/schema.js";

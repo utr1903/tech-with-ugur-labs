@@ -30,17 +30,19 @@ export async function agentBody(context: Context) {
 	if (
 		!body ||
 		typeof body !== "object" ||
-		!("conversationId" in body) ||
-		typeof body.conversationId !== "string" ||
-		body.conversationId.length > 100 ||
-		!("question" in body) ||
-		typeof body.question !== "string" ||
-		!body.question.trim() ||
-		body.question.length > 2000
+		!("sessionId" in body) ||
+		typeof body.sessionId !== "string" ||
+		!/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+			body.sessionId,
+		) ||
+		!("query" in body) ||
+		typeof body.query !== "string" ||
+		!body.query.trim() ||
+		body.query.length > 2000
 	)
 		throw new SafeError("Invalid agent request", 400);
 	return {
-		conversationId: body.conversationId,
-		question: body.question.trim(),
+		sessionId: body.sessionId,
+		query: body.query.trim(),
 	};
 }

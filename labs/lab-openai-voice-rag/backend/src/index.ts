@@ -1,11 +1,13 @@
 import { serve } from "@hono/node-server";
 import OpenAI from "openai";
+import { createChatStore } from "./chat/store.js";
 import { readConfig } from "./config.js";
 import { createCorpus } from "./corpus/index.js";
 import {
 	scriptedEmbed,
 	scriptedEmbeddingIdentity,
 } from "./corpus/scripted-embed.js";
+import { createStore } from "./corpus/store.js";
 import { createApp } from "./http/app.js";
 import { safeError } from "./http/errors.js";
 import { createLogger, installGlobalErrorHandlers } from "./logger.js";
@@ -37,8 +39,10 @@ try {
 	const provider = client
 		? createOpenAIProvider(client, logger)
 		: createScriptedProvider();
+	const chatDatabase = createStore(config.databaseUrl);
+	const chats = createChatStore(chatDatabase, logger);
 	const server = serve({
-		fetch: createApp({ corpus, provider, logger }).fetch,
+		fetch: createApp({ corpus, provider, chats, logger }).fetch,
 		port: 3001,
 		hostname: "0.0.0.0",
 	});
@@ -49,10 +53,12 @@ try {
 	for (const signal of ["SIGINT", "SIGTERM"] as const)
 		process.once(signal, () => {
 			server.close(() => {
-				void corpus.close().catch((err) => {
-					logger.error({ err: safeError(err) }, "Backend shutdown failed.");
-					process.exitCode = 1;
-				});
+				void Promise.all([corpus.close(), chatDatabase.close()]).catch(
+					(err) => {
+						logger.error({ err: safeError(err) }, "Backend shutdown failed.");
+						process.exitCode = 1;
+					},
+				);
 			});
 		});
 } catch (err) {

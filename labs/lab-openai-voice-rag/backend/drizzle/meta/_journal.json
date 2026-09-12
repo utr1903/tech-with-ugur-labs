@@ -15,6 +15,20 @@
       "when": 1789210538670,
       "tag": "0001_cultured_gorilla_man",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789217181508,
+      "tag": "0002_lyrical_boomer",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1789217428811,
+      "tag": "0003_famous_patriot",
+      "breakpoints": true
     }
   ]
 }
