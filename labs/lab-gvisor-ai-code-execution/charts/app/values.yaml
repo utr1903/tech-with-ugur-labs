@@ -1,4 +1,4 @@
-backendImage: docker.io/library/twu-chat-backend@sha256:b4f56dad42492e1840f0b781e82fb9ec11226a3cc4ee0506184802de1f72ef28
+backendImage: docker.io/library/twu-chat-backend@sha256:61a70badc46f94e8bc9e78e17954773295e626acb641be4b2af94e8569857207
 postgresImage: postgres:17.9-bookworm@sha256:47f917f7409eacd22fc5dfb1dee634e1b55cf0c01d1a7eb701be2227a03e0641
 existingSecret: chat-database
 modelMode: scripted

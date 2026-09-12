@@ -15,6 +15,9 @@ export async function subscribe(
 	const disconnected = new AbortController();
 	stream.onAbort(() => disconnected.abort());
 	while (!stream.aborted && Date.now() < end) {
+		// A terminal status is committed with its event. Read status first so the
+		// subsequent event query sees that commit; keep draining bounded pages.
+		const turn = await service.turn(threadId, turnId);
 		const events = await service.events(threadId, turnId, sequence);
 		for (const event of events) {
 			const data = JSON.stringify(event);
@@ -27,8 +30,7 @@ export async function subscribe(
 			sequence = event.sequence;
 			if (event.type === "done" || event.type === "error") return;
 		}
-		const turn = await service.turn(threadId, turnId);
-		if (turn?.status !== "active") return;
+		if (turn?.status !== "active" && events.length === 0) return;
 		await delay(100);
 	}
 }
