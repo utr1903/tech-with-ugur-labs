@@ -262,7 +262,7 @@ section strong {
 	color: var(--teal);
 	font-size: 12px;
 }
-@media (max-width: 650px) {
+@media (max-width: 660px) {
 	main {
 		padding: 0 24px 40px;
 	}

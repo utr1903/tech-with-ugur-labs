@@ -138,3 +138,15 @@ test("token failure releases the context prepared by Start", async ({
 		),
 	).toBe(1);
 });
+test("orb decoration fits a narrow tablet viewport", async ({
+	page,
+}) => {
+	await page.setViewportSize({ width: 653, height: 844 });
+	await page.goto("/");
+	await expect(
+		page.getByRole("heading", { name: "Your documents. A voice." }),
+	).toBeVisible();
+	expect(
+		await page.evaluate(() => document.documentElement.scrollWidth),
+	).toBeLessThanOrEqual(653);
+});
