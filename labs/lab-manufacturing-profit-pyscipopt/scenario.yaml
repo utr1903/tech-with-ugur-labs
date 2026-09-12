@@ -1,0 +1,61 @@
+# Synthetic teaching inputs for one factory, one product, and three years.
+product:
+  # Fixed sale price in USD/unit; finite and > 0. It applies every year and
+  # multiplies same-year production to calculate revenue.
+  selling_price_usd_per_unit: 90
+  demand_units:
+    # Maximum year-1 sales in units; finite and >= 0. It caps year-1 production.
+    year_1: 4000
+    # Maximum year-2 sales in units; finite and >= 0. It caps year-2 production.
+    year_2: 6000
+    # Maximum year-3 sales in units; finite and >= 0. It caps year-3 production.
+    year_3: 6000
+
+manufacturing:
+  # Starting materials-and-electricity cost in USD/unit; finite and > 0. It
+  # applies in year 1 before research savings and excludes staff salaries.
+  initial_unit_cost_usd: 50
+  # Lowest materials-and-electricity cost in USD/unit; finite, > 0, and no
+  # higher than the initial cost. It constrains cumulative research savings.
+  minimum_unit_cost_usd: 25
+  # Annual output in units/person/year; finite and > 0. It multiplies the
+  # independently chosen worker count to limit each year's production.
+  units_per_worker_per_year: 1000
+  # Manufacturing salary in USD/person/year; finite and > 0. It is charged for
+  # every worker in the year employed, separately from production cost.
+  worker_salary_usd_per_year: 20000
+  # Largest manufacturing team in any year; integer >= 0. It bounds each
+  # independently chosen annual worker count.
+  max_workers: 6
+  # Existing output limit in units/year; finite and > 0. It caps same-year
+  # production until delayed expansion capacity becomes available.
+  capacity_units_per_year: 4000
+
+research:
+  # Research salary in USD/person/year; finite and > 0. It is charged in the
+  # research year, although that research first lowers next year's unit cost.
+  researcher_salary_usd_per_year: 10000
+  # Largest research team in any year; integer >= 0. Every allowed researcher
+  # must have a nonnegative marginal saving; this bounds annual researchers.
+  max_researchers: 3
+  # Next-year saving from researcher 1 in USD/unit; finite and > 0. With the
+  # $1 drop below, researchers 1/2/3 add $4/$3/$2, totaling $4/$7/$9.
+  first_researcher_saving_usd_per_unit: 4
+  # USD/unit reduction in each additional researcher's marginal saving; finite
+  # and > 0. It creates the $4/$3/$2 contributions and $4/$7/$9 totals above.
+  saving_drop_per_additional_researcher: 1
+
+expansion:
+  # One-time payment in USD; finite and > 0. It is charged in the year the one
+  # permitted expansion starts and enters that year's net cash.
+  cost_usd: 50000
+  # Added output in units/year; finite and > 0. It becomes available one year
+  # after a year-1 or year-2 start and persists through the remaining years.
+  extra_capacity_units_per_year: 2000
+
+solver:
+  # SCIP solve-time limit in seconds; finite and > 0. It applies to this run.
+  time_limit_seconds: 120
+  # SCIP stopping gap; finite in [0, 1). It may end the solve when the objective
+  # bound and incumbent are within this relative fraction.
+  relative_gap: 0.01
