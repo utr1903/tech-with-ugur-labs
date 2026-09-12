@@ -1,5 +1,7 @@
 # Markdown voice knowledge assistant
 
+Companion post: [Talk to your Markdown: a streaming OpenAI voice RAG lab](https://techwithugur.dev/posts/openai-voice-rag/).
+
 Ask questions about a local Markdown folder and inspect the actual retrieved sources. PostgreSQL and pgvector store the document chunks; a Next.js browser page proxies application requests to a Hono backend.
 
 The teal robot orb changes size and contour with incoming agent audio in live mode. It never measures microphone audio or invents speech activity in simulated mode. Reduced-motion preferences keep the orb still, with readable speaking feedback.
