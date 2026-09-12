@@ -42,7 +42,7 @@ export async function agentBody(context: Context) {
 	)
 		throw new SafeError("Invalid agent request", 400);
 	return {
-		sessionId: body.sessionId,
+		sessionId: body.sessionId.toLowerCase(),
 		query: body.query.trim(),
 	};
 }

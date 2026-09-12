@@ -78,7 +78,7 @@ it("excludes partial failed and disconnected turns from completed history", asyn
 	}
 });
 
-it("rejects excess concurrency before streaming and never emits done after persistence fails", async () => {
+it("shares chat capacity across UUID casing and never emits done after persistence fails", async () => {
 	const db = createStore(url);
 	await db.migrate();
 	const chats = createChatStore(db, logger);
@@ -87,7 +87,14 @@ it("rejects excess concurrency before streaming and never emits done after persi
 	const held = new Promise<void>((r) => {
 		release = r;
 	});
+	let providerRuns = 0;
+	let markStarted = () => {};
+	const started = new Promise<void>((resolve) => {
+		markStarted = resolve;
+	});
 	provider.run = async () => {
+		providerRuns++;
+		markStarted();
 		await held;
 		return { answer: "answer", sources: [] };
 	};
@@ -102,15 +109,17 @@ it("rejects excess concurrency before streaming and never emits done after persi
 		maxPending: 1,
 	});
 	const id = randomUUID();
-	const request = () =>
+	const request = (sessionId: string = id) =>
 		app.request("/api/agent", {
 			method: "POST",
-			body: JSON.stringify({ sessionId: id, query: "amber" }),
+			body: JSON.stringify({ sessionId, query: "amber" }),
 		});
 	try {
 		const first = await request();
-		const second = await request();
+		await started;
+		const second = await request(id.toUpperCase());
 		expect(second.status).toBe(429);
+		expect(providerRuns).toBe(1);
 		release();
 		await first.text();
 		chats.complete = async () => {
