@@ -35,3 +35,48 @@ test("own cancel race is tolerated, unrelated errors still fail", () => {
 	expect(fail).toHaveBeenCalledOnce();
 	q.dispose();
 });
+
+test("delayed own errors from two interrupted phrases preserve current playback", () => {
+	const send = vi.fn(),
+		fail = vi.fn();
+	const q = createSpeechQueue(send, fail);
+	for (const [index, text] of ["First.", "Second."].entries()) {
+		q.say(text);
+		const created = send.mock.calls.at(-1)?.[0];
+		q.event({
+			type: "response.created",
+			response: {
+				id: `interrupted-${index}`,
+				metadata: created.response.metadata,
+			},
+		});
+		q.clear();
+	}
+	const cancellations = send.mock.calls
+		.filter(([e]) => e.type === "response.cancel")
+		.map(([e]) => e);
+	expect(cancellations).toHaveLength(2);
+	expect(cancellations[0].event_id).not.toBe(cancellations[1].event_id);
+	q.say("Third.");
+	const created = send.mock.calls.at(-1)?.[0];
+	q.event({
+		type: "response.created",
+		response: { id: "current", metadata: created.response.metadata },
+	});
+	q.say("Fourth.");
+	for (const cancel of cancellations) {
+		q.event({
+			type: "error",
+			error: { event_id: cancel.event_id, code: "response_cancel_not_active" },
+		});
+		expect(fail).not.toHaveBeenCalled();
+	}
+	const before = send.mock.calls.filter(
+		([e]) => e.type === "response.create",
+	).length;
+	q.event({ type: "output_audio_buffer.stopped", response_id: "current" });
+	expect(
+		send.mock.calls.filter(([e]) => e.type === "response.create"),
+	).toHaveLength(before + 1);
+	q.dispose();
+});

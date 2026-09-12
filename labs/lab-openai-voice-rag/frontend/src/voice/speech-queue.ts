@@ -13,7 +13,14 @@ export function createSpeechQueue(
 		sequence = 0;
 	let active: Phrase | undefined;
 	let pending: string[] = [];
-	let cancelledEvent: string | undefined;
+	const cancelledEvents = new Set<string>();
+	function rememberCancel(id: string) {
+		cancelledEvents.add(id);
+		if (cancelledEvents.size > 100) {
+			const oldest = cancelledEvents.values().next().value;
+			if (oldest) cancelledEvents.delete(oldest);
+		}
+	}
 	function deliver() {
 		if (active || !pending.length) return;
 		const text = pending.shift();
@@ -54,7 +61,8 @@ export function createSpeechQueue(
 		if (!old) return;
 		clearTimeout(old.timer);
 		if (old.generating) {
-			cancelledEvent = `cancel:${generation}`;
+			const cancelledEvent = `cancel:${generation}`;
+			rememberCancel(cancelledEvent);
 			send({
 				type: "response.cancel",
 				event_id: cancelledEvent,
@@ -64,6 +72,7 @@ export function createSpeechQueue(
 		send({ type: "output_audio_buffer.clear" });
 	}
 	function dispose() {
+		cancelledEvents.clear();
 		pending = [];
 		if (active) clearTimeout(active.timer);
 		active = undefined;
@@ -72,11 +81,10 @@ export function createSpeechQueue(
 	function providerError(e: Event) {
 		const error = e.error as Event | undefined;
 		if (
-			cancelledEvent &&
-			error?.event_id === cancelledEvent &&
-			error.code === "response_cancel_not_active"
+			error?.code === "response_cancel_not_active" &&
+			typeof error.event_id === "string" &&
+			cancelledEvents.delete(error.event_id)
 		) {
-			cancelledEvent = undefined;
 			return;
 		}
 		dispose();
