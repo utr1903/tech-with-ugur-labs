@@ -3,6 +3,7 @@ import { SafeError, safeError } from "../http/errors.js";
 import type { Logger } from "../logger.js";
 import type { ManagedSession, Pending, Provider } from "../provider/types.js";
 import { createConversations } from "./conversations.js";
+import { createTurnDeadline } from "./turn-deadline.js";
 
 type Options = {
 	provider: Provider;
@@ -71,26 +72,30 @@ export function createGraph(options: Options) {
 		remove: sessions.remove,
 		turn: async (id: string, question: string) => {
 			const item = sessions.get(id);
-			const controller = new AbortController();
-			let timer: ReturnType<typeof setTimeout> | undefined;
-			const timeout = new Promise<never>((_resolve, reject) => {
-				timer = setTimeout(() => {
-					controller.abort();
-					sessions.remove(id);
-					reject(new SafeError("Turn deadline exceeded", 504));
-				}, options.deadlineMs ?? 30000);
-			});
-			const work = item.queue.then(() => {
-				controller.signal.throwIfAborted();
-				options.logger.info(
-					{ conversationId: id, questionLength: question.length },
-					"Agent turn...",
-				);
-				return execute(item.session, question, options, controller.signal);
-			});
+			const boundary = createTurnDeadline(
+				item.controller.signal,
+				options.deadlineMs ?? 30000,
+			);
+			const work = item.queue
+				.then(() => {
+					if (item.closed || sessions.get(id) !== item)
+						throw new SafeError("Unknown conversation", 404);
+					boundary.signal.throwIfAborted();
+					options.logger.info(
+						{ conversationId: id, questionLength: question.length },
+						"Agent turn...",
+					);
+					return execute(item.session, question, options, boundary.signal);
+				})
+				.catch((err) => {
+					const safe = safeError(err);
+					sessions.remove(id, safe);
+					throw safe;
+				});
+
 			item.queue = work.catch(() => {});
 			try {
-				const result = await Promise.race([work, timeout]);
+				const result = await Promise.race([work, boundary.cancelled]);
 				options.logger.info(
 					{ sourceCount: result.sources.length },
 					"Agent turn succeeded.",
@@ -102,7 +107,7 @@ export function createGraph(options: Options) {
 				options.logger.error({ err: safe }, "Agent turn failed.");
 				throw safe;
 			} finally {
-				clearTimeout(timer);
+				boundary.close();
 			}
 		},
 	};

@@ -5,6 +5,8 @@ export type Conversation = {
 	session: ManagedSession;
 	expires: number;
 	queue: Promise<unknown>;
+	closed: boolean;
+	controller: AbortController;
 };
 export function createConversations(
 	provider: Provider,
@@ -13,13 +15,21 @@ export function createConversations(
 	now: () => number,
 ) {
 	const sessions = new Map<string, Conversation>();
-	function prune() {
-		for (const [id, item] of sessions)
-			if (item.expires <= now()) {
-				item.session.close();
-				sessions.delete(id);
-			}
+	function remove(
+		id: string,
+		reason = new SafeError("Unknown conversation", 404),
+	) {
+		const item = sessions.get(id);
+		if (!item) return;
+		sessions.delete(id);
+		item.closed = true;
+		item.controller.abort(reason);
+		item.session.close();
 	}
+	function prune() {
+		for (const [id, item] of sessions) if (item.expires <= now()) remove(id);
+	}
+
 	return {
 		create() {
 			prune();
@@ -30,6 +40,8 @@ export function createConversations(
 				session: provider.create(),
 				expires: now() + ttl,
 				queue: Promise.resolve(),
+				closed: false,
+				controller: new AbortController(),
 			});
 			return id;
 		},
@@ -39,9 +51,6 @@ export function createConversations(
 			if (!item) throw new SafeError("Unknown conversation", 404);
 			return item;
 		},
-		remove(id: string) {
-			sessions.get(id)?.session.close();
-			sessions.delete(id);
-		},
+		remove,
 	};
 }
