@@ -1,4 +1,6 @@
 import { and, asc, between, eq, or, sql } from "drizzle-orm";
+import type { Logger } from "../logger.js";
+import { logOperation } from "../operation.js";
 import { chunks } from "./schema.js";
 import type { Store } from "./store.js";
 import type { Embed, Evidence, Source } from "./types.js";
@@ -20,7 +22,7 @@ function boundContext(rows: Source[], budget: number): Evidence {
 	}
 	return { sources, context: parts.join("\n\n") };
 }
-export async function retrieveCorpus(
+async function searchCorpus(
 	{
 		store,
 		embed,
@@ -68,5 +70,32 @@ export async function retrieveCorpus(
 			return boundContext(neighbors, contextBudget);
 		},
 		{ isolationLevel: "repeatable read", accessMode: "read only" },
+	);
+}
+
+export async function retrieveCorpus(
+	options: {
+		store: Store;
+		embed: Embed;
+		topK: number;
+		contextBudget: number;
+		logger: Logger;
+	},
+	question: string,
+	signal?: AbortSignal,
+): Promise<Evidence> {
+	return logOperation(
+		options.logger,
+		"Search relevant chunks",
+		{
+			query: question,
+			topK: options.topK,
+			contextBudget: options.contextBudget,
+		},
+		() => searchCorpus(options, question, signal),
+		(result) => ({
+			sourceCount: result.sources.length,
+			contextCharacters: result.context.length,
+		}),
 	);
 }

@@ -170,6 +170,6 @@ export function createOpenAIProvider(client: OpenAI, logger: Logger): Provider {
 	return {
 		mode: "live",
 		create: () => managedSession(client, logger),
-		secret: (signal) => realtimeSecret(client, signal),
+		secret: (signal) => realtimeSecret(client, signal, logger),
 	};
 }

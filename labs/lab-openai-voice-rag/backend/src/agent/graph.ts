@@ -1,6 +1,7 @@
 import type { Evidence, Source } from "../corpus/types.js";
 import { SafeError, safeError } from "../http/errors.js";
 import type { Logger } from "../logger.js";
+import { logOperation } from "../operation.js";
 import type { ManagedSession, Pending, Provider } from "../provider/types.js";
 import { createConversations } from "./conversations.js";
 import { createTurnDeadline } from "./turn-deadline.js";
@@ -70,45 +71,46 @@ export function createGraph(options: Options) {
 	return {
 		create: async () => sessions.create(),
 		remove: sessions.remove,
-		turn: async (id: string, question: string) => {
-			const item = sessions.get(id);
-			const boundary = createTurnDeadline(
-				item.controller.signal,
-				options.deadlineMs ?? 30000,
-			);
-			const work = item.queue
-				.then(() => {
-					if (item.closed || sessions.get(id) !== item)
-						throw new SafeError("Unknown conversation", 404);
-					boundary.signal.throwIfAborted();
-					options.logger.info(
-						{ conversationId: id, questionLength: question.length },
-						"Agent turn...",
+		turn: (id: string, question: string) =>
+			logOperation(
+				options.logger,
+				"Agent turn",
+				{ conversationId: id, query: question },
+				async () => {
+					const item = sessions.get(id);
+					const boundary = createTurnDeadline(
+						item.controller.signal,
+						options.deadlineMs ?? 30000,
 					);
-					return execute(item.session, question, options, boundary.signal);
-				})
-				.catch((err) => {
-					const safe = safeError(err);
-					sessions.remove(id, safe);
-					throw safe;
-				});
+					const work = item.queue
+						.then(() => {
+							if (item.closed || sessions.get(id) !== item)
+								throw new SafeError("Unknown conversation", 404);
+							boundary.signal.throwIfAborted();
+							return execute(item.session, question, options, boundary.signal);
+						})
+						.catch((err) => {
+							const safe = safeError(err);
+							sessions.remove(id, safe);
+							throw safe;
+						});
 
-			item.queue = work.catch(() => {});
-			try {
-				const result = await Promise.race([work, boundary.cancelled]);
-				options.logger.info(
-					{ sourceCount: result.sources.length },
-					"Agent turn succeeded.",
-				);
-				return result;
-			} catch (err) {
-				sessions.remove(id);
-				const safe = safeError(err);
-				options.logger.error({ err: safe }, "Agent turn failed.");
-				throw safe;
-			} finally {
-				boundary.close();
-			}
-		},
+					item.queue = work.catch(() => {});
+					try {
+						const result = await Promise.race([work, boundary.cancelled]);
+						return result;
+					} catch (err) {
+						sessions.remove(id);
+						const safe = safeError(err);
+						throw safe;
+					} finally {
+						boundary.close();
+					}
+				},
+				(result) => ({
+					sourceCount: result.sources.length,
+					answerCharacters: result.answer.length,
+				}),
+			),
 	};
 }

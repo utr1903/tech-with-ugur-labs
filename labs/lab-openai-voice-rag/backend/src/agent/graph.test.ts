@@ -1,3 +1,4 @@
+import pino from "pino";
 import { describe, expect, it } from "vitest";
 import { createLogger } from "../logger.js";
 import { createScriptedProvider } from "../provider/scripted.js";
@@ -184,4 +185,43 @@ it("rejects a provider final answer that skipped local retrieval", async () => {
 	await expect(graph.turn(await graph.create(), "amber")).rejects.toThrow(
 		"skipped retrieval",
 	);
+});
+
+it("includes the user query in successful and failed request operation logs", async () => {
+	const lines: string[] = [];
+	const captured = pino(
+		{},
+		{
+			write: (line) => {
+				lines.push(line);
+			},
+		},
+	);
+	const graph = createGraph({
+		provider: createScriptedProvider(),
+		retrieve: async () => evidence,
+		logger: captured,
+	});
+	await graph.turn(await graph.create(), "amber valve");
+	await expect(graph.turn("missing", "owner query")).rejects.toThrow(
+		"Unknown conversation",
+	);
+	const entries = lines.map((line) => JSON.parse(line));
+	expect(entries.map((entry) => entry.msg)).toEqual([
+		"Agent turn...",
+		"Agent turn succeeded.",
+		"Agent turn...",
+		"Agent turn failed.",
+	]);
+	expect(entries[1]).toMatchObject({
+		query: "amber valve",
+		sourceCount: 1,
+		durationMs: expect.any(Number),
+	});
+	expect(entries[3]).toMatchObject({
+		query: "owner query",
+		err: { status: 404 },
+		durationMs: expect.any(Number),
+	});
+	expect(lines.join("")).not.toContain("ORCHID-47");
 });

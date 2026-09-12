@@ -9,8 +9,11 @@ The default **simulated transport** accepts typed questions and uses determinist
 Requirements: Docker Engine with Docker Compose, a browser, and a free localhost port 3000. Run from this lab directory:
 
 ```sh
+cp .env.example .env
 docker compose up --build
 ```
+
+Compose automatically loads the lab root `.env` for variable interpolation. The example defaults to simulated mode and leaves the API key empty.
 
 Open [localhost:3000](http://localhost:3000). Wait for the services to become ready, click **Start**, and allow microphone access. In simulated mode enter:
 
@@ -65,7 +68,7 @@ The backend owns serialized, isolated conversation state: 100 sessions, 30-minut
 
 Corpus limits: 256 KiB per Markdown file, 2 MiB aggregate, 800-character chunks, five vector hits with same-document neighbors, and 6,000 context characters. Vectors have 1,536 dimensions and are validated. Symlinks escaping the document root are rejected. Simulated word-feature embeddings and scripted abstention are only a verification approximation, and do not establish live semantic retrieval or answer quality.
 
-In live mode microphone audio goes directly to OpenAI Realtime. Questions and retrieved excerpts go from the backend to OpenAI embeddings/managed agents. PostgreSQL retains document text/vectors locally; managed session state is held by the provider. Backend logs may include document filenames and operation metadata. The optional live test intentionally saves transcripts, evidence and remote audio locally in `frontend/test-results`; inspect/remove those artifacts as needed. This local lab has no authentication or production deployment configuration.
+In live mode microphone audio goes directly to OpenAI Realtime. Questions and retrieved excerpts go from the backend to OpenAI embeddings/managed agents. PostgreSQL retains document text/vectors locally; managed session state is held by the provider. Backend logs include user questions, document filenames and operation counts/durations. Avoid asking questions you do not want retained in local logs; document contents, API keys and ephemeral credentials are withheld. The optional live test intentionally saves transcripts, evidence and remote audio locally in `frontend/test-results`; inspect/remove those artifacts as needed. This local lab has no authentication or production deployment configuration.
 
 ## Checks
 
@@ -97,7 +100,7 @@ Formatting uses `npm run format` in either service. Schema generation uses `dock
 
 Live inference has **not been verified** for this deliverable. It requires a valid application key and actual account/model access. Managed Agents API permissions include `api.agents.read`, `api.agents.write`, and `api.responses.write`. This lab uses `openai@7.15.0` managed `client.beta.agents`, not the separate developer-managed Agents SDK. Models are `gpt-6-astra`, `gpt-realtime-2.1` with voice `marin`, and `text-embedding-3-small` (1,536 dimensions).
 
-Export `MODE=live` and `OPENAI_API_KEY` in the shell starting Compose. Keep the key out of files, browser variables and command history. Run the same reader entrypoint:
+Edit the lab root `.env` created above: set `MODE=live` and enter your application key as `OPENAI_API_KEY`. Keep this local, ignored file private. Shell variables override Compose’s `.env` values, so clear conflicting exports. Recreate the services with the same reader entrypoint:
 
 ```sh
 docker compose up --build

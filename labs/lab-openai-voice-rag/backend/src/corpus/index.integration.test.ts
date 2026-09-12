@@ -179,4 +179,20 @@ test("keeps provider error contents out of corpus logs while preserving rejectio
 	await failing.close();
 	expect(logs.join("")).not.toContain("sk-demo-secret");
 	expect(logs.join("")).toContain("Ingest corpus failed.");
+	const entries = logs.map((line) => JSON.parse(line));
+	expect(
+		entries.find((entry) => entry.msg === "Chunk documents..."),
+	).toMatchObject({ documentCount: 1 });
+	expect(
+		entries.find((entry) => entry.msg === "Chunk documents succeeded."),
+	).toMatchObject({ chunkCount: 1, durationMs: expect.any(Number) });
+	expect(
+		entries.find((entry) => entry.msg === "Embed documents failed."),
+	).toMatchObject({ chunkCount: 1, durationMs: expect.any(Number) });
+	await expect(failing.retrieve("owner query")).rejects.toThrow();
+	expect(
+		logs
+			.map((line) => JSON.parse(line))
+			.find((entry) => entry.msg === "Search relevant chunks failed."),
+	).toMatchObject({ query: "owner query", durationMs: expect.any(Number) });
 });

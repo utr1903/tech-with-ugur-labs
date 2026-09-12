@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import pino from "pino";
 import { expect, it } from "vitest";
 import { createLogger } from "../logger.js";
 import { createEmbedding } from "./embedding.js";
@@ -189,4 +190,40 @@ it("withholds raw SDK errors at all live boundaries", async () => {
 	await expect(createEmbedding(client)(["amber"], signal)).rejects.toThrow(
 		"Embedding operation failed",
 	);
+});
+
+it("logs live token outcomes without credential or provider contents", async () => {
+	const entries: string[] = [];
+	const captured = pino(
+		{},
+		{
+			write: (line) => {
+				entries.push(line);
+			},
+		},
+	);
+	let fail = false;
+	const client = new OpenAI({
+		apiKey: "fixture-key",
+		maxRetries: 0,
+		fetch: async () => {
+			if (fail) throw new Error("private-provider-detail");
+			return Response.json({ value: "private-ephemeral-value" });
+		},
+	});
+	const provider = createOpenAIProvider(client, captured);
+	await provider.secret(new AbortController().signal);
+	fail = true;
+	await expect(provider.secret(new AbortController().signal)).rejects.toThrow(
+		"Voice session creation failed",
+	);
+	const logs = entries.map((line) => JSON.parse(line));
+	expect(logs.map((entry) => entry.msg)).toEqual([
+		"Create live agent token...",
+		"Create live agent token succeeded.",
+		"Create live agent token...",
+		"Create live agent token failed.",
+	]);
+	expect(logs[1]).toMatchObject({ durationMs: expect.any(Number) });
+	expect(entries.join("")).not.toContain("private-");
 });

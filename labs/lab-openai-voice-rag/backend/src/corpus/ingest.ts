@@ -1,5 +1,7 @@
 import { createHash } from "node:crypto";
 import { eq, inArray } from "drizzle-orm";
+import type { Logger } from "../logger.js";
+import { logOperation } from "../operation.js";
 import { chunkText } from "./chunk.js";
 import { readDocuments } from "./files.js";
 import { chunks, documents } from "./schema.js";
@@ -8,6 +10,7 @@ import type { Embed, Refresh } from "./types.js";
 import { validateVectors } from "./vectors.js";
 
 type Options = {
+	logger: Logger;
 	store: Store;
 	documentsRoot: string;
 	embed: Embed;
@@ -28,15 +31,35 @@ async function stageChanges(
 			cached.embeddingFingerprint !== options.embeddingFingerprint
 		);
 	});
-	const texts = changed.flatMap((file) =>
-		chunkText(file.text, options.chunkLength),
+	const partitioned = await logOperation(
+		options.logger,
+		"Chunk documents",
+		{ documentCount: changed.length, chunkLength: options.chunkLength },
+		async () =>
+			changed.map((file) => ({
+				file,
+				texts: chunkText(file.text, options.chunkLength),
+			})),
+		(result) => ({
+			chunkCount: result.reduce((count, item) => count + item.texts.length, 0),
+		}),
 	);
-	const vectors = texts.length ? await options.embed(texts) : [];
-	validateVectors(vectors, texts.length);
+	const texts = partitioned.flatMap((item) => item.texts);
+	const vectors = await logOperation(
+		options.logger,
+		"Embed documents",
+		{ chunkCount: texts.length, documentCount: changed.length },
+		async () => {
+			const result = texts.length ? await options.embed(texts) : [];
+			validateVectors(result, texts.length);
+			return result;
+		},
+		(result) => ({ vectorCount: result.length }),
+	);
 	let position = 0;
-	const staged = changed.map((file) => ({
+	const staged = partitioned.map(({ file, texts }) => ({
 		file,
-		rows: chunkText(file.text, options.chunkLength).map((text, ordinal) => {
+		rows: texts.map((text, ordinal) => {
 			const embedding = vectors[position++];
 			if (!embedding) throw new Error("Missing staged embedding");
 			return {
