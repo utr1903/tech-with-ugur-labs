@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+import json
+import os
 import time
+from pathlib import Path
 
 import pytest
+from pytest import CaptureFixture, MonkeyPatch
 
 from app.errors import SourceLimitError
 from app.execution.run import run_source, validate_source
@@ -80,3 +84,63 @@ def test_supervisor_tampering_is_not_success() -> None:
         check=False,
     )
     assert result.returncode != 0
+
+
+def test_closed_streams_keep_watchdog_and_reap_child(tmp_path: Path) -> None:
+    pid_file = tmp_path / "child-pid"
+    source = (
+        f"import os,time,pathlib; pathlib.Path({str(pid_file)!r})"
+        ".write_text(str(os.getpid())); os.close(1); os.close(2); time.sleep(15)"
+    )
+    start = time.monotonic()
+    result = run_source(source, log=configure_logging(app_name="test"))
+    assert result.timed_out
+    assert 9.5 <= time.monotonic() - start < 12
+    _assert_child_gone(pid_file)
+
+
+def test_short_child_with_closed_streams_completes() -> None:
+    result = run_source(
+        "import os,time; os.close(1); os.close(2); time.sleep(.2)",
+        log=configure_logging(app_name="test"),
+    )
+    assert result.exit_code == 0
+    assert not result.timed_out
+    assert result.stdout == result.stderr == b""
+
+
+def test_capture_exception_kills_and_reaps_child(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
+    pid_file = tmp_path / "child-pid"
+    source = (
+        f"import os,time,pathlib; pathlib.Path({str(pid_file)!r})"
+        ".write_text(str(os.getpid())); print('marker',flush=True); time.sleep(5)"
+    )
+    monkeypatch.setattr("app.execution.capture.write_chunk", _fail_capture)
+    start = time.monotonic()
+    with pytest.raises(OSError, match="capture unavailable"):
+        run_source(source, log=configure_logging(app_name="test"))
+    assert time.monotonic() - start < 2
+    _assert_child_gone(pid_file)
+
+
+def test_nonzero_capture_log_is_neutral(capsys: CaptureFixture[str]) -> None:
+    result = run_source("raise SystemExit(7)", log=configure_logging(app_name="test"))
+    events = [
+        json.loads(line).get("event") for line in capsys.readouterr().out.splitlines()
+    ]
+    assert result.exit_code == 7
+    assert "Capturing source output completed." in events
+    assert "Executing source succeeded." not in events
+
+
+def _fail_capture(stream: str, data: bytes) -> None:
+    assert stream and data
+    raise OSError("capture unavailable")
+
+
+def _assert_child_gone(pid_file: Path) -> None:
+    with pytest.raises(ProcessLookupError):
+        os.kill(int(pid_file.read_text()), 0)

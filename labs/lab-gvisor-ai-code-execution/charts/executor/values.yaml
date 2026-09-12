@@ -1,1 +1,1 @@
-runnerImage: "docker.io/library/twu-python-runner@sha256:027e5606657202dbdf909db6fda62b80bf86166db5169d9fd0be622160472be4"
+runnerImage: "docker.io/library/twu-python-runner@sha256:dde9fa8caa1050c39a5c877d3aacb0c5431b7d946622e0d4b55a1eb8aa503a47"

@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import os
 import selectors
-import signal
 import subprocess
 import time
 from dataclasses import dataclass, field
 
-from app.execution.limits import STREAM_BYTES, WALL_SECONDS
+from app.execution.limits import STREAM_BYTES
 from app.output import write_chunk
 
 
@@ -43,20 +42,20 @@ class StreamCapture:
 
 def drain(
     process: subprocess.Popen[bytes],
+    *,
+    deadline: float,
 ) -> tuple[StreamCapture, StreamCapture, bool]:
     """Drain until termination, with a total fixed wall bound."""
     stdout, stderr = StreamCapture("stdout"), StreamCapture("stderr")
     timed_out = False
-    deadline = time.monotonic() + WALL_SECONDS
     with selectors.DefaultSelector() as selector:
         assert process.stdout is not None and process.stderr is not None
         for pipe, capture in ((process.stdout, stdout), (process.stderr, stderr)):
             os.set_blocking(pipe.fileno(), False)
             selector.register(pipe, selectors.EVENT_READ, capture)
-        while selector.get_map():
+        while selector.get_map() or process.poll() is None:
             if time.monotonic() >= deadline:
                 timed_out = True
-                os.killpg(process.pid, signal.SIGKILL)
                 break
             for key, _ in selector.select(timeout=0.05):
                 chunk = os.read(key.fd, 65536)
@@ -66,9 +65,6 @@ def drain(
                 else:
                     selector.unregister(key.fileobj)
                     capture.flush()
-        for capture in (stdout, stderr):
-            if capture.emitted == 0:
-                capture.flush()
         for capture in (stdout, stderr):
             capture.flush()
     return stdout, stderr, timed_out
