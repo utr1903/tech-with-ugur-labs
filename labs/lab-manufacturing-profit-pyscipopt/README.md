@@ -8,6 +8,8 @@ salaries now and lowers unit production cost from the following year onward.
 All figures are synthetic teaching assumptions. They are not estimates of real
 wages, prices, productivity, or demand.
 
+Read the companion post: [Plan three years of manufacturing cash with NumPy and PySCIPOpt](https://techwithugur.dev/posts/manufacturing-profit-pyscipopt/).
+
 ## The planning problem
 
 The scenario fixes the selling price, annual demand limits, initial and minimum
