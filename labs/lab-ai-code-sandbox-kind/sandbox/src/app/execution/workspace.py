@@ -1,0 +1,78 @@
+"""Per-execution working directories under a root nobody can list."""
+
+from __future__ import annotations
+
+import os
+import shutil
+import tempfile
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager
+from pathlib import Path
+
+from app.logging_setup import Logger
+
+_RUNS_DIR = "runs"
+# Owner may create and enter entries but not list them, so a program cannot
+# discover the random names of concurrent executions' directories.
+_RUNS_MODE = 0o300
+
+
+def prepare_runs_root(work_root: Path, *, log: Logger) -> Path:
+    """Creates `<work_root>/runs` with write+execute-only permissions."""
+    runs = work_root / _RUNS_DIR
+    try:
+        log.info("Preparing runs root...", path=str(runs))
+        runs.mkdir(mode=0o700, parents=True, exist_ok=True)
+        runs.chmod(_RUNS_MODE)
+    except OSError:
+        log.exception("Preparing runs root failed.", path=str(runs))
+        raise
+    else:
+        log.info("Preparing runs root succeeded.", path=str(runs))
+        return runs
+
+
+def _unlock_and_retry(
+    func: Callable[[str], object], path: str, _exc: BaseException
+) -> None:
+    # A program may chmod its own files to 000; restore access and retry once.
+    Path(path).parent.chmod(0o700)
+    if Path(path).is_dir() and not Path(path).is_symlink():
+        Path(path).chmod(0o700)
+    func(path)
+
+
+def _unlock_tree(path: Path) -> None:
+    # macOS's rmtree needs to list a directory before it can report that
+    # listing failed, so a subdirectory chmod-ed to 000 by the submitted
+    # program must be unlocked before rmtree ever walks into it, not only
+    # when rmtree's own error handler fires on it.
+    for root, dirs, _files in os.walk(path, onerror=lambda _err: None):
+        Path(root).chmod(0o700)
+        for name in dirs:
+            child = Path(root) / name
+            if not child.is_symlink():
+                child.chmod(0o700)
+
+
+@contextmanager
+def execution_directory(runs_root: Path, *, log: Logger) -> Iterator[Path]:
+    """Yields a fresh private directory and removes it afterwards."""
+    path = Path(tempfile.mkdtemp(prefix="run-", dir=runs_root))
+    try:
+        yield path
+    finally:
+        _remove(path, log=log)
+
+
+def _remove(path: Path, *, log: Logger) -> None:
+    try:
+        path.chmod(0o700)
+        _unlock_tree(path)
+        shutil.rmtree(path, onexc=_unlock_and_retry)
+    except OSError:
+        # The response is already computed; a leftover directory is a disk
+        # leak inside an unlistable root, not a correctness problem.
+        log.warning(
+            "Removing execution directory failed.", path=path.name, exc_info=True
+        )
