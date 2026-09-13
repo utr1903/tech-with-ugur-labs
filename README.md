@@ -34,6 +34,7 @@ the only instruction set you need.
 | [lab-timesfm-pm25-covariates](labs/lab-timesfm-pm25-covariates/) | ai, maths | [post](https://techwithugur.dev/posts/timesfm-pm25-covariates/) | This lab runs Google's TimesFM 3.0 on a laptop CPU over 13 months of hourly PM2.5 in Milan and measures in a rolling-origin backtest what its new covariates are actually worth - tomorrow's weather takes 16% off the error, yesterday's carbon monoxide takes off nothing at all despite being the strongest correlate in the dataset, and a deliberately leaky control posts the best score of the lot by being told the answer. |
 | [lab-manufacturing-profit-pyscipopt](labs/lab-manufacturing-profit-pyscipopt/) | maths | [post](https://techwithugur.dev/posts/manufacturing-profit-pyscipopt/) | Plan three years of production, manufacturing workers, researchers, and one optional expansion to maximize cumulative net cash. |
 | [lab-openai-voice-rag](labs/lab-openai-voice-rag/) | ai, observability | [post](https://techwithugur.dev/posts/openai-voice-rag/) | Ask questions about a local Markdown folder and inspect the actual retrieved sources. |
+| [lab-kubernetes-job-isolation](labs/lab-kubernetes-job-isolation/) | cybersecurity, cloud, devops | [post](https://techwithugur.dev/posts/kubernetes-job-isolation/) | This lab deliberately runs the shell command supplied to `POST /execute`. |
 <!-- LAB-INDEX:END -->
 
 ## Conventions
