@@ -12,8 +12,6 @@ import {
 import { ChatGenerationChunk, type ChatResult } from "@langchain/core/outputs";
 import { CAFE_SOLVER_CODE, renderCafeAnswer } from "./cafe-script.js";
 
-const TEXT_CHUNK_CHARS = 40;
-
 // Decides the next assistant message for the keyless demo. Turn 1 of every
 // question calls code_executor with the café solver; turn 2 writes the answer
 // from the ToolMessage it actually received, so a broken tool path shows up
@@ -103,14 +101,17 @@ function toChunks(message: AIMessage): AIMessageChunk[] {
     ];
   }
   const text = String(message.content);
-  const chunks: AIMessageChunk[] = [];
-  for (let start = 0; start < text.length; start += TEXT_CHUNK_CHARS) {
-    chunks.push(
+  if (!text) return [];
+  // Chunk by line, not by a fixed character count: a fixed count can split a
+  // markdown heading (e.g. "### Verification") across two chunks, which is
+  // invisible once the UI reassembles the text but breaks anything that
+  // inspects a single chunk's content.
+  const lines = text.split("\n");
+  return lines.map(
+    (line, index) =>
       new AIMessageChunk({
         id,
-        content: text.slice(start, start + TEXT_CHUNK_CHARS),
+        content: index === lines.length - 1 ? line : `${line}\n`,
       }),
-    );
-  }
-  return chunks;
+  );
 }
