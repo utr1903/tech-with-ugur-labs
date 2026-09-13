@@ -1,5 +1,7 @@
 # Kubernetes Job isolation for unsafe shell execution
 
+Companion post: [Isolating unsafe shell execution with Kubernetes Jobs](https://techwithugur.dev/posts/kubernetes-job-isolation/).
+
 This lab deliberately runs the shell command supplied to `POST /execute`. Two Hono servers create real Kubernetes Jobs and collect their results through separate PVCs. The insecure worker can extract clearly synthetic PII and download a harmless local marker script. The secure worker runs the same commands and image with restricted identity, mounts and networking. Do not expose these unauthenticated endpoints beyond localhost.
 
 ## Prerequisites and startup
