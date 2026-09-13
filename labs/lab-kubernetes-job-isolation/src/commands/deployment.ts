@@ -115,6 +115,15 @@ async function release(
     "-n",
     namespace,
     "rollout",
+    "restart",
+    "deployment/server",
+  ]);
+  await run("kubectl", [
+    "--context",
+    context,
+    "-n",
+    namespace,
+    "rollout",
     "status",
     "deployment/server",
     "--timeout=5m",
@@ -163,6 +172,15 @@ export async function deploy(run: Runner): Promise<void> {
     "apply",
     "-f",
     "deploy/fixture.yaml",
+  ]);
+  await run("kubectl", [
+    "--context",
+    context,
+    "-n",
+    "download-fixture",
+    "rollout",
+    "restart",
+    "deployment/download-fixture",
   ]);
   await run("kubectl", [
     "--context",

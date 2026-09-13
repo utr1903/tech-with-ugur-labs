@@ -113,3 +113,55 @@ it("refuses to overwrite a fixture namespace belonging to another application", 
   ).rejects.toThrow("Namespace already exists outside this lab.");
   expect(applied).toEqual([]);
 });
+
+it("refreshes current server and fixture images before declaring workloads ready", async () => {
+  const calls: { command: string; args: string[] }[] = [];
+  await deploy(async (command, args) => {
+    calls.push({ command, args });
+    return "";
+  });
+  const load = calls.findIndex(
+    (call) => call.command === "kind" && call.args[0] === "load",
+  );
+  for (const namespace of ["insecure", "secure", "download-fixture"]) {
+    const resource =
+      namespace === "download-fixture"
+        ? "deployment/download-fixture"
+        : "deployment/server";
+    const applied = calls.findIndex((call) =>
+      namespace === "download-fixture"
+        ? call.command === "kubectl" &&
+          call.args.includes("apply") &&
+          call.args.includes("deploy/fixture.yaml")
+        : call.command === "helm" &&
+          call.args.includes("deploy/chart") &&
+          call.args.includes(namespace),
+    );
+    const restart = calls.findIndex(
+      (call) =>
+        call.command === "kubectl" &&
+        call.args.includes(namespace) &&
+        call.args.includes("restart") &&
+        call.args.includes(resource),
+    );
+    const waited = calls.findIndex(
+      (call) =>
+        call.command === "kubectl" &&
+        call.args.includes(namespace) &&
+        call.args.includes("status") &&
+        call.args.includes(resource),
+    );
+    expect(applied).toBeGreaterThan(load);
+    expect(restart).toBeGreaterThan(applied);
+    expect(waited).toBeGreaterThan(restart);
+    expect(calls[restart]?.args).toEqual([
+      "--context",
+      "kind-job-isolation",
+      "-n",
+      namespace,
+      "rollout",
+      "restart",
+      resource,
+    ]);
+  }
+});
