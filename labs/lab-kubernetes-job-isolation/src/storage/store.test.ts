@@ -1,5 +1,6 @@
 import { execFileSync } from "node:child_process";
 import {
+  chown,
   link,
   lstat,
   mkdir,
@@ -26,9 +27,24 @@ afterEach(async () => {
   await rm(root, { recursive: true, force: true });
 });
 async function setup(secure = false) {
-  const store = new FileExecutionStore({ root, secure, logger });
+  const calls: {
+    path: Parameters<typeof chown>[0];
+    uid: number;
+    gid: number;
+  }[] = [];
+  const ownership: typeof chown = async (path, uid, gid) => {
+    calls.push({ path, uid, gid });
+    expect(path).toBe(join(root, "runs", id));
+    expect(uid).toBe(10001);
+    expect(gid).toBe(10001);
+    if (process.getuid?.() === 0) await chown(path, uid, gid);
+  };
+  const store = new FileExecutionStore({ root, secure, logger, ownership });
   await store.initialize();
   await store.prepare(id);
+  expect(calls).toEqual(
+    secure ? [{ path: join(root, "runs", id), uid: 10001, gid: 10001 }] : [],
+  );
   return store;
 }
 async function fixture(secure = false) {
@@ -54,8 +70,13 @@ describe("result store", () => {
     );
     const directory = await stat(join(root, "runs", id));
     expect(directory.mode & 0o777).toBe(0o700);
-    expect(directory.uid).toBe(10001);
-    expect(directory.gid).toBe(10001);
+    if (process.getuid?.() === 0) {
+      expect(directory.uid).toBe(10001);
+      expect(directory.gid).toBe(10001);
+    } else {
+      expect(directory.uid).toBe(process.getuid?.());
+      expect(directory.gid).toBe((await stat(root)).gid);
+    }
     await expect(store.prepare(id)).rejects.toMatchObject({
       kind: "infrastructure",
     });

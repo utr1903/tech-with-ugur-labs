@@ -1,5 +1,6 @@
 import { Hono } from "hono";
 import { ExecutionError, type ExecutionService } from "../execution/types.js";
+import { safeExecutionError } from "../lib/errors.js";
 import type { Logger } from "../logger.js";
 
 async function readMessage(request: Request): Promise<string> {
@@ -47,10 +48,7 @@ export function createApp(service: ExecutionService, logger: Logger): Hono {
       );
       return context.json(result, 200);
     } catch (err) {
-      const failure =
-        err instanceof ExecutionError
-          ? err
-          : new ExecutionError("infrastructure");
+      const failure = safeExecutionError(err);
       logger.error({ err: failure }, "Execute request failed.");
       const status = { input: 400, timeout: 504, infrastructure: 500 } as const;
       return context.json({ error: failure.message }, status[failure.kind]);

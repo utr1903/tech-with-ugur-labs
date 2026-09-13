@@ -1,4 +1,5 @@
 import pino from "pino";
+import { safeProcessError } from "./lib/errors.js";
 export type Logger = pino.Logger;
 export function createLogger({ appName }: { appName: string }): Logger {
   return pino({
@@ -9,18 +10,12 @@ export function createLogger({ appName }: { appName: string }): Logger {
   });
 }
 export function installGlobalErrorHandlers(logger: Logger): void {
-  process.on("uncaughtException", () => {
-    logger.error(
-      { err: new Error("Unexpected process failure") },
-      "Uncaught exception.",
-    );
+  process.on("uncaughtException", (err) => {
+    logger.error({ err: safeProcessError(err) }, "Uncaught exception.");
     process.exit(1);
   });
-  process.on("unhandledRejection", () => {
-    logger.error(
-      { err: new Error("Unexpected process failure") },
-      "Unhandled rejection.",
-    );
+  process.on("unhandledRejection", (err) => {
+    logger.error({ err: safeProcessError(err) }, "Unhandled rejection.");
     process.exit(1);
   });
 }

@@ -137,8 +137,14 @@ export class FileExecutionStore implements ExecutionStore {
       async () => {
         this.assertKnown(id);
         if (!this.options.secure) {
-          await rm(join(this.options.root, `${id}.md`), { force: true });
-          await rm(join(this.options.root, `${id}.exit`), { force: true });
+          await rm(join(this.options.root, `${id}.md`), {
+            recursive: true,
+            force: true,
+          });
+          await rm(join(this.options.root, `${id}.exit`), {
+            recursive: true,
+            force: true,
+          });
         }
         await rm(join(this.options.root, "runs", id), {
           recursive: true,

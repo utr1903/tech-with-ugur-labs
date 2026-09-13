@@ -35,7 +35,7 @@ it("terminates on unhandled rejection without logging backend bytes", () => {
       "tsx",
       "--input-type=module",
       "-e",
-      "import {createLogger,installGlobalErrorHandlers} from './src/logger.ts';installGlobalErrorHandlers(createLogger({appName:'test-app'}));Promise.reject(new Error('synthetic-private-bytes'));",
+      "import {createLogger,installGlobalErrorHandlers} from './src/logger.ts';installGlobalErrorHandlers(createLogger({appName:'test-app'}));Promise.reject(Object.assign(new Error('synthetic-private-bytes'),{code:'ENOSPC',syscall:'write',cause:Object.assign(new Error('synthetic-cause-bytes'),{code:'EPERM',syscall:'chown'})}));",
     ],
     { env: { ...process.env, LOG_LEVEL: "info" }, encoding: "utf8" },
   );
@@ -44,8 +44,17 @@ it("terminates on unhandled rejection without logging backend bytes", () => {
   expect(JSON.parse(processResult.stdout)).toMatchObject({
     appName: "test-app",
     msg: "Unhandled rejection.",
-    err: { message: "Unexpected process failure" },
+    err: {
+      message: "Unexpected process failure",
+      cause: {
+        category: "filesystem",
+        code: "ENOSPC",
+        syscall: "write",
+        cause: { code: "EPERM", syscall: "chown" },
+      },
+    },
   });
+  expect(processResult.stdout).not.toContain("synthetic-cause-bytes");
   expect(processResult.stdout + processResult.stderr).not.toContain(
     "synthetic-private-bytes",
   );
