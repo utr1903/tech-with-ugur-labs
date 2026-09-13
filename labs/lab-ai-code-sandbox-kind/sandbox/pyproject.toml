@@ -70,14 +70,7 @@ extend_exclude = [".*_test\\.py", ".*conftest\\.py"]
 # numpy, pandas, scipy, scikit-learn and sympy are never imported by the
 # sandbox server itself: they are installed for the Python code users
 # submit to run against, and the sandbox's capabilities endpoint reports
-# their versions. Removing any of them would silently break that report.
-#
-# fastapi and pydantic are the web framework and request/response models
-# for the sandbox's own HTTP API, and uvicorn is the server that runs it;
-# that HTTP entrypoint isn't part of this module tree yet, so deptry can't
-# see them imported. They stay pinned here as part of the service's one
-# dependency set rather than being added piecemeal later.
-DEP002 = [
-    "numpy", "pandas", "scipy", "scikit-learn", "sympy",
-    "fastapi", "pydantic", "uvicorn",
-]
+# their versions. Removing any of them breaks that report: the endpoint
+# fails outright, because it reads each module's installed version by
+# name.
+DEP002 = ["numpy", "pandas", "scipy", "scikit-learn", "sympy"]
