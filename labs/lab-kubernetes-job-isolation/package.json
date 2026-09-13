@@ -3,5 +3,6 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": "22.x" }
+  "engines": { "node": "22.x" },
+  "scripts": { "test:worker": "node --test worker/launcher.test.mjs" }
 }
