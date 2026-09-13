@@ -116,6 +116,19 @@ async def test_invalid_result_json_is_reported(
     assert outcome.result_error == "result.json is not valid JSON"
 
 
+async def test_deeply_nested_result_json_is_reported_not_raised(
+    settings: Settings, runs_root: Path, log: Logger
+) -> None:
+    code = "open('result.json', 'w').write('[' * 30000)"
+    generous_settings = replace(settings, max_result_bytes=40000)
+    outcome = await run_code(
+        code, settings=generous_settings, runs_root=runs_root, log=log
+    )
+    assert outcome.status is ExecutionStatus.SUCCEEDED
+    assert outcome.result is None
+    assert outcome.result_error == "result.json is not valid JSON"
+
+
 async def test_working_directory_is_fresh_and_removed(
     settings: Settings, runs_root: Path, log: Logger
 ) -> None:

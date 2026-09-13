@@ -30,6 +30,14 @@ def test_non_finite_numbers_are_rejected(tmp_path: Path) -> None:
     assert "not valid JSON" in (read_result_file(tmp_path, limit=100).error or "")
 
 
+def test_deeply_nested_json_is_reported_not_raised(tmp_path: Path) -> None:
+    nested = "[" * 30000
+    (tmp_path / "result.json").write_text(nested)
+    result = read_result_file(tmp_path, limit=len(nested) + 1)
+    assert result.value is None
+    assert result.error == "result.json is not valid JSON"
+
+
 def test_oversized_file_is_reported(tmp_path: Path) -> None:
     (tmp_path / "result.json").write_text('"' + "a" * 200 + '"')
     result = read_result_file(tmp_path, limit=100)

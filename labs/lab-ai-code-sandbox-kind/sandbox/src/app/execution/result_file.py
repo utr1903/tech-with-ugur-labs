@@ -39,6 +39,9 @@ def read_result_file(workdir: Path, *, limit: int) -> ResultFile:
         return ResultFile(value=None, error=f"result.json is larger than {limit} bytes")
     try:
         value = json.loads(data.decode("utf-8"), parse_constant=_reject_constant)
-    except (UnicodeDecodeError, ValueError):
+    except (UnicodeDecodeError, ValueError, RecursionError):
+        # RecursionError: json's recursive-descent parser blows the Python
+        # call stack on deeply nested input (e.g. thousands of "[") well
+        # under `limit` bytes; that is a malformed submission, not a crash.
         return ResultFile(value=None, error="result.json is not valid JSON")
     return ResultFile(value=value, error=None)

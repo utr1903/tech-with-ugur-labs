@@ -32,10 +32,26 @@ def prepare_runs_root(work_root: Path, *, log: Logger) -> Path:
         return runs
 
 
+_RETRYABLE_STEPS = (os.unlink, os.rmdir)
+
+
 def _unlock_and_retry(
-    func: Callable[[str], object], path: str, _exc: BaseException
+    func: Callable[[str], object], path: str, exc: BaseException
 ) -> None:
-    # A program may chmod its own files to 000; restore access and retry once.
+    """Retries one rmtree step after chmod-ing its target back to 0700.
+
+    `func` is whatever rmtree's fd-safe walk was doing when it hit an
+    OSError -- for a locked directory that can be `os.open` or
+    `os.scandir`, which need more than a bare path and would raise their
+    own unrelated TypeError if called as `func(path)`. Only `os.unlink`
+    and `os.rmdir` are ever safe to retry that way, so anything else
+    re-raises the original OSError unchanged: this handler must never
+    replace it with a different exception, or a finished execution's
+    result would be lost to a cleanup-time crash instead of the warning
+    below.
+    """
+    if func not in _RETRYABLE_STEPS:
+        raise exc
     Path(path).parent.chmod(0o700)
     if Path(path).is_dir() and not Path(path).is_symlink():
         Path(path).chmod(0o700)
