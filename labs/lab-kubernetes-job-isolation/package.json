@@ -16,7 +16,8 @@
     "knip": "knip",
     "bootstrap": "tsx src/commands/bootstrap.ts",
     "e2e": "tsx src/commands/e2e.ts",
-    "teardown": "tsx src/commands/teardown.ts"
+    "teardown": "tsx src/commands/teardown.ts",
+    "test:fixture": "node --test fixture/server.test.mjs"
   },
   "dependencies": {
     "@hono/node-server": "2.1.1",

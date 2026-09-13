@@ -1,0 +1,3 @@
+{{- if .Values.secure }}
+{"apiVersion":"networking.k8s.io/v1","kind":"NetworkPolicy","metadata":{"name":"deny-worker-network","namespace":{{ .Release.Namespace | toJson }}},"spec":{"podSelector":{"matchLabels":{"app.kubernetes.io/component":"worker"}},"policyTypes":["Ingress","Egress"],"ingress":[],"egress":[]}}
+{{- end }}
