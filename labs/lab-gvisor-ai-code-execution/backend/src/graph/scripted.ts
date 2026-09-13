@@ -19,6 +19,22 @@ export class ScriptedModel implements Model {
 						{ once: true },
 					);
 			});
+		if (this.scenario === "context") {
+			const token = messages
+				.slice(0, -1)
+				.filter(
+					(message) =>
+						message.type === "human" && typeof message.content === "string",
+				)
+				.map(
+					(message) =>
+						String(message.content).match(
+							/^Remember token ([a-f0-9-]+)\.$/,
+						)?.[1],
+				)
+				.findLast((value) => value !== undefined);
+			return new AIMessage({ content: `Remembered token: ${token ?? "none"}` });
+		}
 		const last = messages.at(-1);
 		if (
 			this.scenario !== "conversation" &&

@@ -3,6 +3,7 @@ import { initialize, save } from "./lib/commands.js";
 import { createLogger, installGlobalErrorHandlers } from "./logger.js";
 import { admission } from "./probes/admission.js";
 import { concurrency } from "./probes/concurrency.js";
+import { context } from "./probes/context.js";
 import { filesystem } from "./probes/filesystem.js";
 import { graph } from "./probes/graph.js";
 import { graphResources } from "./probes/graph-resources.js";
@@ -20,6 +21,7 @@ const reportName = process.argv[2]
 	? `report-${process.argv[2]}.json`
 	: "report.json";
 const probes = {
+	context,
 	graphResources,
 	concurrency,
 	runtime,
@@ -62,9 +64,13 @@ try {
 } finally {
 	if (
 		!process.argv[2] ||
-		["graph", "graphResources", "persistence", "concurrency"].includes(
-			process.argv[2],
-		)
+		[
+			"graph",
+			"graphResources",
+			"persistence",
+			"concurrency",
+			"context",
+		].includes(process.argv[2])
 	)
 		await configure("tool");
 	stopForward();

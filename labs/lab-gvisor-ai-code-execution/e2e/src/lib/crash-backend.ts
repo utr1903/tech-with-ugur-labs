@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { docker, json, kube, node, pause, save } from "./commands.js";
-export async function crashBackend() {
+export async function crashBackend(evidencePrefix = "browser") {
 	const pod = json<{
 		items: {
 			metadata: { name: string; uid: string };
@@ -19,7 +19,7 @@ export async function crashBackend() {
 	assert(row);
 	const pid = row.trim().split(/\s+/)[1];
 	assert(pid && /^\d+$/.test(pid));
-	save("browser-backend-before-crash.json", { pod, container, pid });
+	save(`${evidencePrefix}-backend-before-crash.json`, { pod, container, pid });
 	kube([
 		"delete",
 		"pod",
@@ -53,7 +53,7 @@ export async function crashBackend() {
 			`test -e /proc/${pid} && printf present || printf absent`,
 		]);
 		if ((!old || old.state === "CONTAINER_EXITED") && process === "absent") {
-			save("browser-backend-crash-proof.json", {
+			save(`${evidencePrefix}-backend-crash-proof.json`, {
 				oldPodUid: pod.metadata.uid,
 				container,
 				pid,

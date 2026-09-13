@@ -7,6 +7,7 @@ import {
 	submitSource,
 	waitPod,
 } from "../lib/jobs.js";
+import { withRuntimeRestoration } from "../lib/runtime-restoration.js";
 import type { Assertion } from "./report.js";
 
 async function identity() {
@@ -82,54 +83,61 @@ export async function runtime(): Promise<Assertion[]> {
 	const original = docker(["exec", node, "cat", "/etc/containerd/config.toml"]);
 	assert(original.includes("runtimes.runsc"));
 	let name = "";
-	try {
-		docker(
-			["exec", "-i", node, "sh", "-c", "cat > /etc/containerd/config.toml"],
-			original.replaceAll("runtimes.runsc", "runtimes.e2e-disabled-runsc"),
-		);
-		docker(["exec", node, "systemctl", "restart", "containerd"]);
-		name = await submitSource("print('MUST-NOT-EXECUTE')");
-		const pod = await waitPod(name);
-		let events = "";
-		for (let n = 0; n < 50; n++) {
-			events = kube([
+	await withRuntimeRestoration(
+		async () => {
+			docker(
+				["exec", "-i", node, "sh", "-c", "cat > /etc/containerd/config.toml"],
+				original.replaceAll("runtimes.runsc", "runtimes.e2e-disabled-runsc"),
+			);
+			docker(["exec", node, "systemctl", "restart", "containerd"]);
+			name = await submitSource("print('MUST-NOT-EXECUTE')");
+			const pod = await waitPod(name);
+			let events = "";
+			for (let n = 0; n < 50; n++) {
+				events = kube([
+					"get",
+					"events",
+					"-n",
+					"executor",
+					"--field-selector",
+					`involvedObject.name=${pod.metadata.name}`,
+					"-o",
+					"json",
+				]);
+				if (/no runtime for.*runsc/.test(events)) break;
+				await pause(250);
+			}
+			assert(/no runtime for.*runsc/.test(events));
+			const actual = json<Pod>([
 				"get",
-				"events",
+				"pod",
+				pod.metadata.name,
 				"-n",
 				"executor",
-				"--field-selector",
-				`involvedObject.name=${pod.metadata.name}`,
-				"-o",
-				"json",
 			]);
-			if (/no runtime for.*runsc/.test(events)) break;
-			await pause(250);
-		}
-		assert(/no runtime for.*runsc/.test(events));
-		const actual = json<Pod>([
-			"get",
-			"pod",
-			pod.metadata.name,
-			"-n",
-			"executor",
-		]);
-		assert(
-			!actual.status?.containerStatuses?.some(
-				(c) => c.state.running || c.state.terminated,
-			),
-		);
-		save("runtime-failclosed.json", {
-			events: JSON.parse(events),
-			pod: actual,
-		});
-	} finally {
-		if (name) removeJob(name);
-		docker(
-			["exec", "-i", node, "sh", "-c", "cat > /etc/containerd/config.toml"],
-			original,
-		);
-		docker(["exec", node, "systemctl", "restart", "containerd"]);
-	}
+			assert(
+				!actual.status?.containerStatuses?.some(
+					(c) => c.state.running || c.state.terminated,
+				),
+			);
+			save("runtime-failclosed.json", {
+				events: JSON.parse(events),
+				pod: actual,
+			});
+		},
+		() => {
+			if (name) removeJob(name);
+		},
+		() => {
+			docker(
+				["exec", "-i", node, "sh", "-c", "cat > /etc/containerd/config.toml"],
+				original,
+			);
+		},
+		() => {
+			docker(["exec", node, "systemctl", "restart", "containerd"]);
+		},
+	);
 	const restored = await submitSource("print('EXECUTED');print(42)");
 	try {
 		const result = await observe(restored);

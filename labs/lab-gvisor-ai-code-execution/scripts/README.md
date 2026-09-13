@@ -75,3 +75,11 @@ and process disappeared, releasing that dead connection's advisory lock. A pause
 process with a responding TCP kernel retains its connection and ownership; lease
 expiry is not a takeover signal. The crash drill proves the old container and PID
 stopped before claiming recovery. This is not a test of every network partition.
+
+The context probe remembers a fresh random token through the real graph, proves
+the backend process stopped, then asks a follow-up without repeating that token.
+Its scripted adapter derives the answer only from prior model-input messages; a
+separate thread must return no token. Output probes count raw capture bytes before
+the verifier's defensive display clamp and require a complete capture summary.
+A cleanup failure cannot skip restoring the owned runtime handler: all restoration
+steps are attempted and any errors are reported together.

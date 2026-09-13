@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { validateRawOutput } from "../lib/capture.js";
 import { runSource } from "../lib/jobs.js";
 import type { Assertion } from "./report.js";
 import { validateExecution } from "./report.js";
@@ -72,8 +73,7 @@ export async function resources(): Promise<Assertion[]> {
 			name: "output",
 			code: "import os; print('EXECUTED',flush=True); os.write(1,b'x'*1000000); os.write(2,b'y'*1000000)",
 			check: (r: Awaited<ReturnType<typeof runSource>>) => {
-				assert.equal(Buffer.byteLength(r.stdout), 8192);
-				assert.equal(Buffer.byteLength(r.stderr), 8192);
+				validateRawOutput(r.logs);
 			},
 		},
 	];
