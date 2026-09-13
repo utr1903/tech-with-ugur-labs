@@ -1,3 +1,4 @@
+import { Writable } from "node:stream";
 import pino from "pino";
 import { expect, it } from "vitest";
 import { KubernetesExecutionService } from "./service.js";
@@ -8,7 +9,7 @@ import {
 } from "./types.js";
 
 const logger = pino({ level: "silent" });
-function fixture() {
+function fixture(log = logger) {
   const active = new Set<string>();
   const completed = new Set<string>();
   const events: string[] = [];
@@ -53,7 +54,7 @@ function fixture() {
       waiters.delete(id);
     },
   };
-  const service = new KubernetesExecutionService(store, jobs, logger, {
+  const service = new KubernetesExecutionService(store, jobs, log, {
     requestTimeoutMs: 200,
     cleanupReserveMs: 20,
   });
@@ -73,6 +74,73 @@ function fixture() {
     },
   };
 }
+it("correlates command, slot acquisition and execution outcome without logging result text", async () => {
+  let logs = "";
+  const f = fixture(
+    pino(
+      new Writable({
+        write(chunk, _encoding, done) {
+          logs += chunk;
+          done();
+        },
+      }),
+    ),
+  );
+  const pending = f.service.execute("true");
+  await until(() => f.waiters.size === 1);
+  f.finish();
+  const result = await pending;
+  const records = logs
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  const execution = records.filter((record) =>
+    record.msg.startsWith("Run execution"),
+  );
+  expect(execution.map((record) => record.level)).toEqual([30, 30]);
+  expect(
+    execution.every(
+      (record) => record.id === result.id && record.command === "/bin/sh",
+    ),
+  ).toBe(true);
+  expect(execution[0].args).toEqual(["-c", "true"]);
+  expect(execution[1].exitCode).toBe(7);
+  expect(
+    records.filter((record) => record.msg.startsWith("Acquire execution slot")),
+  ).toHaveLength(2);
+  expect(records.every((record) => record.output === undefined)).toBe(true);
+});
+it("logs failed execution with the generated id and submitted command before recovery", async () => {
+  let logs = "";
+  const f = fixture(
+    pino(
+      new Writable({
+        write(chunk, _encoding, done) {
+          logs += chunk;
+          done();
+        },
+      }),
+    ),
+  );
+  f.setFailure("wait");
+  await expect(f.service.execute("true")).rejects.toMatchObject({
+    kind: "timeout",
+  });
+  const records = logs
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  const failed = records.find(
+    (record) => record.msg === "Run execution failed.",
+  );
+  expect(failed).toMatchObject({
+    level: 50,
+    command: "/bin/sh",
+    args: ["-c", "true"],
+    id: expect.any(String),
+  });
+  expect(f.active.size).toBe(0);
+});
 async function until(predicate: () => boolean) {
   const deadline = Date.now() + 1000;
   while (!predicate()) {

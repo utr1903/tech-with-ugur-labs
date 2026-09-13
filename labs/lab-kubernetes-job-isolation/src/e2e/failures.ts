@@ -9,6 +9,7 @@ import {
 } from "./context.js";
 import type { Seed } from "./storage.js";
 import { timeoutCheck } from "./timeout.js";
+// Check both returned byte count and actual result/metadata sizes, plus worker termination.
 export function capped(evidence: {
   status: number;
   output: string;
@@ -27,6 +28,7 @@ export function capped(evidence: {
     evidence.workerTerminated
   );
 }
+// Reject invalid inputs before Job creation, then exercise capture, tampering and deadline recovery.
 export async function failureChecks(ctx: Context, seeds: Record<Mode, Seed>) {
   for (const mode of ["insecure", "secure"] as const) {
     for (const [operation, body] of [
@@ -69,6 +71,7 @@ export async function failureChecks(ctx: Context, seeds: Record<Mode, Seed>) {
     await timeoutCheck(ctx, mode);
   }
 }
+// Replace expected paths with missing/invalid/nonregular entries and require generic errors plus cleanup.
 async function invalidResults(ctx: Context, mode: Mode, seed: Seed) {
   for (const [operation, command] of [
     ["missing output", 'rm "$HOME/data/$id.md"'],
@@ -119,6 +122,7 @@ async function invalidResults(ctx: Context, mode: Mode, seed: Seed) {
     await benign(ctx, mode, `recovery after ${operation}`);
   }
 }
+// Continuous output exercises the real capture cap; inspect PVC sizes rather than response text alone.
 async function truncated(ctx: Context, mode: Mode) {
   const attempt = await request(ctx, mode, "yes capped-output");
   const id = attempt.response.body.id;

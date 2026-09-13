@@ -6,6 +6,7 @@ export type Evidence = {
   evidence: Record<string, unknown>;
   passed: boolean;
 };
+// Reject unsupported success claims and require positive/operator controls for denial evidence.
 export function assess(check: Evidence): boolean {
   if (
     !check.passed ||
@@ -31,6 +32,7 @@ export function assess(check: Evidence): boolean {
   }
   return true;
 }
+// A successful execution check needs real immutable Job and Pod identities.
 function observedJobs(jobs: unknown): boolean {
   if (!Array.isArray(jobs) || jobs.length === 0) return false;
   return jobs.every(

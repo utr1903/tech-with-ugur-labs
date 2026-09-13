@@ -8,6 +8,7 @@ export type Response = {
     error?: string;
   };
 };
+// Bound client transport beyond the server budget so deadline responses and cleanup can be observed.
 export async function post(
   endpoint: string,
   body: string,

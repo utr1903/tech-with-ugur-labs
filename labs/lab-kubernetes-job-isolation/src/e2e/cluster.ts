@@ -2,6 +2,7 @@ import type { V1Job, V1Pod, V1PodSpec } from "@kubernetes/client-node";
 import type { Runner } from "../commands/process.js";
 export type List<T> = { items: T[] };
 export type JobEvidence = ReturnType<typeof summarize>;
+// Collect operator evidence through the explicit lab context, independent of worker claims.
 export class Cluster {
   constructor(private readonly runner: Runner) {}
   async get<T>(namespace: string, resource: string): Promise<T> {
@@ -40,6 +41,7 @@ export class Cluster {
       pod,
     ]);
   }
+  // Inspect the node runtime after probes; deleted API objects alone do not prove termination.
   async runningWorkers(): Promise<{
     containers: { id: string; metadata: { name: string } }[];
   }> {
@@ -86,6 +88,7 @@ export class Cluster {
     ) as T;
   }
 }
+// Keep live controls in evidence while excluding the command-bearing execution configuration.
 function fixedSpec(spec: V1PodSpec | undefined) {
   if (!spec) return undefined;
   return {
@@ -98,6 +101,7 @@ function fixedSpec(spec: V1PodSpec | undefined) {
     })),
   };
 }
+// Join Jobs to Pods by the server-selected execution label and retain immutable identities.
 export function summarize(job: V1Job, pods: V1Pod[]) {
   const id = job.metadata?.labels?.["execution-id"];
   return {

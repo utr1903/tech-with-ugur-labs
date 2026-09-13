@@ -7,11 +7,13 @@ import {
   record,
   request,
 } from "./context.js";
+// Treat Pending and Running Pods as occupying execution slots during sampling.
 export function activeCount(jobs: JobEvidence[]): number {
   return jobs.filter((job) =>
     job.pods.some((pod) => pod.phase === "Pending" || pod.phase === "Running"),
   ).length;
 }
+// Submit three long-enough commands together and sample live Jobs while the third waits for a slot.
 export async function concurrencyChecks(ctx: Context) {
   for (const mode of ["insecure", "secure"] as const) {
     const before = new Set(

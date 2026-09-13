@@ -15,6 +15,7 @@ export type Seed = {
   mode: number;
   directoryMode: number;
 };
+// Confirm a real synthetic canary and root-only permissions before interpreting access denial.
 export function validSeed(seed: Seed): boolean {
   if (
     !seed.exists ||
@@ -35,6 +36,7 @@ export function validSeed(seed: Seed): boolean {
     value.canary.startsWith("FAKE-PII-")
   );
 }
+// Inspect each PVC as operator, then compare worker visibility and retained-result access.
 export async function storageChecks(ctx: Context): Promise<Record<Mode, Seed>> {
   const seeds = {} as Record<Mode, Seed>;
   let exposed = false;
@@ -87,6 +89,7 @@ export async function storageChecks(ctx: Context): Promise<Record<Mode, Seed>> {
   }
   return seeds;
 }
+// Use mode-specific parent paths while requiring exact insecure exposure as a positive control.
 async function traversalCheck(
   ctx: Context,
   mode: Mode,

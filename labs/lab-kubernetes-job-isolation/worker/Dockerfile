@@ -8,7 +8,7 @@ RUN apt-get update \
     && mkdir -p /home/runner/data /opt/worker \
     && chown runner:runner /home/runner/data
 COPY --from=node /usr/local/bin/node /usr/local/bin/node
-COPY worker/launcher.mjs /opt/worker/launcher.mjs
+COPY worker/launcher.mjs worker/operations.mjs worker/configuration.mjs worker/result-files.mjs /opt/worker/
 ENV HOME=/home/runner OUTPUT_LIMIT_BYTES=65536
 WORKDIR /home/runner
 USER 10001:10001

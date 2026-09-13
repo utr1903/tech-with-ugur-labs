@@ -1,6 +1,4 @@
-import { randomUUID } from "node:crypto";
-import { constants } from "node:fs";
-import { chmod, chown, lstat, mkdir, open, rm } from "node:fs/promises";
+import { chown, mkdir, rm } from "node:fs/promises";
 import { join } from "node:path";
 import {
   ExecutionError,
@@ -9,6 +7,7 @@ import {
 } from "../execution/types.js";
 import { operation } from "../lib/operation.js";
 import type { Logger } from "../logger.js";
+import { initializeStorage } from "./initialize.js";
 import { readRegular } from "./safe-files.js";
 
 const uuid =
@@ -20,12 +19,7 @@ type StoreOptions = {
   ownership?: typeof chown;
 };
 
-async function directory(path: string, mode: number): Promise<void> {
-  await mkdir(path, { recursive: true, mode });
-  if (!(await lstat(path)).isDirectory())
-    throw new ExecutionError("infrastructure");
-  await chmod(path, mode);
-}
+// Treat worker-written metadata as untrusted and require the exact bounded result schema.
 function metadata(bytes: Buffer): { exitCode: number; truncated: boolean } {
   const value: unknown = JSON.parse(bytes.toString("utf8"));
   if (
@@ -47,48 +41,29 @@ function metadata(bytes: Buffer): { exitCode: number; truncated: boolean } {
   return { exitCode: value.exitCode, truncated: value.truncated };
 }
 
+// Restrict collection and cleanup to server-generated IDs prepared during this lifespan.
 export class FileExecutionStore implements ExecutionStore {
   private readonly known = new Set<string>();
   constructor(private readonly options: StoreOptions) {}
+  // Create root-only synthetic private data before the server exposes execution.
   async initialize(): Promise<void> {
-    await operation(this.options.logger, "Initialize storage", {}, async () => {
-      const { root } = this.options;
-      await directory(root, 0o755);
-      await directory(join(root, "private"), 0o700);
-      await directory(join(root, "runs"), 0o755);
-      const path = join(root, "private", "pii.json");
-      const handle = await open(
-        path,
-        constants.O_CREAT |
-          constants.O_WRONLY |
-          constants.O_NOFOLLOW |
-          constants.O_NONBLOCK,
-        0o600,
-      );
-      try {
-        if (!(await handle.stat()).isFile())
-          throw new ExecutionError("infrastructure");
-        await handle.chmod(0o600);
-        await handle.truncate(0);
-        await handle.writeFile(
-          JSON.stringify({
-            synthetic: true,
-            canary: `FAKE-PII-${randomUUID()}`,
-            name: "Synthetic Person",
-            email: "synthetic.person@example.invalid",
-          }),
-        );
-      } finally {
-        await handle.close();
-      }
-    });
+    await operation(
+      this.options.logger,
+      "Initialize storage",
+      { root: this.options.root, secure: this.options.secure },
+      async () => {
+        await initializeStorage(this.options.root, this.options.logger);
+      },
+    );
   }
+  // Create a fresh per-run directory; secure workers receive ownership of only that subPath.
   async prepare(id: string): Promise<void> {
     await operation(
       this.options.logger,
       "Prepare execution storage",
-      { id },
+      { id, root: this.options.root, secure: this.options.secure },
       async () => {
+        // Reject invalid/reused IDs before building filesystem paths or changing ownership.
         if (!uuid.test(id) || this.known.has(id))
           throw new ExecutionError("infrastructure");
         const path = join(this.options.root, "runs", id);
@@ -97,6 +72,7 @@ export class FileExecutionStore implements ExecutionStore {
           if (this.options.secure)
             await (this.options.ownership ?? chown)(path, 10001, 10001);
         } catch (err) {
+          // Roll back the new directory if ownership setup fails before registering it.
           await rm(path, { recursive: true, force: true });
           throw err;
         }
@@ -104,18 +80,26 @@ export class FileExecutionStore implements ExecutionStore {
       },
     );
   }
+  // Read the mode-specific files through the no-follow byte-limited reader before returning text.
   async read(id: string): Promise<ExecutionResult> {
     return operation(
       this.options.logger,
       "Read execution results",
-      { id },
+      { id, root: this.options.root, secure: this.options.secure },
       async () => {
         this.assertKnown(id);
         const path = this.options.secure
           ? join(this.options.root, "runs", id)
           : this.options.root;
-        const output = await readRegular(join(path, `${id}.md`), 65536);
-        const exit = metadata(await readRegular(join(path, `${id}.exit`), 128));
+        const output = await this.readFile(id, join(path, `${id}.md`), 65536);
+        const exit = await operation(
+          this.options.logger,
+          "Validate exit metadata",
+          { id, maximumBytes: 128 },
+          async () =>
+            metadata(await this.readFile(id, join(path, `${id}.exit`), 128)),
+          (exit) => ({ exitCode: exit.exitCode, truncated: exit.truncated }),
+        );
         return {
           id,
           exitCode: exit.exitCode,
@@ -125,15 +109,17 @@ export class FileExecutionStore implements ExecutionStore {
       },
       (result) => ({
         exitCode: result.exitCode,
+        outputBytes: Buffer.byteLength(result.output),
         truncated: result.truncated ?? false,
       }),
     );
   }
+  // Remove only known output paths and the run directory; arbitrary extra whole-PVC files are untracked.
   async remove(id: string): Promise<void> {
     await operation(
       this.options.logger,
       "Remove execution storage",
-      { id },
+      { id, root: this.options.root, secure: this.options.secure },
       async () => {
         this.assertKnown(id);
         if (!this.options.secure) {
@@ -154,6 +140,20 @@ export class FileExecutionStore implements ExecutionStore {
       },
     );
   }
+  private readFile(
+    id: string,
+    path: string,
+    maximumBytes: number,
+  ): Promise<Buffer> {
+    return operation(
+      this.options.logger,
+      "Read regular result file",
+      { id, path, maximumBytes },
+      () => readRegular(path, maximumBytes),
+      (bytes) => ({ bytesRead: bytes.length }),
+    );
+  }
+  // Prevent caller-selected traversal paths and cleanup of executions outside in-memory accounting.
   private assertKnown(id: string): void {
     if (!uuid.test(id) || !this.known.has(id))
       throw new ExecutionError("infrastructure");

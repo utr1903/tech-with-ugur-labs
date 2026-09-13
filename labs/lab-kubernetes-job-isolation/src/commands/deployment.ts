@@ -2,6 +2,7 @@ import { existingCluster } from "./cluster.js";
 import type { Runner } from "./process.js";
 import { cluster, context, images, versions } from "./settings.js";
 
+// Install the pinned enforcing CNI before workloads that depend on NetworkPolicy.
 async function cni(run: Runner): Promise<void> {
   await run("helm", ["repo", "add", "cilium", "https://helm.cilium.io/"]);
   await run("helm", ["repo", "update", "cilium"]);
@@ -26,6 +27,7 @@ async function cni(run: Runner): Promise<void> {
     "--timeout",
     "10m",
   ]);
+  // Wait for enforcement components and node readiness rather than assuming Helm success is enough.
   for (const resource of [
     "daemonset/cilium",
     "daemonset/cilium-envoy",
@@ -52,6 +54,7 @@ async function cni(run: Runner): Promise<void> {
     "--timeout=10m",
   ]);
 }
+// Reuse only namespaces carrying this lab ownership label.
 async function ensureNamespace(run: Runner, namespace: string): Promise<void> {
   // Do not take over a pre-existing namespace belonging to another application.
   const data = await run("kubectl", [
@@ -87,6 +90,7 @@ async function ensureNamespace(run: Runner, namespace: string): Promise<void> {
     ]);
   }
 }
+// Install one release with its fixed secure-mode setting and wait for server/PVC readiness.
 async function release(
   run: Runner,
   namespaceName: string,
@@ -109,6 +113,7 @@ async function release(
     "--timeout",
     "5m",
   ]);
+  // Local image tags stay constant, so restart the server to consume the newly loaded image.
   await run("kubectl", [
     "--context",
     context,
@@ -139,6 +144,7 @@ async function release(
     "--timeout=5m",
   ]);
 }
+// Reuse a positively identified cluster or create the pinned one, then load all local images.
 export async function deploy(run: Runner): Promise<void> {
   if (!(await existingCluster(run)))
     await run("kind", [
@@ -151,6 +157,7 @@ export async function deploy(run: Runner): Promise<void> {
       "--config",
       "deploy/kind.yaml",
     ]);
+  // Establish enforcing networking before creating worker-capable server releases.
   await cni(run);
   const dockerfiles = ["Dockerfile", "worker/Dockerfile", "fixture/Dockerfile"];
   for (const [index, image] of images.entries())
@@ -162,9 +169,11 @@ export async function deploy(run: Runner): Promise<void> {
       image,
       ".",
     ]);
+  // kind uses its own node image store; host Docker builds must be loaded explicitly.
   await run("kind", ["load", "docker-image", ...images, "--name", cluster]);
   await release(run, "insecure", false);
   await release(run, "secure", true);
+  // Keep the harmless network target separate from both execution namespaces.
   await ensureNamespace(run, "download-fixture");
   await run("kubectl", [
     "--context",

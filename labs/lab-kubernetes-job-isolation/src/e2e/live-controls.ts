@@ -6,6 +6,7 @@ import type {
 } from "@kubernetes/client-node";
 import type { JobEvidence, List } from "./cluster.js";
 import { type Context, record } from "./context.js";
+// Validate resource bounds and lifecycle settings on both the Job template and actual observed Pods.
 export function workerBound(job: JobEvidence): boolean {
   const resources = job.spec?.containers[0]?.resources;
   const bounded = ["cpu", "memory", "ephemeral-storage"].every(
@@ -30,6 +31,7 @@ export function workerBound(job: JobEvidence): boolean {
       ),
   );
 }
+// Deduplicate captured Jobs by immutable UID, then verify runtime cleanup after all executions.
 export async function observedWorkerChecks(ctx: Context) {
   const jobs = new Map<string, JobEvidence>();
   for (const check of ctx.checks) {
@@ -71,6 +73,7 @@ export async function observedWorkerChecks(ctx: Context) {
     passed: runtime.containers.length === 0,
   });
 }
+// Reject host-sharing features and engine socket mounts outside the fixed lab boundary.
 export function forbiddenFeatures(spec: V1PodSpec | undefined): boolean {
   if (!spec) return true;
   return Boolean(
@@ -87,6 +90,7 @@ export function forbiddenFeatures(spec: V1PodSpec | undefined): boolean {
       ),
   );
 }
+// Inspect ready CNI/nodes and live selectors; runtime traffic probes provide separate enforcement evidence.
 export async function clusterControls(ctx: Context) {
   const [cilium, nodes, policies] = await Promise.all([
     ctx.cluster.get<V1DaemonSet>("kube-system", "daemonset/cilium"),

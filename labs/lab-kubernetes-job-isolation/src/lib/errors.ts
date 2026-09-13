@@ -81,9 +81,11 @@ function own(err: unknown, key: string): unknown {
   if (typeof err !== "object" || err === null) return undefined;
   return Object.getOwnPropertyDescriptor(err, key)?.value;
 }
+// Only allow recognized diagnostic values; arbitrary strings can contain submitted data.
 function listed(value: unknown, allowed: Set<string>): string | undefined {
   return typeof value === "string" && allowed.has(value) ? value : undefined;
 }
+// Retain numeric HTTP status without exposing response bodies or headers.
 function status(err: unknown): number | undefined {
   for (const key of ["code", "statusCode", "httpStatus"]) {
     const value = own(err, key);
@@ -97,6 +99,7 @@ function status(err: unknown): number | undefined {
   }
   return undefined;
 }
+// Prefer known exception classes, then allowlisted names rather than arbitrary backend text.
 function errorName(err: unknown): string {
   if (err instanceof ApiException) return "ApiException";
   if (err instanceof ExecutionError) return "ExecutionError";
@@ -104,6 +107,7 @@ function errorName(err: unknown): string {
   if (err instanceof TypeError) return "TypeError";
   return listed(own(err, "name"), names) ?? "Error";
 }
+// Classify failures from safe codes/types so diagnostics remain useful without raw messages.
 function category(
   err: unknown,
   name: string,
@@ -117,6 +121,7 @@ function category(
   if (name === "ExecutionError") return "execution";
   return err instanceof Error ? "runtime" : "unknown";
 }
+// Rebuild causes with bounded depth and cycle detection instead of serializing backend objects.
 function diagnostic(
   err: unknown,
   depth = 0,
@@ -138,6 +143,7 @@ function diagnostic(
     ...(syscall ? { syscall } : {}),
     ...(httpStatus !== undefined ? { httpStatus } : {}),
   });
+  // A fresh stack still contains implementation paths and is unnecessary for these safe diagnostics.
   delete safe.stack;
   const sourceCause = own(err, "cause");
   if (sourceCause !== undefined) {
@@ -150,6 +156,7 @@ function diagnostic(
   return safe;
 }
 
+// Preserve client-facing execution kind while replacing every backend cause with safe diagnostics.
 export function safeExecutionError(err: unknown): ExecutionError {
   const failure = new ExecutionError(
     err instanceof ExecutionError ? err.kind : "infrastructure",
@@ -159,6 +166,7 @@ export function safeExecutionError(err: unknown): ExecutionError {
   if (source !== undefined) failure.cause = diagnostic(source);
   return failure;
 }
+// Apply the same diagnostic boundary to unexpected top-level process failures.
 export function safeProcessError(err: unknown): Error {
   const failure = new Error("Unexpected process failure", {
     cause: diagnostic(err),

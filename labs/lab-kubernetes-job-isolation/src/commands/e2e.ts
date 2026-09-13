@@ -39,6 +39,7 @@ const report = {
   checks: ctx.checks,
   passed: false,
 };
+// Save local evidence privately after probe groups and even if later infrastructure fails.
 async function save() {
   await mkdir(join(root, "artifacts"), { recursive: true, mode: 0o700 });
   await writeFile(
@@ -54,6 +55,7 @@ await operation(
   async () => {
     try {
       await prerequisites(run);
+      // Establish live image/runtime/operator controls before interpreting worker access denials.
       await controlChecks(ctx);
       await save();
       const seeds = await storageChecks(ctx);
@@ -64,11 +66,14 @@ await operation(
       await save();
       await concurrencyChecks(ctx);
       await save();
+      // Run retention last because it intentionally prunes earlier completed results and Jobs.
       await retentionChecks(ctx);
       await observedWorkerChecks(ctx);
+      // Require all recorded assertions, including supporting identity evidence, to pass.
       report.passed =
         ctx.checks.length > 0 && ctx.checks.every((check) => check.passed);
       if (!report.passed) process.exitCode = 1;
+      // Record an explicit incomplete-run failure rather than letting a partial report imply success.
     } catch (err) {
       record(ctx, {
         operation: "E2E infrastructure failure",
@@ -81,6 +86,7 @@ await operation(
         passed: false,
       });
       throw err;
+      // Persist the final or partial evidence on both successful and failed runs.
     } finally {
       await save();
     }

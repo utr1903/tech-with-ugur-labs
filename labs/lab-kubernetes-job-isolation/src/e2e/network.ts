@@ -4,6 +4,7 @@ import { type Context, checkAttempt, record, request } from "./context.js";
 import type { Response } from "./http.js";
 import { forbiddenFeatures } from "./live-controls.js";
 import { routeCheck } from "./network-download.js";
+// Accept secure DNS failure/timeout only; IP-route probes separately establish egress denial.
 export function dnsObservation(
   mode: "insecure" | "secure",
   actual: Response,
@@ -19,6 +20,7 @@ export function dnsObservation(
 }
 
 const host = "download-fixture.download-fixture.svc.cluster.local";
+// Discover real fixture addresses, test three routes, then resolve DNS independently with a bound.
 export async function networkChecks(ctx: Context) {
   const [pods, service] = await Promise.all([
     ctx.cluster.get<List<V1Pod>>("download-fixture", "pods"),

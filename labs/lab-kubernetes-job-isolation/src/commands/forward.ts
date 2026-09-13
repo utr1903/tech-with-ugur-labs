@@ -1,4 +1,4 @@
-import { spawn, spawnSync } from "node:child_process";
+import { spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import {
   closeSync,
@@ -9,54 +9,16 @@ import {
 } from "node:fs";
 import { createConnection, createServer } from "node:net";
 import { setTimeout as delay } from "node:timers/promises";
-import { context, root } from "./settings.js";
+import { operation } from "../lib/operation.js";
+import type { Logger } from "../logger.js";
+import { args, type Forward, identity, stopOwned } from "./forward-process.js";
+import { root } from "./settings.js";
 
-type Forward = {
-  pid: number;
-  identity: string;
-  namespace: string;
-  port: number;
-  log: string;
-};
+export { identity, stopOwned } from "./forward-process.js";
+
 const runtime = `${root}/.runtime`;
 const state = `${runtime}/forwards.json`;
-function args(namespace: string, port: number): string[] {
-  return [
-    "--context",
-    context,
-    "-n",
-    namespace,
-    "port-forward",
-    "service/server",
-    `${port}:3000`,
-    "--address",
-    "127.0.0.1",
-  ];
-}
-export function identity(pid: number): string | undefined {
-  if (!Number.isSafeInteger(pid) || pid <= 0) return undefined;
-  const result = spawnSync(
-    "ps",
-    ["-p", String(pid), "-o", "lstart=", "-o", "command="],
-    { encoding: "utf8" },
-  );
-  return result.status === 0 ? result.stdout.trim() : undefined;
-}
-export async function stopOwned(record: Forward): Promise<void> {
-  const current = identity(record.pid);
-  const suffix = `kubectl ${args(record.namespace, record.port).join(" ")}`;
-  if (!current || current !== record.identity || !current.endsWith(suffix))
-    return;
-  process.kill(record.pid, "SIGTERM");
-  for (
-    let attempt = 0;
-    attempt < 100 && identity(record.pid) === current;
-    attempt++
-  )
-    await delay(50);
-  if (identity(record.pid) === current)
-    throw new Error("Owned port forward did not stop.");
-}
+
 function records(): Forward[] {
   try {
     return JSON.parse(readFileSync(state, "utf8"));
@@ -69,9 +31,21 @@ function save(value: Forward[]): void {
   mkdirSync(runtime, { recursive: true });
   writeFileSync(state, JSON.stringify(value), { mode: 0o600 });
 }
-export async function stopForwards(): Promise<void> {
-  for (const record of records()) await stopOwned(record);
-  save([]);
+export async function stopForwards(logger: Logger): Promise<void> {
+  await operation(logger, "Stopping owned port forwards", {}, async () => {
+    for (const record of records())
+      await operation(
+        logger,
+        "Stopping port forward",
+        {
+          pid: record.pid,
+          command: "kubectl",
+          args: args(record.namespace, record.port),
+        },
+        () => stopOwned(record, logger),
+      );
+    save([]);
+  });
 }
 async function available(port: number): Promise<void> {
   await new Promise<void>((resolve, reject) => {
@@ -94,9 +68,9 @@ async function connected(port: number): Promise<boolean> {
     socket.once("connect", () => finish(true));
   });
 }
-async function ready(record: Forward): Promise<void> {
+async function ready(record: Forward, logger: Logger): Promise<void> {
   for (let attempt = 0; attempt < 200; attempt++) {
-    if (identity(record.pid) !== record.identity)
+    if (identity(record.pid, logger) !== record.identity)
       throw new Error("Port forward exited before readiness.");
     const logs = readFileSync(record.log, "utf8");
     if (
@@ -108,36 +82,56 @@ async function ready(record: Forward): Promise<void> {
   }
   throw new Error("Port forward readiness timed out.");
 }
-async function start(namespace: string, port: number): Promise<void> {
-  await available(port);
-  mkdirSync(runtime, { recursive: true });
-  const log = `${runtime}/${namespace}-${randomUUID()}.log`;
-  const fd = openSync(log, "wx", 0o600);
-  const child = spawn("kubectl", args(namespace, port), {
-    cwd: root,
-    detached: true,
-    stdio: ["ignore", fd, fd],
-  });
-  closeSync(fd);
-  await new Promise<void>((resolve, reject) => {
-    child.once("spawn", resolve);
-    child.once("error", reject);
-  });
-  child.unref();
-  const pid = child.pid;
-  const owner = pid ? identity(pid) : undefined;
-  if (!pid || !owner) throw new Error("Unable to identify owned port forward.");
-  const record = { pid, identity: owner, namespace, port, log };
-  save([...records(), record]);
-  await ready(record);
+async function start(
+  namespace: string,
+  port: number,
+  logger: Logger,
+): Promise<void> {
+  return operation(
+    logger,
+    "Starting port forward",
+    {
+      namespace,
+      port,
+      command: "kubectl",
+      args: args(namespace, port),
+      cwd: root,
+    },
+    async () => {
+      // Check availability before spawning and persist ownership before waiting for readiness.
+      await available(port);
+      mkdirSync(runtime, { recursive: true });
+      const log = `${runtime}/${namespace}-${randomUUID()}.log`;
+      const fd = openSync(log, "wx", 0o600);
+      const child = spawn("kubectl", args(namespace, port), {
+        cwd: root,
+        detached: true,
+        stdio: ["ignore", fd, fd],
+      });
+      closeSync(fd);
+      await new Promise<void>((resolve, reject) => {
+        child.once("spawn", resolve);
+        child.once("error", reject);
+      });
+      child.unref();
+      const pid = child.pid;
+      const owner = pid ? identity(pid, logger) : undefined;
+      if (!pid || !owner)
+        throw new Error("Unable to identify owned port forward.");
+      const record = { pid, identity: owner, namespace, port, log };
+      save([...records(), record]);
+      await ready(record, logger);
+    },
+  );
 }
-export async function startForwards(): Promise<void> {
-  await stopForwards();
+export async function startForwards(logger: Logger): Promise<void> {
+  await stopForwards(logger);
   try {
-    await start("insecure", 3000);
-    await start("secure", 3001);
+    await start("insecure", 3000, logger);
+    await start("secure", 3001, logger);
   } catch (err) {
-    await stopForwards();
+    // Roll back recorded forwards if either listener fails to become ready.
+    await stopForwards(logger);
     throw err;
   }
 }

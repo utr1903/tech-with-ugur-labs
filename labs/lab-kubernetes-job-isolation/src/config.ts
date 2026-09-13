@@ -2,6 +2,7 @@ import { isAbsolute } from "node:path";
 import { ExecutionError } from "./execution/types.js";
 import type { JobConfig } from "./kubernetes/template.js";
 
+// Validate trusted deployment settings before any server or Job operation can start.
 export function readConfig(
   env: NodeJS.ProcessEnv = process.env,
 ): JobConfig & { port: number; root: string } {
@@ -11,6 +12,7 @@ export function readConfig(
   const secure = env.SECURE_MODE ?? "false";
   const port = Number(env.PORT ?? "3000");
   const root = env.DATA_ROOT ?? "/data";
+  // Fail closed on missing identity/image/storage settings or ambiguous secure-mode values.
   if (!namespace || !image || !pvcName)
     throw new ExecutionError("infrastructure");
   if (secure !== "true" && secure !== "false")

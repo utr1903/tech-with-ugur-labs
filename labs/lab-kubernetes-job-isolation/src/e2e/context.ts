@@ -15,6 +15,7 @@ export type Context = {
   checks: Evidence[];
   endpoints: Record<Mode, string>;
 };
+// Preserve captured Pod identities when later polling sees a Job after its Pods disappear.
 export function mergeJobs(
   old: Map<string, JobEvidence>,
   live: JobEvidence[],
@@ -29,6 +30,7 @@ export function mergeJobs(
   }
   return old;
 }
+// Snapshot existing Job UIDs, then poll during the POST so short-lived or deleted Jobs remain evidence.
 export async function request(
   ctx: Context,
   mode: Mode,
@@ -71,6 +73,7 @@ export async function request(
   );
   return { response, jobs, elapsedMs: Date.now() - started };
 }
+// Require supporting observations before adding a check to the report and logging its summary.
 export function record(ctx: Context, check: Evidence): boolean {
   check.passed = assess(check);
   ctx.checks.push(check);
@@ -85,6 +88,7 @@ export function record(ctx: Context, check: Evidence): boolean {
   );
   return check.passed;
 }
+// Normalize HTTP results and observed Jobs into the common evidence format.
 export function checkAttempt(
   ctx: Context,
   mode: Mode,
@@ -115,6 +119,7 @@ export function checkAttempt(
     passed,
   });
 }
+// Use an exact marker to verify that subsequent execution still works after disruptive probes.
 export async function benign(
   ctx: Context,
   mode: Mode,
@@ -133,6 +138,7 @@ export async function benign(
   );
   return attempt;
 }
+// Operator paths reflect whole-PVC output versus output inside the secure per-run subPath.
 export function outputPath(mode: Mode, id: string, extension = "md"): string {
   return mode === "secure"
     ? `/data/runs/${id}/${id}.${extension}`

@@ -9,6 +9,7 @@ import {
 } from "./context.js";
 import type { Response } from "./http.js";
 import { type Seed, validSeed } from "./storage.js";
+// A denial is meaningful only when the earlier unique result is independently confirmed present.
 export function priorObservation(
   mode: Mode,
   actual: Response,
@@ -32,6 +33,7 @@ export function priorObservation(
     !actual.body.output.includes(marker)
   );
 }
+// Create and inspect a prior result, probe known paths from another Job, then confirm it survived.
 export async function priorResult(
   ctx: Context,
   mode: Mode,

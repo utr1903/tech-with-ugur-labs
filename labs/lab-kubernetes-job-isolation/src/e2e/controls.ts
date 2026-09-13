@@ -7,6 +7,7 @@ import {
   request,
 } from "./context.js";
 import { clusterControls } from "./live-controls.js";
+// Require runtime observations for identity, all capability sets, no-new-privileges and EROFS.
 export function runtimeRestricted(output: string): boolean {
   return (
     output.includes("uid=10001\n") &&
@@ -18,6 +19,7 @@ export function runtimeRestricted(output: string): boolean {
     )
   );
 }
+// Establish working image controls before checking token availability and runtime restrictions.
 export async function controlChecks(ctx: Context) {
   await imageChecks(ctx);
   for (const mode of ["insecure", "secure"] as const) {
@@ -26,6 +28,7 @@ export async function controlChecks(ctx: Context) {
   }
   await clusterControls(ctx);
 }
+// Compare resolved live image IDs, rather than relying only on rendered image tags.
 async function imageChecks(ctx: Context) {
   const insecure = await benign(ctx, "insecure", "baseline real execution");
   const secure = await benign(ctx, "secure", "baseline real execution");
@@ -59,6 +62,7 @@ async function imageChecks(ctx: Context) {
         servers[1]?.spec?.containers[0]?.image,
   });
 }
+// Return a byte count or absence marker; never read token bytes into the evidence report.
 async function tokenCheck(ctx: Context, mode: Mode) {
   const token = await request(
     ctx,
@@ -98,6 +102,7 @@ async function tokenCheck(ctx: Context, mode: Mode) {
     },
   );
 }
+// Probe runner-owned HOME so secure write failure demonstrates a read-only rootfs, not ownership.
 async function runtimeCheck(ctx: Context, mode: Mode) {
   const command =
     mode === "insecure"

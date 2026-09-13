@@ -10,6 +10,7 @@ import {
 } from "./context.js";
 import { post, type Response } from "./http.js";
 import { workerBound } from "./live-controls.js";
+// Require a one-to-one identity trail for every real filler execution, including already-pruned Jobs.
 export function completeCoverage(
   ids: (string | undefined)[],
   jobs: JobEvidence[],
@@ -27,6 +28,7 @@ export function completeCoverage(
     jobs.every(workerBound)
   );
 }
+// Verify the retained count and removal of an independently created older sentinel.
 export function retentionBound(
   completed: number,
   retained: number,
@@ -35,6 +37,7 @@ export function retentionBound(
 ): boolean {
   return completed > 128 && retained === 128 && !sentinelFile && !sentinelJob;
 }
+// Exceed the count cap using real requests, preserve early identities, then inspect files and Jobs.
 export async function retentionChecks(ctx: Context) {
   for (const mode of ["insecure", "secure"] as const) {
     const sentinel = await request(ctx, mode, "printf 'retention-sentinel\\n'");

@@ -15,6 +15,8 @@ type Options = { requestTimeoutMs: number; cleanupReserveMs: number };
 async function bounded<T>(task: Promise<T>, deadline: number): Promise<T> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
+    // An absolute deadline includes queueing and scheduling. Racing bounds this
+    // caller's wait; deleting the Job provides actual workload cancellation.
     return await Promise.race([
       task,
       new Promise<never>((_resolve, reject) => {
@@ -43,15 +45,28 @@ export class KubernetesExecutionService implements ExecutionService {
     },
   ) {}
   async execute(message: string): Promise<ExecutionResult> {
+    // Reserve deletion time before admitting work so cleanup fits the HTTP budget.
     const deadline = Date.now() + this.options.requestTimeoutMs;
     const runDeadline = deadline - this.options.cleanupReserveMs;
     return operation(
       this.logger,
       "Execute command",
-      {},
+      { command: "/bin/sh", args: ["-c", message], runDeadline, deadline },
       async () => {
-        const release = await this.slots.acquire(runDeadline);
+        const release = await operation(
+          this.logger,
+          "Acquire execution slot",
+          {
+            command: "/bin/sh",
+            args: ["-c", message],
+            maximum: 2,
+            runDeadline,
+          },
+          () => this.slots.acquire(runDeadline),
+        );
         try {
+          // Resolve uncertain submissions first: a lost API response may leave an
+          // old Job running, and it must not consume capacity outside our limit.
           await bounded(this.reconcile(deadline), runDeadline);
           await bounded(
             this.retained.prune((id) => this.cleanup(id, deadline)),
@@ -59,6 +74,7 @@ export class KubernetesExecutionService implements ExecutionService {
           );
           return await this.run(message, runDeadline, deadline);
         } finally {
+          // Failures must return capacity too, allowing queued callers to recover.
           release();
         }
       },
@@ -80,31 +96,50 @@ export class KubernetesExecutionService implements ExecutionService {
     deadline: number,
   ): Promise<ExecutionResult> {
     const id = randomUUID();
-    let prepared = false;
-    let submitted = false;
-    try {
-      if (Date.now() >= runDeadline) throw new ExecutionError("timeout");
-      await this.store.prepare(id);
-      prepared = true;
-      submitted = true;
-      await bounded(this.jobs.create(id, message, runDeadline), runDeadline);
-      await bounded(this.jobs.wait(id, runDeadline), runDeadline);
-      const result = await bounded(this.store.read(id), runDeadline);
-      this.retained.add(id);
-      await this.retained.prune(
-        (old) => this.cleanup(old, deadline),
-        Date.now(),
-        0,
-      );
-      return result;
-    } catch (err) {
-      if (submitted) this.uncertain.add(id);
-      if (prepared) await this.cleanup(id, deadline);
-      throw err;
-    }
+    return operation(
+      this.logger,
+      "Run execution",
+      { id, command: "/bin/sh", args: ["-c", message], runDeadline, deadline },
+      async () => {
+        let prepared = false;
+        let submitted = false;
+        try {
+          if (Date.now() >= runDeadline) throw new ExecutionError("timeout");
+          // Prepare the server-selected directory before Kubernetes resolves subPath.
+          await this.store.prepare(id);
+          prepared = true;
+          submitted = true;
+          // Mark submission before awaiting the API; rejection does not prove absence.
+          await bounded(
+            this.jobs.create(id, message, runDeadline),
+            runDeadline,
+          );
+          await bounded(this.jobs.wait(id, runDeadline), runDeadline);
+          // Independently validate the launcher's result files before returning them.
+          const result = await bounded(this.store.read(id), runDeadline);
+          this.retained.add(id);
+          await this.retained.prune(
+            (old) => this.cleanup(old, deadline),
+            Date.now(),
+            0,
+          );
+          return result;
+        } catch (err) {
+          if (submitted) this.uncertain.add(id);
+          if (prepared) await this.cleanup(id, deadline);
+          throw err;
+        }
+      },
+      (result) => ({
+        exitCode: result.exitCode,
+        outputBytes: Buffer.byteLength(result.output),
+        truncated: result.truncated ?? false,
+      }),
+    );
   }
   private async cleanup(id: string, deadline: number): Promise<void> {
     await operation(this.logger, "Clean execution", { id }, async () => {
+      // Await Job/Pod deletion before removing files that may still be written.
       await bounded(this.jobs.remove(id, deadline), deadline);
       await this.store.remove(id);
       this.uncertain.delete(id);
@@ -112,6 +147,14 @@ export class KubernetesExecutionService implements ExecutionService {
     });
   }
   private async reconcile(deadline: number): Promise<void> {
-    for (const id of this.uncertain) await this.cleanup(id, deadline);
+    if (!this.uncertain.size) return;
+    await operation(
+      this.logger,
+      "Reconcile uncertain executions",
+      { count: this.uncertain.size },
+      async () => {
+        for (const id of this.uncertain) await this.cleanup(id, deadline);
+      },
+    );
   }
 }

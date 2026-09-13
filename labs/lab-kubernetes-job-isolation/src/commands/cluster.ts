@@ -1,11 +1,13 @@
 import type { Runner } from "./process.js";
 import { cluster, versions } from "./settings.js";
+// Positively identify the pinned lab node before reusing or deleting an existing named cluster.
 export async function existingCluster(run: Runner): Promise<boolean> {
   const clusters = (await run("kind", ["get", "clusters"])).trim().split("\n");
   if (!clusters.includes(cluster)) return false;
   const nodes = (await run("kind", ["get", "nodes", "--name", cluster]))
     .trim()
     .split("\n");
+  // Check Docker image and kind ownership label as well as the human-readable cluster name.
   const inspection: {
     Config: { Image: string; Labels: Record<string, string> };
   }[] = JSON.parse(await run("docker", ["inspect", ...nodes]));

@@ -6,6 +6,7 @@ import {
   ownId,
   request,
 } from "./context.js";
+// Require a timed-out IP request, absent file and unchanged fixture count bracketed by successes.
 export function blockedIp(evidence: {
   exitCode: number | undefined;
   before: number;
@@ -23,6 +24,7 @@ export function blockedIp(evidence: {
   );
 }
 const marker = "printf 'SIMULATED_DOWNLOAD_MARKER\\n'\n";
+// Count only marker request events; fixture lifecycle logs intentionally have no path field.
 async function requestCount(ctx: Context, pod: string): Promise<number> {
   const logs = await ctx.cluster.logs("download-fixture", pod);
   return logs
@@ -31,6 +33,7 @@ async function requestCount(ctx: Context, pod: string): Promise<number> {
     .map((line) => JSON.parse(line) as { path?: string })
     .filter((line) => line.path === "/marker.sh").length;
 }
+// Download without executing the harmless script, then inspect its actual PVC bytes as operator.
 async function download(ctx: Context, mode: Mode, url: string) {
   const attempt = await request(
     ctx,
@@ -49,6 +52,7 @@ async function download(ctx: Context, mode: Mode, url: string) {
   );
   return { attempt, ...file, path };
 }
+// Bracket each secure denial with successful insecure downloads to rule out a failed fixture.
 export async function routeCheck(
   ctx: Context,
   pod: string,

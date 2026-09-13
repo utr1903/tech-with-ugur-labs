@@ -6,11 +6,13 @@ export type JobConfig = {
   secure: boolean;
 };
 
+// Build the fixed operator-owned template: the request contributes only its ID and shell text.
 export function buildJob(
   config: JobConfig,
   id: string,
   message: string,
 ): V1Job {
+  // Apply worker selectors to both Job and Pod so the network policy reaches actual executions.
   const labels = {
     "app.kubernetes.io/component": "worker",
     "execution-id": id,
@@ -19,6 +21,7 @@ export function buildJob(
     restartPolicy: "Never",
     serviceAccountName: "worker",
     automountServiceAccountToken: !config.secure,
+    // Secure identity is enforced by Kubernetes rather than the worker image default alone.
     securityContext: config.secure
       ? {
           runAsUser: 10001,
@@ -38,6 +41,7 @@ export function buildJob(
           { name: "HOME", value: "/home/runner" },
           { name: "OUTPUT_LIMIT_BYTES", value: "65536" },
         ],
+        // Bound scheduling and consumption in both modes; these limits are not complete DoS protection.
         resources: {
           requests: {
             cpu: "100m",
@@ -50,6 +54,7 @@ export function buildJob(
             "ephemeral-storage": "128Mi",
           },
         },
+        // Secure workers see one server-selected subPath instead of the whole release PVC.
         volumeMounts: config.secure
           ? [
               {
@@ -82,6 +87,7 @@ export function buildJob(
     apiVersion: "batch/v1",
     kind: "Job",
     metadata: { name: `execution-${id}`, namespace: config.namespace, labels },
+    // Disable retries and independently bound active lifetime and completed resource retention.
     spec: {
       backoffLimit: 0,
       activeDeadlineSeconds: 30,

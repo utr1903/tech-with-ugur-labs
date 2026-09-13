@@ -8,6 +8,7 @@ import {
   outputPath,
   request,
 } from "./context.js";
+// Enumerate the run directory and both mode-specific result files expected to be removed.
 export function cleanupPaths(mode: Mode, id: string): string[] {
   return [
     `/data/runs/${id}`,
@@ -15,6 +16,7 @@ export function cleanupPaths(mode: Mode, id: string): string[] {
     outputPath(mode, id, "exit"),
   ];
 }
+// Require independent absence of the Job, matching Pods and every expected storage path.
 export function cleanupProven(
   jobDeleted: boolean,
   podUids: string[],
@@ -31,6 +33,7 @@ export function cleanupProven(
     )
   );
 }
+// Outlive the Job deadline, then independently list resources and inspect storage before recovery.
 export async function timeoutCheck(ctx: Context, mode: Mode) {
   const attempt = await request(
     ctx,
