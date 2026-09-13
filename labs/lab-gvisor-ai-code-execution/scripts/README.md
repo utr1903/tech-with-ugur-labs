@@ -3,8 +3,8 @@
 Requires Node 22/npm, Python 3.12/uv, kind v0.32.0, kubectl, Helm,
 Docker with a Linux daemon, jq, curl, bzip2, sha256sum and OpenSSL.
 The ARM64 path runs genuine gVisor systrap in Docker Desktop's Linux VM.
-Use a Linux x86-64 Docker daemon for native x86-64; full x86-64 application
-verification has not been performed under software emulation.
+Linux x86-64 Ubuntu VM testing established runtime feasibility only; sustained
+full application verification on x86-64 has not been performed.
 
 Run commands from the lab directory. Choose a dedicated absolute state directory
 outside the checkout. Bootstrap refuses an existing cluster; it never switches
@@ -14,8 +14,10 @@ fixed executor admission, and deploys PostgreSQL, backend and frontend through H
 
 ```sh
 export GVISOR_DOCKER_CONTEXT=desktop-linux  # use your Linux Docker context
-export GVISOR_CLUSTER_NAME=gvisor-code-execution
-export GVISOR_STATE_DIR=/tmp/contained-chat
+export DOCKER_CONTEXT="$GVISOR_DOCKER_CONTEXT"
+export GVISOR_CLUSTER_NAME="gvisor-ai-code-execution-$(date +%s)-$$"
+export GVISOR_STATE_DIR="$(mktemp -d /tmp/gvisor-ai-code-execution.XXXXXX)"
+export GVISOR_KUBECONFIG="$GVISOR_STATE_DIR/cache/kubeconfig"
 npm run bootstrap -- --scripted
 npm run e2e
 npm run connect
@@ -37,12 +39,13 @@ reported unverified. IPv4-only cluster configuration does not imply IPv6 sockets
 or loopback are disabled. Controlled metadata/external routes are disposable
 listeners inside the owned kind node; they are not real cloud metadata services.
 
+For the hidden-prompt key injection and complete workflow, see the root README.
 For OpenAI mode, make `OPENAI_API_KEY` available in the bootstrap process's
 environment through your own secret manager, then run `npm run bootstrap` without
 `--scripted` on a new named cluster/state directory. Bootstrap creates a backend-only
 Kubernetes Secret. `openaiModel` defaults to `gpt-4.1-mini` and is configurable in
 chart values. The frontend, Python Jobs and persisted conversations never receive
-the key. No local-model download/service is involved. After connecting, run:
+the key. After connecting, run:
 
 ```sh
 npm run smoke:openai
