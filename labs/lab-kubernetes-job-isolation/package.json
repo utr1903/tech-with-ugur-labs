@@ -3,6 +3,33 @@
   "version": "1.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": "22.x" },
-  "scripts": { "test:worker": "node --test worker/launcher.test.mjs" }
+  "engines": {
+    "node": "22.x"
+  },
+  "scripts": {
+    "test:worker": "node --test worker/launcher.test.mjs",
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "lint": "biome check src package.json tsconfig.json tsconfig.test.json biome.json knip.json vitest.config.ts",
+    "knip": "knip",
+    "bootstrap": "tsx src/commands/bootstrap.ts",
+    "e2e": "tsx src/commands/e2e.ts",
+    "teardown": "tsx src/commands/teardown.ts"
+  },
+  "dependencies": {
+    "@hono/node-server": "2.1.1",
+    "@kubernetes/client-node": "2.0.0",
+    "hono": "4.13.7",
+    "pino": "10.3.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.13",
+    "@types/node": "22.20.2",
+    "knip": "5.87.0",
+    "tsx": "4.23.13",
+    "typescript": "5.9.3",
+    "vitest": "4.1.11"
+  }
 }
