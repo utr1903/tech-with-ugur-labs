@@ -1,0 +1,10 @@
+{
+  "kindVersion": "0.32.0",
+  "kindNodeImage": "kindest/node:v1.36.1@sha256:3489c7674813ba5d8b1a9977baea8a6e553784dab7b84759d1014dbd78f7ebd5",
+  "helmVersion": "4.2.4",
+  "cniChart": "cilium/cilium",
+  "cniChartVersion": "1.20.1",
+  "ubuntuImage": "ubuntu:24.04@sha256:224a1869083a311ef3f13648a154ba79832fbef6364d31493642ca03082da254",
+  "nodeImage": "node:22-bookworm-slim@sha256:83f487e0a63425e5b4d146fb5e5be574bcbe1b7b843d3ebafdd95eaf7767a7e5",
+  "kubectlVersion": "1.36.3"
+}

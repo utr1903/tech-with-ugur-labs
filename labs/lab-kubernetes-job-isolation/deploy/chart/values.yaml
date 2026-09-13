@@ -1,0 +1,4 @@
+secure: false
+serverImage: lab-kubernetes-job-isolation-server:local-v1
+workerImage: lab-kubernetes-job-isolation-worker:local-v1
+storageSize: 1Gi
