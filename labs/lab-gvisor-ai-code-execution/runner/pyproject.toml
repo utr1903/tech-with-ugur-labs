@@ -1,0 +1,34 @@
+[project]
+name = "contained-python-runner"
+version = "0.1.0"
+requires-python = "==3.12.*"
+dependencies = ["structlog==26.1.0"]
+[project.scripts]
+app = "app.__main__:main"
+[dependency-groups]
+dev = ["deptry==0.25.1", "mypy==2.3.1", "pytest==9.1.1", "ruff==0.16.6"]
+[build-system]
+requires = ["hatchling==1.29.0"]
+build-backend = "hatchling.build"
+[tool.hatch.build.targets.wheel]
+packages = ["src/app"]
+exclude = ["**/*_test.py", "**/conftest.py"]
+[tool.ruff]
+line-length = 88
+src = ["src"]
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM", "RET", "ARG", "PTH", "ANN", "TRY", "LOG", "G", "C90"]
+# Contextual domain error messages are useful at validation boundaries.
+ignore = ["TRY003"]
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+[tool.mypy]
+strict = true
+files = ["src"]
+[tool.pytest.ini_options]
+python_files = ["*_test.py"]
+testpaths = ["src"]
+addopts = "--import-mode=importlib"
+[tool.deptry]
+known_first_party = ["app"]
+extend_exclude = [".*_test\\.py", ".*conftest\\.py"]

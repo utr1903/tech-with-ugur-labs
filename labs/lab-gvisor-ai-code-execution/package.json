@@ -1,0 +1,12 @@
+{
+  "name": "contained-python-lab",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "bootstrap": "bash scripts/bootstrap",
+    "e2e": "bash scripts/e2e",
+    "connect": "bash scripts/connect",
+    "teardown": "bash scripts/teardown",
+    "smoke:openai": "bash scripts/smoke-openai"
+  }
+}

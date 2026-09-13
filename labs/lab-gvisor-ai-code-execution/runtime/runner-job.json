@@ -1,0 +1,95 @@
+{
+  "apiVersion": "batch/v1",
+  "kind": "Job",
+  "metadata": {
+    "name": "executor-demo",
+    "namespace": "executor"
+  },
+  "spec": {
+    "backoffLimit": 0,
+    "activeDeadlineSeconds": 20,
+    "ttlSecondsAfterFinished": 60,
+    "parallelism": 1,
+    "completions": 1,
+    "template": {
+      "metadata": {
+        "labels": {
+          "app": "python-runner"
+        }
+      },
+      "spec": {
+        "runtimeClassName": "gvisor",
+        "serviceAccountName": "runner",
+        "automountServiceAccountToken": false,
+        "restartPolicy": "Never",
+        "terminationGracePeriodSeconds": 1,
+        "enableServiceLinks": false,
+        "securityContext": {
+          "runAsNonRoot": true,
+          "runAsUser": 65532,
+          "runAsGroup": 65532,
+          "fsGroup": 65532,
+          "seccompProfile": {
+            "type": "RuntimeDefault"
+          }
+        },
+        "containers": [
+          {
+            "name": "runner",
+            "image": "docker.io/library/twu-python-runner@sha256:2d7e2527d98e59290939c655fa49b893db3e143ace09157615379a25a3a9d923",
+            "imagePullPolicy": "Never",
+            "command": [
+              "python",
+              "-I",
+              "-B",
+              "-m",
+              "app"
+            ],
+            "env": [
+              {
+                "name": "PYTHON_SOURCE",
+                "value": "print(42)"
+              }
+            ],
+            "resources": {
+              "requests": {
+                "cpu": "500m",
+                "memory": "128Mi",
+                "ephemeral-storage": "32Mi"
+              },
+              "limits": {
+                "cpu": "500m",
+                "memory": "128Mi",
+                "ephemeral-storage": "32Mi"
+              }
+            },
+            "securityContext": {
+              "allowPrivilegeEscalation": false,
+              "readOnlyRootFilesystem": true,
+              "capabilities": {
+                "drop": [
+                  "ALL"
+                ]
+              }
+            },
+            "volumeMounts": [
+              {
+                "name": "work",
+                "mountPath": "/work"
+              }
+            ]
+          }
+        ],
+        "volumes": [
+          {
+            "name": "work",
+            "emptyDir": {
+              "medium": "Memory",
+              "sizeLimit": "16Mi"
+            }
+          }
+        ]
+      }
+    }
+  }
+}

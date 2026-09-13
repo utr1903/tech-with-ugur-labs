@@ -1,0 +1,8 @@
+backendImage: docker.io/library/twu-chat-backend@sha256:b06d365f111764ea691b96ae251d4e0723450ba283f45d4e290b7a2c2d2a6383
+postgresImage: postgres:17.9-bookworm@sha256:47f917f7409eacd22fc5dfb1dee634e1b55cf0c01d1a7eb701be2227a03e0641
+existingSecret: chat-database
+modelMode: openai
+scriptedScenario: conversation
+openaiSecret: chat-openai
+openaiModel: gpt-4.1-mini
+frontendImage: docker.io/library/twu-chat-frontend@sha256:f0506456db66739f8844fd76e458499ea7be7691f16a83006a8e035fd9b95503

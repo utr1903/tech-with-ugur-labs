@@ -1,0 +1,40 @@
+{
+	"name": "contained-python-backend",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"engines": {
+		"node": ">=22 <23"
+	},
+	"scripts": {
+		"test": "vitest run --maxWorkers=1 --no-file-parallelism",
+		"typecheck": "tsc --noEmit",
+		"lint": "biome check .",
+		"format": "biome check --write .",
+		"knip": "knip",
+		"start": "tsx src/index.ts",
+		"build:image": "node scripts/build-image.mjs",
+		"smoke:live": "node scripts/smoke-live.mjs"
+	},
+	"dependencies": {
+		"@hono/node-server": "2.1.1",
+		"@kubernetes/client-node": "2.0.0",
+		"@langchain/core": "1.2.11",
+		"@langchain/langgraph": "1.4.15",
+		"@langchain/langgraph-checkpoint-postgres": "1.0.5",
+		"hono": "4.13.7",
+		"openai": "7.15.0",
+		"pg": "8.23.0",
+		"pino": "10.3.1",
+		"tsx": "4.21.0",
+		"zod": "4.6.2"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.5.13",
+		"@types/node": "22.20.2",
+		"@types/pg": "8.23.1",
+		"knip": "6.35.1",
+		"typescript": "7.0.2",
+		"vitest": "5.0.0"
+	}
+}

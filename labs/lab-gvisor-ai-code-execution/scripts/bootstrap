@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+set -euo pipefail
+umask 077
+lab=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+export GVISOR_CLUSTER_NAME=${GVISOR_CLUSTER_NAME:-gvisor-code-execution}
+export GVISOR_DOCKER_CONTEXT=${GVISOR_DOCKER_CONTEXT:?Set the owned Docker context}
+export DOCKER_CONTEXT=$GVISOR_DOCKER_CONTEXT
+state=${GVISOR_STATE_DIR:?Set an absolute directory outside this checkout}
+case "$state" in /*) ;; *) exit 1 ;; esac
+case "$state" in "$lab"|"$lab"/*) exit 1 ;; esac
+export GVISOR_KUBECONFIG=$state/cache/kubeconfig
+export GVISOR_EVIDENCE_DIR=$state/verification
+mode=openai
+if test "${1:-}" = --scripted; then mode=scripted; fi
+if test "$mode" = openai; then : "${OPENAI_API_KEY:?Set OPENAI_API_KEY in the backend bootstrap environment, or use --scripted}"; fi
+mkdir -p "$state"
+bash "$lab/runtime/bootstrap.sh" "$state/cache"
+# Legacy runtime prerequisites run before fixed executor admission is installed.
+bash "$lab/runtime/runtime-smoke.sh" "$state/runtime-gate"
+bash "$lab/runtime/network-smoke.sh" "$state/network-gate"
+bash "$lab/runtime/runner-build.sh" "$state/runner.oci.tar" > "$state/runner-build.log"
+runner=$(tail -1 "$state/runner-build.log")
+cp "$lab/runtime/runner-job.json" "$state/runner-job.original.json"
+trap 'cp "$state/runner-job.original.json" "$lab/runtime/runner-job.json"' EXIT
+jq --arg image "$runner" '.spec.template.spec.containers[0].image=$image' "$state/runner-job.original.json" > "$lab/runtime/runner-job.json"
+node="$GVISOR_CLUSTER_NAME-control-plane"
+load_image() {
+ local tag=$1
+ kind load docker-image --name "$GVISOR_CLUSTER_NAME" "$tag" >&2
+ local digest
+ digest=$(docker exec "$node" ctr -n k8s.io images list | awk -v name="docker.io/library/$tag" '$1==name {print $3}')
+ test -n "$digest"
+ local ref="docker.io/library/${tag%:*}@$digest"
+ docker exec "$node" ctr -n k8s.io images tag "docker.io/library/$tag" "$ref" >&2
+ printf '%s\n' "$ref"
+}
+LAB_DOCKER_CONTEXT=$GVISOR_DOCKER_CONTEXT BACKEND_IMAGE=twu-chat-backend:reader npm --prefix "$lab/backend" run build:image > "$state/backend-build.log" 2>&1
+backend=$(load_image twu-chat-backend:reader)
+docker build --tag twu-chat-frontend:reader "$lab/frontend" > "$state/frontend-build.log" 2>&1
+frontend=$(load_image twu-chat-frontend:reader)
+kubectl --kubeconfig "$GVISOR_KUBECONFIG" --context "kind-$GVISOR_CLUSTER_NAME" label namespace executor app.kubernetes.io/managed-by=Helm --overwrite
+kubectl --kubeconfig "$GVISOR_KUBECONFIG" --context "kind-$GVISOR_CLUSTER_NAME" annotate namespace executor meta.helm.sh/release-name=contained-executor meta.helm.sh/release-namespace=executor-app --overwrite
+kubectl --kubeconfig "$GVISOR_KUBECONFIG" --context "kind-$GVISOR_CLUSTER_NAME" label networkpolicy default-deny-all -n executor app.kubernetes.io/managed-by=Helm --overwrite
+kubectl --kubeconfig "$GVISOR_KUBECONFIG" --context "kind-$GVISOR_CLUSTER_NAME" annotate networkpolicy default-deny-all -n executor meta.helm.sh/release-name=contained-executor meta.helm.sh/release-namespace=executor-app --overwrite
+helm upgrade --install contained-executor "$lab/charts/executor" --kubeconfig "$GVISOR_KUBECONFIG" --kube-context "kind-$GVISOR_CLUSTER_NAME" --namespace executor-app --create-namespace --set-string "runnerImage=$runner"
+kube() { kubectl --kubeconfig "$GVISOR_KUBECONFIG" --context "kind-$GVISOR_CLUSTER_NAME" "$@"; }
+password=$(openssl rand -hex 32)
+# Generated values go to stdin only; never shell tracing, a repository file or browser.
+jq -n --arg password "$password" '{apiVersion:"v1",kind:"Secret",metadata:{name:"chat-database",namespace:"executor-app"},stringData:{password:$password,url:("postgresql://chat:"+$password+"@chat-postgres:5432/chat")}}' | kube apply -f -
+unset password
+if test "$mode" = openai; then
+ jq -n '{apiVersion:"v1",kind:"Secret",metadata:{name:"chat-openai",namespace:"executor-app"},stringData:{"api-key":env.OPENAI_API_KEY}}' | kube apply -f -
+fi
+unset OPENAI_API_KEY
+helm upgrade --install contained-chat "$lab/charts/app" --kubeconfig "$GVISOR_KUBECONFIG" --kube-context "kind-$GVISOR_CLUSTER_NAME" --namespace executor-app --set-string "backendImage=$backend,frontendImage=$frontend,modelMode=$mode,scriptedScenario=tool" --wait --timeout 300s
+jq -n --arg runner "$runner" --arg backend "$backend" --arg frontend "$frontend" '{runner:$runner,backend:$backend,frontend:$frontend}' > "$state/images.json"
+printf 'Ready. Use npm run connect for localhost ports 3000 and 3001; npm run e2e for keyless verification.\n'

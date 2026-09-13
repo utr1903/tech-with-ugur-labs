@@ -1,0 +1,4 @@
+{
+	"entry": ["scripts/crash-worker.mjs"],
+	"project": ["src/**/*.ts", "scripts/**/*.mjs"]
+}

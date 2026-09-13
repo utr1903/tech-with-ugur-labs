@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+lab=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+: "${GVISOR_STATE_DIR:?Set the owned bootstrap state directory}"
+export GVISOR_KUBECONFIG=${GVISOR_KUBECONFIG:-$GVISOR_STATE_DIR/cache/kubeconfig}
+export GVISOR_EVIDENCE_DIR=${GVISOR_EVIDENCE_DIR:-$GVISOR_STATE_DIR/verification}
+# Use the actual built runner template for the keyless admin probes.
+if test -f "$GVISOR_STATE_DIR/images.json"; then
+ cp "$lab/runtime/runner-job.json" "$GVISOR_STATE_DIR/runner-job.e2e-original.json"
+ trap 'cp "$GVISOR_STATE_DIR/runner-job.e2e-original.json" "$lab/runtime/runner-job.json"' EXIT
+ jq --arg image "$(jq -r .runner "$GVISOR_STATE_DIR/images.json")" '.spec.template.spec.containers[0].image=$image' "$GVISOR_STATE_DIR/runner-job.e2e-original.json" > "$lab/runtime/runner-job.json"
+fi
+npm --prefix "$lab/e2e" ci --ignore-scripts
+npm --prefix "$lab/e2e" exec -- playwright install chromium
+npm --prefix "$lab/e2e" start -- "$@"

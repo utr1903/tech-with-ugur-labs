@@ -1,0 +1,34 @@
+{
+	"name": "contained-python-frontend",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"engines": {
+		"node": ">=22 <23"
+	},
+	"scripts": {
+		"dev": "next dev --hostname 127.0.0.1",
+		"start": "HOSTNAME=127.0.0.1 node .next/standalone/server.js",
+		"build": "next build && cp -R .next/static .next/standalone/.next/",
+		"test": "vitest run",
+		"typecheck": "next typegen && tsc --noEmit",
+		"lint": "biome check .",
+		"format": "biome check --write .",
+		"knip": "knip"
+	},
+	"dependencies": {
+		"@assistant-ui/react": "0.15.19",
+		"next": "16.3.5",
+		"react": "19.3.0",
+		"react-dom": "19.3.0"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.5.13",
+		"@types/node": "22.20.2",
+		"@types/react": "19.3.0",
+		"@types/react-dom": "19.3.0",
+		"typescript": "7.0.2",
+		"vitest": "5.0.0",
+		"knip": "6.35.1"
+	}
+}
