@@ -90,6 +90,23 @@ describe.skipIf(!url)("localhost chat API", () => {
 				).status,
 			).toBeGreaterThanOrEqual(400);
 	});
+	it("marks invalid input as pre-admission and accepts a corrected turn", async () => {
+		const thread = await (
+			await app.request("http://localhost/threads", { method: "POST" })
+		).json();
+		const send = (text: string) =>
+			app.request(`http://localhost/threads/${thread.id}/chat`, {
+				method: "POST",
+				headers: { "content-type": "application/json" },
+				body: JSON.stringify({
+					turnId: "reject-then-valid",
+					messages: [{ id: "u", role: "user", text }],
+				}),
+			});
+		const rejected = await send("a".repeat(16385));
+		expect((await rejected.json()).code).toBe("INVALID_TURN");
+		expect(await (await send("hello")).text()).toContain('"type":"done"');
+	});
 	it("caps simultaneous subscriptions and lets a disconnected turn finish", async () => {
 		const logger = createLogger({ appName: "stream-test" });
 		logger.level = "silent";

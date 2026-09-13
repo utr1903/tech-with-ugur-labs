@@ -121,3 +121,28 @@ it("rejects interrupted nonterminal streams", async () => {
 	).rejects.toThrow("interrupted");
 	vi.unstubAllGlobals();
 });
+
+it("distinguishes definitive input rejection from ambiguous conflicts", async () => {
+	for (const [body, rejected] of [
+		[{ code: "INVALID_TURN" }, true],
+		[{ error: "busy" }, false],
+	] as const) {
+		vi.stubGlobal("fetch", async () => Response.json(body, { status: 409 }));
+		try {
+			await streamTurn(
+				"http://localhost",
+				"t",
+				{ turnId: "t", messages: [] },
+				0,
+				new AbortController().signal,
+				() => {},
+			);
+			throw new Error("unexpected success");
+		} catch (err) {
+			expect((err as { preAdmission?: boolean }).preAdmission === true).toBe(
+				rejected,
+			);
+		}
+	}
+	vi.unstubAllGlobals();
+});

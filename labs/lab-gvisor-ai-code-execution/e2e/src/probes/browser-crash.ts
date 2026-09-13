@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import type { Page } from "playwright";
+import type { Page, Request } from "playwright";
 import { configure, request, startForward } from "../lib/application.js";
 import { json, pause, save } from "../lib/commands.js";
 import { crashBackend } from "../lib/crash-backend.js";
@@ -20,6 +20,12 @@ export async function browserCrash(page: Page) {
 		(prior) => localStorage.getItem("contained-chat:selected") !== prior,
 		previous,
 	);
+	const requests: string[] = [];
+	const capture = (request: Request) => {
+		if (request.method() === "POST" && request.url().endsWith("/chat"))
+			requests.push(request.postData() ?? "");
+	};
+	page.on("request", capture);
 	const watcher = watchJobs();
 	try {
 		await page
@@ -74,8 +80,18 @@ export async function browserCrash(page: Page) {
 			`exec-${JSON.parse(tool.text).executionId}`,
 		);
 		watcher.assertSingle(original.metadata.name, original.metadata.uid);
-		save("browser-crash.json", { id, jobsBefore: jobs, history });
+		assert(
+			requests.length >= 2,
+			"Active refresh did not resume original request.",
+		);
+		assert.equal(
+			new Set(requests).size,
+			1,
+			"Refresh changed the original turn identity or request.",
+		);
+		save("browser-crash.json", { id, jobsBefore: jobs, history, requests });
 	} finally {
+		page.off("request", capture);
 		watcher.stop();
 	}
 }

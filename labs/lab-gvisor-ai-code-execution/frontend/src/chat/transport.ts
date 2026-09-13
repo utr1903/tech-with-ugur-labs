@@ -90,6 +90,9 @@ export async function request<T>(
 		throw new Error(`Request unavailable (${response.status}). Please retry.`);
 	return response.json() as Promise<T>;
 }
+export class TurnRejection extends Error {
+	readonly preAdmission = true;
+}
 export async function streamTurn(
 	base: string,
 	threadId: string,
@@ -107,8 +110,20 @@ export async function streamTurn(
 		body: JSON.stringify(turn),
 		signal,
 	});
-	if (!response.ok)
-		throw new Error(`Chat unavailable (${response.status}). Please retry.`);
+	if (!response.ok) {
+		const body = await response.json().catch(() => null);
+		if (
+			response.status >= 400 &&
+			response.status < 500 &&
+			body?.code === "INVALID_TURN"
+		)
+			throw new TurnRejection(
+				"Message rejected before submission. Shorten it and send again.",
+			);
+		throw new Error(
+			`Chat unavailable (${response.status}). Resume to retry the same request.`,
+		);
+	}
 	if (!response.body) throw new Error("Chat stream unavailable.");
 	const reader = response.body.getReader();
 	const decoder = new TextDecoder();

@@ -18,8 +18,24 @@ import {
 	reconcileMessages,
 	request,
 	streamTurn,
+	TurnRejection,
 } from "./transport";
 
+function errorText(err: unknown) {
+	return err instanceof Error ? err.message : "Chat unavailable.";
+}
+async function rejectedHistory(
+	err: unknown,
+	saved: Pending,
+	base: string,
+	threadId: string,
+) {
+	if (!(err instanceof TurnRejection) || saved.cursor !== 0) return null;
+	return request<{ messages: Message[]; activeTurn: { id: string } | null }>(
+		base,
+		`/threads/${threadId}/messages`,
+	).catch(() => null);
+}
 function display(message: Message): ThreadMessageLike {
 	let text = message.text;
 	if (message.role === "tool") {
@@ -50,7 +66,11 @@ export function useChatRuntime(base: string, threadId: string) {
 			if (busy.current) return;
 			busy.current = true;
 			setRunning(true);
-			setError("");
+			setError(
+				savePending(threadId, saved)
+					? ""
+					: "Browser storage unavailable. Keep this page open; refresh will recover server history.",
+			);
 			setPending(true);
 			const abort = new AbortController();
 			controller.current = abort;
@@ -64,7 +84,10 @@ export function useChatRuntime(base: string, threadId: string) {
 					(event) => {
 						if (event.sequence <= saved.cursor) return;
 						saved.cursor = event.sequence;
-						savePending(threadId, saved);
+						if (!savePending(threadId, saved))
+							setError(
+								"Browser storage unavailable. Keep this page open; refresh will recover server history.",
+							);
 						setMessages((current) => applyEvent(current, event));
 						if (event.type === "error") setError(event.message);
 						if (event.type === "done" || event.type === "error") {
@@ -74,8 +97,15 @@ export function useChatRuntime(base: string, threadId: string) {
 					},
 				);
 			} catch (err) {
-				if (!abort.signal.aborted)
-					setError(err instanceof Error ? err.message : "Chat unavailable.");
+				const history = await rejectedHistory(err, saved, base, threadId);
+				if (history) {
+					clearPending(threadId);
+					setMessages(history.messages);
+					setPending(false);
+					setActiveElsewhere(!!history.activeTurn);
+				}
+
+				if (!abort.signal.aborted) setError(errorText(err));
 			} finally {
 				busy.current = false;
 				setRunning(false);
@@ -92,7 +122,13 @@ export function useChatRuntime(base: string, threadId: string) {
 			.then((history) => {
 				if (!mounted) return;
 				setReady(true);
-				const saved = loadPending(threadId);
+				let saved: Pending | null = null;
+				try {
+					saved = loadPending(threadId);
+				} catch (err) {
+					clearPending(threadId);
+					setError(errorText(err));
+				}
 				setMessages((current) =>
 					reconcileMessages(
 						reconcileMessages(current, saved?.request.messages ?? []),
@@ -128,9 +164,18 @@ export function useChatRuntime(base: string, threadId: string) {
 			.join("\n")
 			.trim();
 		if (!text) return;
-		const turn = createTurn(messages, text);
+		let turn: ReturnType<typeof createTurn>;
+		try {
+			turn = createTurn(messages, text);
+		} catch (err) {
+			setError(err instanceof Error ? err.message : "Invalid message.");
+			return;
+		}
 		const saved = { request: turn.request, cursor: 0 };
-		savePending(threadId, saved);
+		if (!savePending(threadId, saved))
+			setError(
+				"Browser storage unavailable. Keep this page open; refresh will recover server history.",
+			);
 		setMessages((current) => [...current, turn.message]);
 		await connect(saved);
 	};
@@ -147,8 +192,12 @@ export function useChatRuntime(base: string, threadId: string) {
 		pending: pending || !ready || activeElsewhere,
 		resumable: pending,
 		resume: () => {
-			const saved = loadPending(threadId);
-			if (saved) void connect(saved);
+			try {
+				const saved = loadPending(threadId);
+				if (saved) void connect(saved);
+			} catch (err) {
+				setError(errorText(err));
+			}
 		},
 	};
 }

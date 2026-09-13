@@ -20,6 +20,7 @@ import {
 	save,
 } from "../lib/commands.js";
 import { browserCrash } from "./browser-crash.js";
+import { browserInput } from "./browser-input.js";
 import type { Assertion } from "./report.js";
 export async function persistence(): Promise<Assertion[]> {
 	await configure("tool");
@@ -88,6 +89,7 @@ export async function persistence(): Promise<Assertion[]> {
 		await page.getByText("succeeded", { exact: false }).first().waitFor();
 		assert.equal(await page.locator("main").innerText(), text);
 		assert.deepEqual(errors, []);
+		await browserInput(page);
 		await browserCrash(page);
 		await page.screenshot({ path: `${evidence}/browser.png`, fullPage: true });
 		save("persistence.json", { id, separate, before, browserErrors: errors });

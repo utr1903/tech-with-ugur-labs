@@ -1,6 +1,7 @@
 import type { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import { abortable } from "../lib/abort.js";
+import { parseTurn } from "../threads/reconcile.js";
 import type { ThreadService } from "../threads/service.js";
 import { subscribe } from "./subscribe.js";
 export function chatRoutes(app: Hono, service: ThreadService) {
@@ -13,7 +14,16 @@ export function chatRoutes(app: Hono, service: ThreadService) {
 			return c.json({ error: "Invalid event cursor." }, 400);
 		streams++;
 		try {
-			const request = JSON.parse(await boundedBody(c.req.raw));
+			let request: ReturnType<typeof parseTurn>;
+			try {
+				request = parseTurn(JSON.parse(await boundedBody(c.req.raw)));
+			} catch {
+				streams--;
+				return c.json(
+					{ code: "INVALID_TURN", error: "Input rejected before admission." },
+					400,
+				);
+			}
 			const threadId = c.req.param("id");
 			await service.start(threadId, request);
 			return streamSSE(

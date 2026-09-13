@@ -1,6 +1,8 @@
 {
 	"$schema": "https://biomejs.dev/schemas/2.5.13/schema.json",
-	"files": { "includes": ["src/**", "*.json", "!package-lock.json"] },
+	"files": {
+		"includes": ["src/**", "next.config.ts", "*.json", "!package-lock.json"]
+	},
 	"linter": {
 		"rules": {
 			"preset": "recommended",
