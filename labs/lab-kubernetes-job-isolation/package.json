@@ -8,6 +8,7 @@
   },
   "scripts": {
     "test:worker": "node --test worker/launcher.test.mjs",
+    "test:worker:container": "docker run --rm --entrypoint node --mount \"type=bind,source=$(pwd)/worker,target=/tests,readonly\" -w /tests lab-kubernetes-job-isolation-worker:local-v1 --test launcher.test.mjs",
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json && tsc -p tsconfig.test.json",
     "start": "node dist/index.js",
