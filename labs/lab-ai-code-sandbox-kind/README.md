@@ -32,8 +32,11 @@ flowchart LR
 - **web** — Next.js + [assistant-ui](https://www.assistant-ui.com/): renders the chat and
   streams the agent's response. Serves port 3000
   (`lab-ai-code-sandbox/web:local`). It proxies every `/api/*` request
-  to the server, forwarding only the path and query — never the chat
-  text — and logs only the path.
+  to the server, building the upstream URL from the path and query
+  only — the destination host always comes from `SERVER_URL` — and
+  streaming the request body straight through. It logs only the
+  method, path and response status, never the query string or the
+  body.
 - **server** — Hono + a LangGraph agent: runs the model loop, streams
   its output, and calls the sandbox for every calculation. Serves port
   8080 (`lab-ai-code-sandbox/server:local`).
@@ -41,7 +44,7 @@ flowchart LR
   survives a restart. Port 5432 (`postgres:18.6-bookworm`).
 - **sandbox** — FastAPI service with a Python compute stack
   (numpy, pandas, scipy, sympy, scikit-learn): runs the model-generated
-  program in an isolated subprocess and returns its result. Port 8000
+  program in its own subprocess and returns its result. Port 8000
   (`lab-ai-code-sandbox/sandbox:local`). The server calls
   `GET /capabilities` once at startup to learn what the sandbox can do,
   and `POST /execute` once per tool call.
@@ -99,14 +102,16 @@ A few things worth knowing:
 export ANTHROPIC_API_KEY=sk-ant-...
 LLM_MODE=live make up
 # or, if the cluster is already up:
-make secrets deploy LLM_MODE=live
+make secrets deploy forward LLM_MODE=live
 ```
 
 The key is read from your shell and stored only as a Kubernetes
 Secret — it is never written to a file. `ANTHROPIC_MODEL` defaults to
 `claude-sonnet-5`; edit `deploy/server.yaml` to use a different model.
-Running a plain `make deploy` afterwards puts the server back into
-scripted mode.
+Switching `LLM_MODE` restarts every deployment, which drops any
+open port-forward — that's why `forward` is chained onto the command
+above. Running `make deploy forward` afterwards puts the server back
+into scripted mode and reopens the app.
 
 A live-model test suite (`make e2e-live`) exists and passed its static
 checks (type-check, lint, dead-code) while this lab was being built,
@@ -142,9 +147,11 @@ line-sized pieces, the same way a real model's tokens arrive, so the
 UI code doesn't need to know which model produced the answer.
 
 **The web proxy.** The web app forwards every `/api/*` request to the
-server (`web/src/lib/server-proxy.ts`), but only the path and query —
-never the request body — and it logs only the path, so chat text never
-ends up in the web app's logs.
+server (`web/src/lib/server-proxy.ts`). It builds the upstream URL
+from the path and query only — the destination host always comes from
+`SERVER_URL` — and streams the request body straight through, since
+`POST /api/chat` needs it. It logs only the method, path and response
+status, so chat text never ends up in the web app's logs.
 
 **Reloading chats.** History isn't stored as UI messages — it's
 rebuilt on demand from the LangGraph checkpoint (`PostgresSaver`) via
@@ -192,14 +199,16 @@ process = await asyncio.create_subprocess_exec(
 )
 ```
 
-Each run gets a fresh, unlistable working directory and a minimal
-environment (no inherited variables), output is captured through
-bounded pipes so a runaway print can't exhaust memory, and a timeout
-kills the whole process group (`os.killpg`) rather than just the
-Python process. The structured result travels back as `result.json` in
-that same directory. A single uvicorn worker serves every concurrent
-request; an in-flight request that hits the size cap gets a 429
-immediately rather than queuing. Because the answer always comes back
+Each run gets a fresh working directory inside a runs directory that
+programs cannot list, and a minimal environment (no inherited
+variables). Output is captured through bounded pipes so a runaway
+print can't exhaust memory, and a timeout kills the whole process
+group (`os.killpg`) rather than just the Python process. The
+structured result travels back as `result.json` in that same
+directory. A single uvicorn worker serves every concurrent request;
+oversized code is rejected up front with a 400, and a request that
+arrives while all `MAX_CONCURRENT_EXECUTIONS` slots are busy gets a
+429 immediately instead of queuing. Because the answer always comes back
 on the request that asked for it, there is no execution store, no ids,
 no polling, and no TTL to manage — the tradeoff is that the caller
 (the server, then the browser) has to stay connected for as long as
@@ -229,8 +238,9 @@ Runs seven scripted (keyless) test files against the running cluster:
   traceback, a timeout that leaves no process behind, output
   truncation, an unparsable `result.json`, malformed requests, and a
   429 when every execution slot is busy.
-- **isolation** — runs 20 executions at once and checks each one only
-  ever sees its own working directory and its own canary value.
+- **isolation** — runs 20 executions at once and checks each response
+  carries only its own canary, output and `result.json`, and that no
+  run can list the shared runs directory.
 - **persistence** — restarts the server pod and checks a thread's
   history comes back identical, and that a second thread never leaks
   into the first.
@@ -253,9 +263,11 @@ Runs the same shape of checks against the real Anthropic model instead
 of the stand-in: the café problem, a different problem (a least-squares
 fit, to check the model actually chooses a fitting solver rather than
 reciting a memorized answer), and the browser flow. It needs
-`ANTHROPIC_API_KEY` in your shell, redeploys the server with
-`LLM_MODE=live` first, and leaves it in live mode afterwards — run a
-plain `make deploy` to switch back.
+`ANTHROPIC_API_KEY` in your shell, and first redeploys all three
+services (sandbox, server and web) in live mode — which breaks any
+open port-forward — then leaves live mode on afterwards. Run
+`make deploy forward` to switch back to scripted mode and reopen the
+app.
 
 ## Limits and defaults
 
@@ -285,12 +297,13 @@ this section before pointing it at code you don't trust:
   inside the same container. A running program can see other
   concurrently-running executions through `/proc/<pid>/cwd` and could
   read their working files while they run. Results still only ever
-  travel back on the request that submitted them — the working
-  directory itself is unlistable from a casual `os.listdir`, but that
-  is not a security boundary. A hostile program can also exhaust CPU,
-  memory or disk for every other run in the pod, or start a process
-  that escapes its process group (`os.setsid`) and outlives the
-  timeout.
+  travel back on the request that submitted them — the shared runs
+  directory that holds every execution's own directory is unlistable
+  (mode `0o300`, write+execute only), which stops a program from
+  discovering other runs by listing, but that is not a security
+  boundary. A hostile program can also exhaust CPU, memory or disk for
+  every other run in the pod, or start a process that escapes its
+  process group (`os.setsid`) and outlives the timeout.
 - **The pod's shared process namespace.** The sandbox pod runs with
   `shareProcessNamespace: true` so that the pod's `pause` process (PID
   1) reaps children orphaned when a timed-out program's process group
