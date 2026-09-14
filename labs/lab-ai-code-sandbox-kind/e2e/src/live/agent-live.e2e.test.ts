@@ -19,9 +19,10 @@ import {
 // Anchored to the coefficient's own letter so a restated data point (the
 // least-squares problem includes the literal value "1.1") can never satisfy
 // this on its own: the letter, then up to 20 non-pipe characters, then an
-// "=" / "≈" / "is" / table "|" before the number.
-const A_VALUE_PATTERN = /\ba\b[^\n|]{0,20}?(=|≈|is|\|)\s*1\.10?(?![0-9])/i;
-const B_VALUE_PATTERN = /\bb\b[^\n|]{0,20}?(=|≈|is|\|)\s*1\.96(?![0-9])/i;
+// "=" / "≈" / "is" / table "|" before the number. Trailing zeros ("1.1000",
+// "1.9600") are accepted; any other further digit is not.
+const A_VALUE_PATTERN = /\ba\b[^\n|]{0,20}?(=|≈|is|\|)\s*1\.10*(?![0-9])/i;
+const B_VALUE_PATTERN = /\bb\b[^\n|]{0,20}?(=|≈|is|\|)\s*1\.960*(?![0-9])/i;
 
 const ITEM_STEMS: Record<keyof typeof EXPECTED_PRICES, string> = {
   coffee: "coffee",
@@ -37,8 +38,12 @@ function expectSectionsInOrder(text: string): void {
   expect([...positions].sort((a, b) => a - b)).toEqual(positions);
 }
 
+// Only rows inside the Solution section count: a Model-section coefficient
+// table can mention every item and must never stand in for the answer.
 function expectPriceRows(text: string): void {
-  const rows = text.split("\n").filter((line) => line.trim().startsWith("|"));
+  const rows = extractSection(text, "Solution")
+    .split("\n")
+    .filter((line) => line.trim().startsWith("|"));
   for (const [item, price] of Object.entries(EXPECTED_PRICES)) {
     const stem = ITEM_STEMS[item as keyof typeof EXPECTED_PRICES];
     const row = rows.find((r) => r.toLowerCase().includes(stem));
@@ -108,6 +113,10 @@ describe("live model", () => {
     expectPriceRows(text);
 
     const before = await loadHistory(threadId);
+    expect(before.map((m) => m.role)).toEqual(["user", "assistant"]);
+    expect(
+      before[1]?.parts.find((p) => p.type === "dynamic-tool"),
+    ).toMatchObject({ toolName: "code_executor" });
     await restartDeployment("server");
     await waitForHttp(`${WEB_URL}/api/tools`);
     expect(await loadHistory(threadId)).toEqual(before);
