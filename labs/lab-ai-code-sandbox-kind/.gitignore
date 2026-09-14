@@ -11,4 +11,5 @@ __pycache__/
 reports/
 .forward.pid
 .forward.log
+.previous-context
 .env

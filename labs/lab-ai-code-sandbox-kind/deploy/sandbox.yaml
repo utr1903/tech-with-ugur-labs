@@ -1,0 +1,57 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: sandbox
+spec:
+  selector: { app: sandbox }
+  ports:
+    - { name: http, port: 8000, targetPort: 8000 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: sandbox
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: sandbox }
+  template:
+    metadata:
+      labels: { app: sandbox }
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: sandbox
+          image: lab-ai-code-sandbox/sandbox:local
+          imagePullPolicy: Never
+          env:
+            - { name: WORK_ROOT, value: /work }
+            - { name: EXECUTION_TIMEOUT_SECONDS, value: "30" }
+            - { name: MAX_CONCURRENT_EXECUTIONS, value: "20" }
+            - { name: LOG_LEVEL, value: info }
+          ports:
+            - { name: http, containerPort: 8000 }
+          readinessProbe:
+            httpGet: { path: /capabilities, port: 8000 }
+            periodSeconds: 5
+          livenessProbe:
+            tcpSocket: { port: 8000 }
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          resources:
+            requests: { cpu: 250m, memory: 256Mi }
+            limits: { cpu: "2", memory: 1Gi }
+          volumeMounts:
+            - { name: work, mountPath: /work }
+      volumes:
+        - name: work
+          emptyDir: { sizeLimit: 512Mi }
