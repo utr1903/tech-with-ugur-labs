@@ -39,6 +39,9 @@ describe("code_executor description", () => {
     );
     expect(description).toContain(`code at most ${limits.maxCodeBytes} bytes`);
     expect(description).toContain(
+      `result.json at most ${limits.maxResultBytes} bytes`,
+    );
+    expect(description).toContain(
       `at most ${limits.maxConcurrentExecutions} executions`,
     );
     expect(description).toContain("Use for:");
