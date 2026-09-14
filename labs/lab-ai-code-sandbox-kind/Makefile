@@ -18,15 +18,19 @@ help:
 	@echo "make logs      recent logs of server, sandbox and web"
 	@echo "make down      stop the port-forward and delete this lab's cluster"
 
-# `kind create cluster` silently switches the reader's current kube context.
-# Stash whatever it was before creating the cluster and restore it right
-# after, so a session working against another cluster is left untouched.
+# `kind create cluster` silently switches the reader's current kube context,
+# and it does so before its own node-Ready wait finishes - so a timed-out
+# wait would otherwise strand the reader on kind-ai-code-sandbox. Stash,
+# create-or-skip, restore and cleanup all happen in one shell invocation so
+# the restore always runs (even on failure) before the exit code propagates;
+# splitting these across separate recipe lines would let Make abort at the
+# first failing line and skip the restore.
 cluster:
-	@kubectl config current-context > $(PREV_CONTEXT_FILE) 2>/dev/null || true
-	@if kind get clusters | grep -qx '$(CLUSTER)'; then echo "kind cluster $(CLUSTER) already exists"; \
-	else kind create cluster --name $(CLUSTER) --config kind/cluster.yaml --wait 120s; fi
-	@if [ -s $(PREV_CONTEXT_FILE) ]; then kubectl config use-context "$$(cat $(PREV_CONTEXT_FILE))" >/dev/null; fi
-	@rm -f $(PREV_CONTEXT_FILE)
+	@kubectl config current-context > $(PREV_CONTEXT_FILE) 2>/dev/null || true; \
+	if kind get clusters | grep -qx '$(CLUSTER)'; then echo "kind cluster $(CLUSTER) already exists"; rc=0; \
+	else kind create cluster --name $(CLUSTER) --config kind/cluster.yaml --wait 120s; rc=$$?; fi; \
+	if [ -s $(PREV_CONTEXT_FILE) ]; then kubectl config use-context "$$(cat $(PREV_CONTEXT_FILE))" >/dev/null 2>&1 || true; fi; \
+	rm -f $(PREV_CONTEXT_FILE); exit $$rc
 
 build:
 	docker build -t $(IMAGE_PREFIX)/sandbox:local sandbox
@@ -94,11 +98,13 @@ logs:
 	$(KUBECTL) logs deployment/web --tail=50
 
 # `kind delete cluster` also switches the current kube context (to whatever
-# remains, or unsets it). Restore the pre-`make up` context the same way
-# `cluster` does, so `make down` never leaves the reader's context changed.
+# remains, or unsets it), and can fail partway through. Same reasoning as
+# `cluster`: stash, delete, restore and cleanup run as one shell invocation
+# so the restore is unconditional and the reader's context is never left
+# changed, even if `kind delete cluster` itself fails.
 down:
 	@if [ -f $(FORWARD_PID) ]; then kill $$(cat $(FORWARD_PID)) 2>/dev/null || true; rm -f $(FORWARD_PID) .forward.log; fi
-	@kubectl config current-context > $(PREV_CONTEXT_FILE) 2>/dev/null || true
-	kind delete cluster --name $(CLUSTER)
-	@if [ -s $(PREV_CONTEXT_FILE) ]; then kubectl config use-context "$$(cat $(PREV_CONTEXT_FILE))" >/dev/null 2>&1 || true; fi
-	@rm -f $(PREV_CONTEXT_FILE)
+	@kubectl config current-context > $(PREV_CONTEXT_FILE) 2>/dev/null || true; \
+	kind delete cluster --name $(CLUSTER); rc=$$?; \
+	if [ -s $(PREV_CONTEXT_FILE) ]; then kubectl config use-context "$$(cat $(PREV_CONTEXT_FILE))" >/dev/null 2>&1 || true; fi; \
+	rm -f $(PREV_CONTEXT_FILE); exit $$rc
