@@ -1,3 +1,4 @@
+import type { Logger } from "./logger";
 import {
   downstreamResponseHeaders,
   upstreamRequestHeaders,
@@ -5,23 +6,42 @@ import {
 
 // Streams /api/* to the Hono server so the browser needs a single origin and
 // the reader a single port-forward. Only the path and query are forwarded;
-// the destination host always comes from SERVER_URL.
-export async function forwardToServer(request: Request): Promise<Response> {
-  const serverUrl = process.env.SERVER_URL ?? "http://localhost:8080";
-  const incoming = new URL(request.url);
-  const target = new URL(`${incoming.pathname}${incoming.search}`, serverUrl);
-  const init: RequestInit & { duplex?: "half" } = {
-    method: request.method,
-    headers: upstreamRequestHeaders(request.headers),
-    signal: request.signal,
+// the destination host always comes from SERVER_URL. Only the path is
+// logged — never the query string or the request body — so chat text never
+// lands in logs.
+export function createServerProxy({ logger }: { logger: Logger }) {
+  return async function forwardToServer(request: Request): Promise<Response> {
+    const serverUrl = process.env.SERVER_URL ?? "http://localhost:8080";
+    const incoming = new URL(request.url);
+    const path = incoming.pathname;
+    const method = request.method;
+    const target = new URL(`${path}${incoming.search}`, serverUrl);
+    const init: RequestInit & { duplex?: "half" } = {
+      method,
+      headers: upstreamRequestHeaders(request.headers),
+      signal: request.signal,
+    };
+    if (method !== "GET" && method !== "HEAD") {
+      init.body = request.body;
+      init.duplex = "half";
+    }
+    try {
+      logger.info({ method, path }, "Forwarding request to server...");
+      const upstream = await fetch(target, init);
+      logger.info(
+        { method, path, status: upstream.status },
+        "Forwarding request to server succeeded.",
+      );
+      return new Response(upstream.body, {
+        status: upstream.status,
+        headers: downstreamResponseHeaders(upstream.headers),
+      });
+    } catch (err) {
+      logger.error(
+        { err, method, path },
+        "Forwarding request to server failed.",
+      );
+      throw err;
+    }
   };
-  if (request.method !== "GET" && request.method !== "HEAD") {
-    init.body = request.body;
-    init.duplex = "half";
-  }
-  const upstream = await fetch(target, init);
-  return new Response(upstream.body, {
-    status: upstream.status,
-    headers: downstreamResponseHeaders(upstream.headers),
-  });
 }
