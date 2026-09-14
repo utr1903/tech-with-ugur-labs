@@ -20,6 +20,11 @@ spec:
       labels: { app: sandbox }
     spec:
       automountServiceAccountToken: false
+      # Without an init process the sandbox app is PID 1, and a child that a
+      # timed-out program spawned is re-parented to it and never reaped: it
+      # stays behind as a zombie after every such run. Sharing the pod's
+      # process namespace makes the pause container PID 1, and it reaps them.
+      shareProcessNamespace: true
       securityContext:
         runAsNonRoot: true
         runAsUser: 10001
