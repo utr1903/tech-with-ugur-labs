@@ -1,4 +1,4 @@
-"""Per-execution working directories under a root nobody can list."""
+"""Per-execution working directories under a runs root with listing turned off."""
 
 from __future__ import annotations
 
@@ -12,8 +12,11 @@ from pathlib import Path
 from app.logging_setup import Logger
 
 _RUNS_DIR = "runs"
-# Owner may create and enter entries but not list them, so a program cannot
-# discover the random names of concurrent executions' directories.
+# Owner may create and enter entries but not list them. That keeps a casual
+# os.listdir("..") from listing other runs' directories, but it is not a
+# boundary against code that tries: submitted code runs as the UID that owns
+# this directory, so it can chmod it back and list it, and it can find other
+# runs through /proc/<pid>/cwd.
 _RUNS_MODE = 0o300
 
 
@@ -88,7 +91,7 @@ def _remove(path: Path, *, log: Logger) -> None:
         shutil.rmtree(path, onexc=_unlock_and_retry)
     except OSError:
         # The response is already computed; a leftover directory is a disk
-        # leak inside an unlistable root, not a correctness problem.
+        # leak inside the runs root, not a correctness problem.
         log.warning(
             "Removing execution directory failed.", path=path.name, exc_info=True
         )

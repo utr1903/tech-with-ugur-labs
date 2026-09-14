@@ -14,10 +14,12 @@ deterministic model is built around — and the assistant:
 1. Calls a `code_executor` tool. A card appears showing the generated
    code, its stdout, and the parsed `result.json`.
 2. Answers with four sections: `### Model`, `### Solver`,
-   `### Solution` (a table), `### Verification` — every number in the
-   answer traces back to the tool's output.
+   `### Solution` (a table), `### Verification`. In scripted mode the
+   answer is built from the real tool result; in live mode the model is
+   instructed to take every number from the tool results.
 3. Keeps the conversation if you reload the page: the chat is rebuilt
-   from what was actually streamed, code executor card and all.
+   from the conversation's Postgres checkpoint, code executor card and
+   all.
 
 ## Architecture
 
@@ -40,7 +42,7 @@ flowchart LR
 - **server** — Hono + a LangGraph agent: runs the model loop, streams
   its output, and calls the sandbox for every calculation. Serves port
   8080 (`lab-ai-code-sandbox/server:local`).
-- **postgres** — stores one checkpoint per conversation so history
+- **postgres** — stores each conversation's checkpoints so history
   survives a restart. Port 5432 (`postgres:18.6-bookworm`).
 - **sandbox** — FastAPI service with a Python compute stack
   (numpy, pandas, scipy, sympy, scikit-learn): runs the model-generated
@@ -113,11 +115,9 @@ open port-forward — that's why `forward` is chained onto the command
 above. Running `make deploy forward` afterwards puts the server back
 into scripted mode and reopens the app.
 
-A live-model test suite (`make e2e-live`) exists and passed its static
-checks (type-check, lint, dead-code) while this lab was being built,
-but it was never actually run: no Anthropic API key was available in
-that environment. The keyless `make e2e` — covered next — is the
-suite that was actually run and is green.
+The live-model test suite (`make e2e-live`) type-checks and lints but
+has not yet been run against the real model; the keyless `make e2e`,
+covered below, is the verified gate.
 
 ## How it works
 
@@ -156,9 +156,10 @@ status, so chat text never ends up in the web app's logs.
 **Reloading chats.** History isn't stored as UI messages — it's
 rebuilt on demand from the LangGraph checkpoint (`PostgresSaver`) via
 `agent.graph.getState`, then converted with `toUIMessages`. A test
-(`server/src/chat/stream-history-parity.test.ts`) proves the rebuilt
-message is identical to what actually streamed, so a reload never
-shows something different from what you saw live.
+(`server/src/chat/stream-history-parity.test.ts`) runs the scripted
+model with a stub tool and an in-memory `MemorySaver`, and shows the
+rebuilt assistant message matches the streamed one on its text and
+tool parts.
 
 **Interrupted turns.** A chat turn runs only as long as its request
 stays open. Reloading the page, starting a new chat or closing the tab
@@ -193,9 +194,10 @@ Response: JSON with status (succeeded | failed | timed_out), exitCode, stdout, s
 ```
 
 **The system prompt** is rebuilt on every model turn, not baked in
-once at startup, so it always carries today's date
-(`server/src/agent/system-prompt.ts`) instead of the model's training
-cutoff.
+once at startup, so it always carries today's date instead of the
+model's training cutoff. `dynamicSystemPromptMiddleware` in
+`server/src/agent/build-agent.ts` asks for a fresh prompt before each
+model call; `server/src/agent/system-prompt.ts` only builds the text.
 
 **The synchronous execute endpoint.** `POST /execute` does not queue
 or hand back a job id — it awaits the whole run and returns the result
@@ -210,9 +212,9 @@ process = await asyncio.create_subprocess_exec(
 )
 ```
 
-Each run gets a fresh working directory inside a runs directory that
-programs cannot list, and a minimal environment (no inherited
-variables). Output is captured through bounded pipes so a runaway
+Each run gets a fresh working directory inside a runs directory with
+listing turned off (not a security boundary, see below), and a minimal
+environment (no inherited variables). Output is captured through bounded pipes so a runaway
 print can't exhaust memory, and a timeout kills the whole process
 group (`os.killpg`) rather than just the Python process. The
 structured result travels back as `result.json` in that same
@@ -250,8 +252,8 @@ Runs seven scripted (keyless) test files against the running cluster:
   truncation, an unparsable `result.json`, malformed requests, and a
   429 when every execution slot is busy.
 - **isolation** — runs 20 executions at once and checks each response
-  carries only its own canary, output and `result.json`, and that no
-  run can list the shared runs directory.
+  carries only its own canary, output and `result.json`, and that a
+  plain `os.listdir("..")` of the shared runs directory is denied.
 - **persistence** — restarts the server pod and checks a thread's
   history comes back identical, and that a second thread never leaks
   into the first.
@@ -261,8 +263,8 @@ Runs seven scripted (keyless) test files against the running cluster:
   description names exactly the modules and limits the sandbox
   reports, so a drifted limit fails the suite.
 
-On the machine this lab was built on, all 21 tests across those 7
-files passed in about 72 seconds. The JSON report lands at
+On a MacBook with Apple silicon, all 21 tests across those 7 files
+pass in about 62 seconds. The JSON report lands at
 `e2e/reports/e2e-report.json`; a full-page screenshot of the finished
 answer is saved to `e2e/reports/browser-scripted-answer.png`.
 
@@ -308,13 +310,16 @@ this section before pointing it at code you don't trust:
   inside the same container. A running program can see other
   concurrently-running executions through `/proc/<pid>/cwd` and could
   read their working files while they run. Results still only ever
-  travel back on the request that submitted them — the shared runs
-  directory that holds every execution's own directory is unlistable
-  (mode `0o300`, write+execute only), which stops a program from
-  discovering other runs by listing, but that is not a security
-  boundary. A hostile program can also exhaust CPU, memory or disk for
-  every other run in the pod, or start a process that escapes its
-  process group (`os.setsid`) and outlives the timeout.
+  travel back on the request that submitted them. The shared runs
+  directory that holds every execution's own directory has mode
+  `0o300` (write+execute only), which keeps a casual `os.listdir("..")`
+  from listing other runs' directories — but it is not a boundary
+  against code that tries: submitted code runs as the UID that owns
+  that directory, so it can `os.chmod("..", 0o700)` and list it, and
+  `/proc/<pid>/cwd` finds other runs without listing anything. A
+  hostile program can also exhaust CPU, memory or disk for every other
+  run in the pod, or start a process that escapes its process group
+  (`os.setsid`) and outlives the timeout.
 - **The pod's shared process namespace.** The sandbox pod runs with
   `shareProcessNamespace: true` so that the pod's `pause` process (PID
   1) reaps children orphaned when a timed-out program's process group

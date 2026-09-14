@@ -165,7 +165,7 @@ async def test_a_deeply_nested_but_valid_result_never_crashes_the_response(
     # the surrounding harness has already used, so a future dependency
     # bump could make this specific depth stop reproducing the crash --
     # the assertions below accept that by allowing either outcome, and
-    # the guarantee this task cares about (never an unhandled
+    # the guarantee under test (never an unhandled
     # RecursionError, always 200) is proven unconditionally by the test
     # above instead.
     depth = 9975
