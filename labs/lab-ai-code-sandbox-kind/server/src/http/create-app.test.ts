@@ -38,7 +38,7 @@ function makeApp() {
     tools: [executor],
     checkpointer: new MemorySaver(),
     logger,
-    today: new Date("2026-09-14"),
+    now: () => new Date("2026-09-14"),
   });
   return createApp({ agent, tools: [executor], llmMode: "scripted", logger });
 }

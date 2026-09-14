@@ -39,7 +39,7 @@ const agent = buildAgent({
   tools,
   checkpointer,
   logger,
-  today: new Date(),
+  now: () => new Date(),
 });
 const app = createApp({ agent, tools, llmMode: config.llmMode, logger });
 
