@@ -160,6 +160,17 @@ rebuilt on demand from the LangGraph checkpoint (`PostgresSaver`) via
 message is identical to what actually streamed, so a reload never
 shows something different from what you saw live.
 
+**Interrupted turns.** A chat turn runs only as long as its request
+stays open. Reloading the page, starting a new chat or closing the tab
+while `code_executor` is still running stops the turn before the
+sandbox's answer is saved, so that turn's code card stays unfinished in
+the history. The checkpoint then holds a tool call with no answer,
+which the Anthropic API would reject on the next turn. Before every
+model call, `server/src/agent/interrupted-tool-calls-middleware.ts`
+adds a tool message saying that run was interrupted, straight after the
+unanswered call. It changes only the request sent to the model, never
+the stored history, and the conversation keeps working.
+
 **A tool description the model can trust.** The `code_executor` tool
 description isn't hand-written — it's generated from the sandbox's own
 `GET /capabilities` response when the server starts
