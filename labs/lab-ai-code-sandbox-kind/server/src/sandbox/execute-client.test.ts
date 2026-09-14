@@ -79,6 +79,53 @@ describe("execute client", () => {
     ).toBe("unreachable");
   });
 
+  it("logs success only for an execution and a warning for any other outcome", async () => {
+    const lines: Record<string, unknown>[] = [];
+    const capturing = pino(
+      { level: "info" },
+      { write: (line: string) => lines.push(JSON.parse(line)) },
+    );
+    const logged = async (respond: () => Promise<Response>) => {
+      lines.length = 0;
+      await createExecuteClient({
+        sandboxUrl: "http://sandbox:8000",
+        timeoutMs: 1_000,
+        logger: capturing,
+        fetchImpl: respond,
+      }).execute("x");
+      return lines.at(-1) ?? {};
+    };
+
+    expect(await logged(async () => Response.json(execution))).toMatchObject({
+      level: 30,
+      msg: "Executing code in sandbox succeeded.",
+      kind: "executed",
+      status: "succeeded",
+    });
+    for (const [respond, kind] of [
+      [async () => new Response("oops", { status: 500 }), "unreachable"],
+      [async () => Response.json({ nope: 1 }), "unreachable"],
+      [async () => new Response("{}", { status: 429 }), "busy"],
+      [
+        async () => Response.json({ message: "too big" }, { status: 400 }),
+        "rejected",
+      ],
+    ] as const) {
+      const line = await logged(respond);
+      expect(line).toMatchObject({
+        level: 40,
+        msg: "Executing code in sandbox failed.",
+        kind,
+      });
+      expect(line.durationMs).toEqual(expect.any(Number));
+    }
+    expect(
+      await logged(async () => {
+        throw new TypeError("fetch failed");
+      }),
+    ).toMatchObject({ level: 50, msg: "Executing code in sandbox failed." });
+  });
+
   it("requires the client timeout to be longer than the execution timeout", () => {
     expect(() => assertClientTimeoutExceedsExecution(30_000, 30)).toThrow(
       /longer/,

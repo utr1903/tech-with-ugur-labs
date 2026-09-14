@@ -94,17 +94,21 @@ export function createExecuteClient({
           signal: AbortSignal.timeout(timeoutMs),
         });
         const outcome = await toOutcome(response);
-        logger.info(
-          {
-            kind: outcome.kind,
-            status:
-              outcome.kind === "executed"
-                ? outcome.execution.status
-                : undefined,
-            durationMs: Date.now() - startedAt,
-          },
-          "Executing code in sandbox succeeded.",
-        );
+        const durationMs = Date.now() - startedAt;
+        if (outcome.kind === "executed")
+          logger.info(
+            {
+              kind: outcome.kind,
+              status: outcome.execution.status,
+              durationMs,
+            },
+            "Executing code in sandbox succeeded.",
+          );
+        else
+          logger.warn(
+            { kind: outcome.kind, durationMs },
+            "Executing code in sandbox failed.",
+          );
         return outcome;
       } catch (err) {
         logger.error(

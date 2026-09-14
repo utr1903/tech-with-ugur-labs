@@ -13,6 +13,9 @@ describe("code_executor tool", () => {
     const tool = toolReturning({ kind: "busy" });
     expect(tool.name).toBe("code_executor");
     expect(tool.description).toContain("numpy (numpy 2.5.3)");
+    expect(tool.schema.shape.code.description).toBe(
+      "A complete, self-contained Python 3 program. Print what you want to read back and write structured results to result.json.",
+    );
   });
 
   it("returns the sandbox execution as JSON content", async () => {

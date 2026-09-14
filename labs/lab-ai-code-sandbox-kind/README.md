@@ -342,13 +342,16 @@ this section before pointing it at code you don't trust:
   actually enforced (kind has shipped `kube-network-policies` since
   v0.24), and the `network-policy` e2e test proves it: sandbox code
   cannot reach Postgres by IP or resolve its hostname, while the server
-  still can.
+  still can. The policy only denies egress: sandbox ingress stays open
+  to every pod in the cluster, which is fine for a cluster that runs
+  only this lab.
 - **Kernel exploits and container escapes are out of scope**, as is
   any form of authentication or multi-user separation — this is a
   single-user, no-auth demo. For code you don't trust, look at gVisor-
   style container runtimes, or at a design that runs each execution in
-  its own disposable Kubernetes Job (see the Kubernetes Job isolation
-  lab in this collection).
+  its own disposable Kubernetes Job (see the
+  [Kubernetes Job isolation lab](../lab-kubernetes-job-isolation/) in
+  this collection).
 
 ## Project layout and conventions
 
