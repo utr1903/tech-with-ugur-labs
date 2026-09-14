@@ -29,4 +29,13 @@ describe("describeCodeExecutor", () => {
     expect(text).toContain(sampleCapabilities.persistence);
     expect(text).toContain(sampleCapabilities.structuredResult);
   });
+
+  it("states the result.json cap from the document's own result limit", () => {
+    expect(text).toContain("result.json at most 65536 bytes;");
+    const custom = describeCodeExecutor({
+      ...sampleCapabilities,
+      limits: { ...sampleCapabilities.limits, maxResultBytes: 4096 },
+    });
+    expect(custom).toContain("result.json at most 4096 bytes;");
+  });
 });

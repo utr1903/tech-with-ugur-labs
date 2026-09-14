@@ -17,7 +17,7 @@ export function describeCodeExecutor(capabilities: Capabilities): string {
     "Do NOT use for: fetching data from the internet, installing packages, keeping state between calls, or work that needs longer than the timeout.",
     `Environment: Python ${capabilities.pythonVersion}, standard library plus the modules below.`,
     installedModulesLine(capabilities),
-    `Limits: wall-clock timeout ${limits.executionTimeoutSeconds} s; stdout truncated after ${limits.maxStdoutBytes} bytes and stderr after ${limits.maxStderrBytes} bytes; code at most ${limits.maxCodeBytes} bytes; at most ${limits.maxConcurrentExecutions} executions run at once.`,
+    `Limits: wall-clock timeout ${limits.executionTimeoutSeconds} s; stdout truncated after ${limits.maxStdoutBytes} bytes and stderr after ${limits.maxStderrBytes} bytes; code at most ${limits.maxCodeBytes} bytes; result.json at most ${limits.maxResultBytes} bytes; at most ${limits.maxConcurrentExecutions} executions run at once.`,
     capabilities.network,
     capabilities.persistence,
     capabilities.structuredResult,
