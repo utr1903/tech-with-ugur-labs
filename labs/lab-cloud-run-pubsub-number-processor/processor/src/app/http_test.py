@@ -43,6 +43,16 @@ def envelope(number: int | float, *, message_id: str = "message-123") -> object:
     return {"message": {"data": data, "messageId": message_id}}
 
 
+def envelope_data(data: str) -> object:
+    """Builds a push envelope around controlled malformed message data."""
+    return {"message": {"data": data, "messageId": "message-123"}}
+
+
+def encode_message_data(inner_json: str) -> str:
+    """Encodes controlled JSON text as Pub/Sub message data."""
+    return base64.b64encode(inner_json.encode()).decode()
+
+
 def client_for(
     store: RecordingStore,
     *,
@@ -75,6 +85,25 @@ def test_acknowledges_malformed_delivery_without_writing() -> None:
     client = client_for(store)
 
     response = client.post("/", data="{", content_type="application/json")
+
+    assert response.status_code == 204
+    assert store.calls == []
+
+
+@pytest.mark.parametrize(
+    "data",
+    [
+        "☃",
+        encode_message_data('{"number":' + "1" * 4301 + "}"),
+        encode_message_data('{"number":' + "[" * 10_000 + "0" + "]" * 10_000 + "}"),
+    ],
+    ids=["non-ASCII-base64", "overlong-integer", "excessive-nesting"],
+)
+def test_acknowledges_poison_message_data_without_writing(data: str) -> None:
+    store = RecordingStore()
+    client = client_for(store)
+
+    response = client.post("/", json=envelope_data(data))
 
     assert response.status_code == 204
     assert store.calls == []

@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import base64
-import binascii
 import json
 import math
 from dataclasses import dataclass
@@ -39,7 +38,7 @@ def _decode_data(encoded_data: str) -> object:
             decoded_bytes.decode("utf-8"),
             parse_constant=_reject_json_constant,
         )
-    except (binascii.Error, UnicodeDecodeError, json.JSONDecodeError) as err:
+    except (ValueError, RecursionError) as err:
         raise MalformedMessageError("message data is not base64 JSON") from err
 
 
