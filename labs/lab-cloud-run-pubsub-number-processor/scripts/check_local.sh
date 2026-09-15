@@ -7,6 +7,7 @@ cd "$LAB_ROOT"
 for script in scripts/*.sh scripts/tests/*.sh; do bash -n "$script"; done
 shellcheck -x -P SCRIPTDIR -P "$LAB_ROOT" scripts/*.sh scripts/tests/*.sh
 bash scripts/tests/lifecycle_test.sh
+bash scripts/tests/docker_auth_test.sh
 bash scripts/tests/e2e_test.sh
 bash scripts/tests/e2e_iam_test.sh
 docker run --rm --platform linux/amd64 -v "$LAB_ROOT/server:/source:ro" node:22.20.0-bookworm-slim \

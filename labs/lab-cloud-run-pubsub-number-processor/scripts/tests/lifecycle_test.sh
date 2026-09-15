@@ -37,6 +37,10 @@ SH
 cat > "$tmp/bin/docker" <<'SH'
 #!/usr/bin/env bash
 echo "docker $*" >> "$CALLS"
+case "$*" in
+  'context show') echo default;;
+  info*) printf '%s\n' "$0";;
+esac
 [[ "$*" != *"${FAIL_ON:-never-match}"* ]]
 SH
 chmod +x "$tmp/bin/"*
