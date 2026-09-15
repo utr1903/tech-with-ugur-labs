@@ -2,10 +2,16 @@
 # A deliberately conservative assessment: unresolved inheritance stops the check.
 check_ancestor_policy() {
   local file=$1
-  jq -e '.bindings | type == "array"' "$file" >/dev/null || die 'Policy evidence missing bindings; cannot assess inheritance'
+  # Called only after a successful policy read for a confirmed ancestor.
+  # Google may omit bindings entirely when that resource has no direct grants.
+  jq -e 'type == "object" and (if has("bindings") then
+    (.bindings | type == "array" and all(.[];
+      type == "object" and (.role|type == "string") and
+      (.members|type == "array" and all(.[]; type == "string"))))
+    else true end)' "$file" >/dev/null || die 'Malformed ancestor policy evidence'
   local unexpected
   unexpected=$(jq -c --arg prefix "$LAB_NAME-" --arg suffix "@$PROJECT_ID.iam.gserviceaccount.com" '
-    [.bindings[] | select(any(.members[]?;
+    [.bindings[]? | select(any(.members[]?;
       . == "allUsers" or . == "allAuthenticatedUsers" or
       startswith("group:") or startswith("domain:") or startswith("principal") or
       (startswith("serviceAccount:" + $prefix) and endswith($suffix))))]' "$file")
@@ -18,9 +24,9 @@ inspect_policies() {
     || die 'Incomplete or unrecognized resource ancestry'
   while IFS=$'\t' read -r type id; do
     case "$type" in
-      project) policy=$(gcloud projects get-iam-policy "$id" --format=json) ;;
-      folder) policy=$(gcloud resource-manager folders get-iam-policy "$id" --format=json) ;;
-      organization) policy=$(gcloud organizations get-iam-policy "$id" --format=json) ;;
+      project) policy=$(gcloud projects get-iam-policy "$id" --format=json) || die "Cannot read project policy $id" ;;
+      folder) policy=$(gcloud resource-manager folders get-iam-policy "$id" --format=json) || die "Cannot read folder policy $id" ;;
+      organization) policy=$(gcloud organizations get-iam-policy "$id" --format=json) || die "Cannot read organization policy $id" ;;
     esac
     printf '%s' "$policy" > "$TMP/ancestor-policy.json"
     check_ancestor_policy "$TMP/ancestor-policy.json"

@@ -24,8 +24,15 @@ printf '%s' '{"bindings":[{"role":"roles/viewer","members":["group:team@example.
 expect_failure check_ancestor_policy "$tmp/policy"
 printf '%s' '{"bindings":[{"role":"roles/owner","members":["user:reader@example.com"]}]}' > "$tmp/policy"
 check_ancestor_policy "$tmp/policy"
+# A successfully retrieved empty allow policy is legitimate for a known ancestor.
+printf '%s' '{"etag":"BwExample="}' > "$tmp/policy"
+check_ancestor_policy "$tmp/policy"
 printf '%s' '{}' > "$tmp/policy"
-expect_failure check_ancestor_policy "$tmp/policy"
+check_ancestor_policy "$tmp/policy"
+for malformed in 'null' '[]' '{"bindings":null}' '{"bindings":{}}' '{"bindings":"missing"}' '{"bindings":[{}]}'; do
+  printf '%s' "$malformed" > "$tmp/policy"
+  expect_failure check_ancestor_policy "$tmp/policy"
+done
 # External-command seam called by sourced polling functions.
 # shellcheck disable=SC2329
 gcloud() { echo '[]'; }
@@ -39,4 +46,18 @@ expect_failure wait_processed target-message stored
 # shellcheck disable=SC2329
 gcloud() { echo '[{"jsonPayload":{"event":"processed","message_id":"target-message","outcome":"stored","object_name":"a.txt"}}]'; }
 [[ $(wait_processed target-message stored | jq -r '.object_name') == a.txt ]]
+PUSH_SA=number-pipeline-push@test-project.iam.gserviceaccount.com
+# A failed read emitting empty JSON is not a successfully retrieved empty policy.
+gcloud() {
+  case "$*" in
+    'projects get-ancestors '*) echo '[{"type":"project","id":"test-project"},{"type":"folder","id":"123"}]';;
+    'projects get-iam-policy '*) echo '{}';;
+    'resource-manager folders get-iam-policy '*) echo '{"etag":"BwExample="}'; [[ "${POLICY_READ_FAIL:-false}" != true ]];;
+    *number-pipeline-processor*) echo '{"bindings":[{"role":"roles/run.invoker","members":["serviceAccount:number-pipeline-push@test-project.iam.gserviceaccount.com"]}]}';;
+    *number-pipeline-server*) echo '{"bindings":[{"role":"roles/run.invoker","members":["allUsers"]}]}';;
+    *) return 1;;
+  esac
+}
+inspect_policies
+POLICY_READ_FAIL=true expect_failure inspect_policies
 echo 'PASS: exact permission evidence, conservative policies, correlated bounded logs'
