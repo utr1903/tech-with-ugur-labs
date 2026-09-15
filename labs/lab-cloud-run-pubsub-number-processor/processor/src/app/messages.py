@@ -57,10 +57,6 @@ def _finite_javascript_number(payload: object) -> int | float:
         ) from err
     if not math.isfinite(javascript_number):
         raise MalformedMessageError("number must be finite")
-    if isinstance(number, int) and int(javascript_number) != number:
-        raise MalformedMessageError(
-            "integer does not round-trip as a JavaScript number"
-        )
     return number
 
 
