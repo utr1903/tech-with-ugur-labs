@@ -2,7 +2,14 @@
 # Read-only checks before the first resource mutation. Tokens stay in memory.
 preflight() {
   require_tools gcloud curl docker
-  docker info >/dev/null
+  # Validate the same isolated connection/plugin setup used for pushing before
+  # Terraform can create billable resources. The subshell cleans its own auth dir.
+  (
+    source "$LAB_ROOT/scripts/docker_auth.sh"
+    prepare_docker_config
+    docker buildx version >/dev/null
+    docker info >/dev/null
+  )
   local project billing token permissions account
   project=$(gcloud projects describe "$PROJECT_ID" --format=json)
   jq -e '.lifecycleState == "ACTIVE"' <<< "$project" >/dev/null || die 'Project must be ACTIVE'

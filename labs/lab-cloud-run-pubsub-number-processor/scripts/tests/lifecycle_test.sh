@@ -55,6 +55,9 @@ grep -q 'images' "$tmp/out" || fail 'missing image diagnostic absent'
 if grep -Eq 'apply|buildx|push' "$CALLS"; then fail 'dry-run mutated cloud'; fi
 grep -q 'foundation plan' "$CALLS" || fail 'fresh dry-run must preview foundation before missing-image error'
 : > "$CALLS"
+if PROJECT_ID=test-project FAIL_ON='buildx version' run; then fail 'unusable buildx passed preflight'; fi
+! grep -q 'foundation apply' "$CALLS" || fail 'foundation mutated before buildx validation'
+: > "$CALLS"
 PROJECT_ID=test-project run || fail 'bootstrap failed'
 [[ -f .lab/config.json && -f .lab/images.json ]] || fail 'bootstrap did not save config/images'
 grep -q -- '--platform linux/amd64.*--push' "$CALLS" || fail 'image architecture/push missing'
