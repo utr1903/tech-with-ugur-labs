@@ -1,4 +1,5 @@
 project_id = "your-project-id"
 region = "europe-west1"
 lab_name = "number-pipeline"
+server_image = "europe-west1-docker.pkg.dev/your-project-id/number-pipeline-server/app@sha256:0000000000000000000000000000000000000000000000000000000000000000"
 processor_image = "europe-west1-docker.pkg.dev/your-project-id/number-pipeline-processor/app@sha256:0000000000000000000000000000000000000000000000000000000000000000"
