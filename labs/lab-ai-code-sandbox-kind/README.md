@@ -1,5 +1,7 @@
 # AI that writes and runs its own Python
 
+Companion post: [A code-execution sandbox for a chat agent on kind](https://techwithugur.dev/posts/ai-code-sandbox-kind/).
+
 A chat app running on a local Kubernetes cluster (kind) where an LLM
 agent solves maths word problems by writing a complete Python program
 and running it in a separate sandbox service, then answers from the
