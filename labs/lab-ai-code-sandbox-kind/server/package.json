@@ -1,0 +1,40 @@
+{
+  "name": "code-sandbox-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "tsc -p tsconfig.build.json",
+    "start": "node dist/index.js",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "knip": "knip"
+  },
+  "dependencies": {
+    "@ai-sdk/langchain": "3.0.99",
+    "@hono/node-server": "2.1.1",
+    "@langchain/anthropic": "1.5.10",
+    "@langchain/core": "1.2.11",
+    "@langchain/langgraph": "1.4.15",
+    "@langchain/langgraph-checkpoint-postgres": "1.0.5",
+    "ai": "7.0.99",
+    "hono": "4.13.7",
+    "langchain": "1.5.11",
+    "pino": "10.3.1",
+    "zod": "4.6.4"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.13",
+    "@types/node": "24.13.4",
+    "knip": "6.35.1",
+    "tsx": "4.23.13",
+    "typescript": "5.9.3",
+    "vitest": "5.0.0"
+  }
+}

@@ -1,0 +1,12 @@
+# Code in the sandbox has no reason to open connections. Deny all egress
+# from sandbox pods (DNS included); incoming requests from the server and
+# the kubelet's probes are unaffected.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: sandbox-deny-egress
+spec:
+  podSelector:
+    matchLabels: { app: sandbox }
+  policyTypes: [Egress]
+  egress: []

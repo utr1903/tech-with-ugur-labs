@@ -1,0 +1,59 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: server
+spec:
+  selector: { app: server }
+  ports:
+    - { name: http, port: 8080, targetPort: 8080 }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: server
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: server }
+  template:
+    metadata:
+      labels: { app: server }
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        runAsGroup: 1000
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: server
+          image: lab-ai-code-sandbox/server:local
+          imagePullPolicy: Never
+          envFrom:
+            - configMapRef: { name: server-mode }
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom: { secretKeyRef: { name: postgres-credentials, key: password } }
+            - { name: DATABASE_URL, value: "postgres://chat:$(POSTGRES_PASSWORD)@postgres:5432/chat" }
+            - { name: SANDBOX_URL, value: "http://sandbox:8000" }
+            - { name: SANDBOX_CLIENT_TIMEOUT_MS, value: "45000" }
+            - { name: ANTHROPIC_MODEL, value: claude-sonnet-5 }
+            - name: ANTHROPIC_API_KEY
+              valueFrom: { secretKeyRef: { name: anthropic, key: api-key, optional: true } }
+          ports:
+            - { name: http, containerPort: 8080 }
+          readinessProbe:
+            tcpSocket: { port: 8080 }
+            periodSeconds: 5
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          resources:
+            requests: { cpu: 100m, memory: 192Mi }
+            limits: { memory: 768Mi }
+          volumeMounts:
+            - { name: tmp, mountPath: /tmp }
+      volumes:
+        - name: tmp
+          emptyDir: {}

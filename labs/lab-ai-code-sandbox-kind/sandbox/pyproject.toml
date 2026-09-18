@@ -1,0 +1,76 @@
+[project]
+name = "app"
+version = "0.0.0"
+requires-python = "==3.12.*"
+dependencies = [
+    "fastapi==0.141.1",
+    "numpy==2.5.3",
+    "pandas==3.0.5",
+    "pydantic==2.13.5",
+    "scikit-learn==1.9.1",
+    "scipy==1.18.1",
+    "structlog==26.1.0",
+    "sympy==1.14.0",
+    "uvicorn==0.52.4",
+]
+
+[project.scripts]
+app = "app.__main__:main"
+
+[dependency-groups]
+dev = [
+    "deptry==0.25.1",
+    "httpx==0.28.1",
+    "mypy==2.3.1",
+    "pytest==9.1.1",
+    "pytest-asyncio==1.4.0",
+    "ruff==0.16.7",
+]
+
+[build-system]
+requires = ["hatchling==1.32.0"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/app"]
+
+[tool.ruff]
+line-length = 88
+src = ["src"]
+
+[tool.ruff.lint]
+select = [
+  "E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM",
+  "RET", "ARG", "PTH", "ANN", "TRY", "LOG", "G", "C90",
+]
+ignore = [
+  # TRY003: contextual f-string messages in raises are the readable form
+  # the python-logging standard itself uses.
+  "TRY003",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.mypy]
+strict = true
+files = ["src"]
+
+[tool.pytest.ini_options]
+python_files = ["*_test.py"]
+testpaths = ["src"]
+addopts = "--import-mode=importlib"
+asyncio_mode = "auto"
+
+[tool.deptry]
+known_first_party = ["app"]
+extend_exclude = [".*_test\\.py", ".*conftest\\.py"]
+
+[tool.deptry.per_rule_ignores]
+# numpy, pandas, scipy, scikit-learn and sympy are never imported by the
+# sandbox server itself: they are installed for the Python code users
+# submit to run against, and the sandbox's capabilities endpoint reports
+# their versions. Removing any of them breaks that report: the endpoint
+# fails outright, because it reads each module's installed version by
+# name.
+DEP002 = ["numpy", "pandas", "scipy", "scikit-learn", "sympy"]
