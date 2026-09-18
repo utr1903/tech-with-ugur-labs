@@ -35,6 +35,7 @@ the only instruction set you need.
 | [lab-manufacturing-profit-pyscipopt](labs/lab-manufacturing-profit-pyscipopt/) | maths | [post](https://techwithugur.dev/posts/manufacturing-profit-pyscipopt/) | Plan three years of production, manufacturing workers, researchers, and one optional expansion to maximize cumulative net cash. |
 | [lab-openai-voice-rag](labs/lab-openai-voice-rag/) | ai, observability | [post](https://techwithugur.dev/posts/openai-voice-rag/) | Ask questions about a local Markdown folder and inspect the actual retrieved sources. |
 | [lab-kubernetes-job-isolation](labs/lab-kubernetes-job-isolation/) | cybersecurity, cloud, devops | [post](https://techwithugur.dev/posts/kubernetes-job-isolation/) | This lab deliberately runs the shell command supplied to `POST /execute`. |
+| [lab-ai-code-sandbox-kind](labs/lab-ai-code-sandbox-kind/) | ai, cloud, devops | [post](https://techwithugur.dev/posts/ai-code-sandbox-kind/) | A chat app on a local kind cluster where an LLM agent solves maths word problems by writing a complete Python program and running it in a separate sandbox service, then answers from the program's real output — and it runs without any API key by default, using a deterministic stand-in model. |
 <!-- LAB-INDEX:END -->
 
 ## Conventions
