@@ -6,9 +6,11 @@ import cvxpy as cp
 import numpy as np
 import pytest
 
+from app.cvxpy_api import installed_solvers, solve
+
 
 def test_all_three_algorithms_are_installed() -> None:
-    installed = set(cp.installed_solvers())
+    installed = set(installed_solvers())
     assert "CLARABEL" in installed
     assert "HIGHS" in installed
 
@@ -17,7 +19,7 @@ def test_highs_accepts_an_explicit_algorithm_choice() -> None:
     x = cp.Variable(2, nonneg=True)
     problem = cp.Problem(cp.Minimize(cp.sum(x)), [x >= np.array([1.0, 2.0])])
     for algorithm in ("simplex", "ipm"):
-        problem.solve(solver=cp.HIGHS, highs_options={"solver": algorithm})
+        solve(problem, solver=cp.HIGHS, highs_options={"solver": algorithm})
         assert problem.status == cp.OPTIMAL
         assert problem.value == pytest.approx(3.0, abs=1e-9)
 

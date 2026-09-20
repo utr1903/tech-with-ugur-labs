@@ -70,16 +70,21 @@ module = ["cvxpy", "cvxpy.*"]
 implicit_reexport = true
 
 [[tool.mypy.overrides]]
-# cvxpy's own module-level installed_solvers() and Problem.solve() carry
-# no internal type annotations, so --strict's disallow_untyped_calls
-# flags every call site regardless of import visibility. That flag is
-# evaluated against the calling file's config, not the callee's module,
-# so (unlike implicit_reexport above) it cannot be scoped to cvxpy.* —
-# it has to be relaxed here, in the one file that calls the raw solver
-# API directly. Any future module that calls cvxpy's .solve() or
-# installed_solvers() needs the same narrow per-file override, not a
-# project-wide one.
-module = ["app.toolchain_test"]
+# Measured, not assumed: running --strict against a module that builds and
+# solves a real CVaR-shaped LP with cp.Variable, cp.Minimize, cp.Problem,
+# cp.sum, cp.abs, cp.sum_largest, cp.quad_form, cp.psd_wrap,
+# constraint.dual_value, problem.value and problem.status surfaces exactly
+# two errors, both no-untyped-call: cvxpy's module-level
+# installed_solvers() and Problem.solve() carry no internal annotations.
+# Every other symbol in that surface is already strict-clean. That flag is
+# evaluated against the calling file's config, not the callee's module, so
+# (unlike implicit_reexport above) it cannot be scoped to cvxpy.* — so both
+# calls are confined to app/cvxpy_api.py, the app's one typed facade over
+# them, and only that module gets this override. Adding this override to
+# any other module is a defect: it would relax disallow_untyped_calls over
+# real model/solver logic instead of the two-function facade that exists
+# to prevent exactly that.
+module = ["app.cvxpy_api"]
 disallow_untyped_calls = false
 
 [tool.pytest.ini_options]
