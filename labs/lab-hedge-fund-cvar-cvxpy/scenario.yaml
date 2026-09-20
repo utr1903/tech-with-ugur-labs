@@ -1,0 +1,234 @@
+# One complete, editable scenario for the CVaR portfolio lab.
+#
+# EVERY FIGURE BELOW IS A FICTIONAL TEACHING ASSUMPTION. The tickers are
+# invented, the alphas are invented, and the borrow rates and spreads are
+# invented. Nothing here is a real security, a real financing cost, a real
+# execution cost, or advice of any kind.
+#
+# Units, used consistently:
+#   * weights are signed fractions of NAV, so 0.065 is a long of 6.5% of
+#     the fund and -0.065 is a short of the same size;
+#   * returns are simple one-month returns, so 0.008 is +0.8% in a month;
+#   * borrow_fee_annual is an annual rate charged over the month as
+#     rate / 12 on short notional;
+#   * half_spread is a one-off cost on traded notional.
+#
+# Edit anything. The loader rejects a file with a missing field, an extra
+# field, a non-finite number or an internally inconsistent mandate, and the
+# error names the full path of the offending line.
+
+# Confidence level of the tail the model minimizes. 0.95 means the
+# objective is the average loss of the worst 5% of scenarios.
+cvar_beta: 0.95
+
+# The expected one-month return, net of borrow and trading cost, that the
+# headline portfolio has to deliver. The desk mandate below makes this
+# demanding: at 0.008 the gross-leverage cap, the turnover budget and one
+# sector's net cap all bind at once. The largest net return the mandate can
+# reach is about 0.0094, so the target has real slack without being free,
+# and the starting book already earns about 0.0070 of it.
+headline_target_monthly: 0.008
+
+# Optional path to a reader-supplied return history: a CSV whose header
+# names every universe column below in this exact order, followed by one
+# row of simple one-month returns per period. Leave it null to use the
+# seeded generator instead.
+returns_csv: null
+
+universe:
+  # Six sectors, five names each. The sector a name belongs to drives both
+  # its desk limits and which style factor it loads on.
+  sectors: [technology, healthcare, financials, industrials, energy, staples]
+
+  # Per name:
+  #   market_beta       sensitivity to the market factor, unitless
+  #   alpha_monthly     the drift this name earns on top of the factor
+  #                     model. Note that the market factor has a slightly
+  #                     negative mean here (see market.stress_mean), so a
+  #                     name's expected return comes out below its alpha by
+  #                     beta times that mean, and a name carrying jumps
+  #                     loses a further jump_probability * jump_mean. The
+  #                     jump names are given extra alpha on purpose: they
+  #                     are the crash-risk premium the book gets paid for,
+  #                     and deciding how much of it to take is the whole
+  #                     argument between the two models.
+  #   borrow_fee_annual annual cost of borrowing the name to short it
+  #   half_spread       one-off cost of trading it, each way
+  #   start_weight      the book the desk holds today, before this solve
+  names:
+    # --- technology -----------------------------------------------------
+    - {name: TCH1, sector: technology, market_beta: 1.42, alpha_monthly: 0.0199,
+       borrow_fee_annual: 0.0450, half_spread: 0.0016, start_weight: 0.065}
+    - {name: TCH2, sector: technology, market_beta: 1.00, alpha_monthly: 0.0093,
+       borrow_fee_annual: 0.0250, half_spread: 0.0011, start_weight: 0.045}
+    - {name: TCH3, sector: technology, market_beta: 1.05, alpha_monthly: 0.0059,
+       borrow_fee_annual: 0.0035, half_spread: 0.0007, start_weight: 0.000}
+    - {name: TCH4, sector: technology, market_beta: 1.08, alpha_monthly: 0.0025,
+       borrow_fee_annual: 0.0080, half_spread: 0.0009, start_weight: -0.045}
+    - {name: TCH5, sector: technology, market_beta: 1.34, alpha_monthly: 0.0069,
+       borrow_fee_annual: 0.0140, half_spread: 0.0013, start_weight: -0.065}
+    # --- healthcare -----------------------------------------------------
+    - {name: HLC1, sector: healthcare, market_beta: 1.00, alpha_monthly: 0.0080,
+       borrow_fee_annual: 0.0380, half_spread: 0.0014, start_weight: 0.065}
+    - {name: HLC2, sector: healthcare, market_beta: 0.82, alpha_monthly: 0.0110,
+       borrow_fee_annual: 0.0220, half_spread: 0.0010, start_weight: 0.045}
+    - {name: HLC3, sector: healthcare, market_beta: 0.90, alpha_monthly: 0.0014,
+       borrow_fee_annual: 0.0030, half_spread: 0.0006, start_weight: 0.000}
+    - {name: HLC4, sector: healthcare, market_beta: 0.78, alpha_monthly: -0.0025,
+       borrow_fee_annual: 0.0070, half_spread: 0.0008, start_weight: -0.045}
+    - {name: HLC5, sector: healthcare, market_beta: 1.04, alpha_monthly: -0.0046,
+       borrow_fee_annual: 0.0120, half_spread: 0.0011, start_weight: -0.065}
+    # --- financials -----------------------------------------------------
+    - {name: FIN1, sector: financials, market_beta: 1.28, alpha_monthly: 0.0182,
+       borrow_fee_annual: 0.0330, half_spread: 0.0012, start_weight: 0.065}
+    - {name: FIN2, sector: financials, market_beta: 1.02, alpha_monthly: 0.0081,
+       borrow_fee_annual: 0.0190, half_spread: 0.0009, start_weight: 0.045}
+    - {name: FIN3, sector: financials, market_beta: 1.12, alpha_monthly: 0.0050,
+       borrow_fee_annual: 0.0030, half_spread: 0.0006, start_weight: 0.000}
+    - {name: FIN4, sector: financials, market_beta: 1.06, alpha_monthly: 0.0013,
+       borrow_fee_annual: 0.0075, half_spread: 0.0008, start_weight: -0.045}
+    - {name: FIN5, sector: financials, market_beta: 1.22, alpha_monthly: 0.0052,
+       borrow_fee_annual: 0.0130, half_spread: 0.0012, start_weight: -0.065}
+    # --- industrials ----------------------------------------------------
+    - {name: IND1, sector: industrials, market_beta: 1.20, alpha_monthly: 0.0099,
+       borrow_fee_annual: 0.0360, half_spread: 0.0013, start_weight: 0.065}
+    - {name: IND2, sector: industrials, market_beta: 0.94, alpha_monthly: 0.0127,
+       borrow_fee_annual: 0.0200, half_spread: 0.0009, start_weight: 0.045}
+    - {name: IND3, sector: industrials, market_beta: 1.00, alpha_monthly: 0.0030,
+       borrow_fee_annual: 0.0030, half_spread: 0.0006, start_weight: 0.000}
+    - {name: IND4, sector: industrials, market_beta: 0.90, alpha_monthly: -0.0009,
+       borrow_fee_annual: 0.0070, half_spread: 0.0008, start_weight: -0.045}
+    - {name: IND5, sector: industrials, market_beta: 1.16, alpha_monthly: -0.0030,
+       borrow_fee_annual: 0.0125, half_spread: 0.0011, start_weight: -0.065}
+    # --- energy ---------------------------------------------------------
+    - {name: ENE1, sector: energy, market_beta: 1.28, alpha_monthly: 0.0214,
+       borrow_fee_annual: 0.0500, half_spread: 0.0018, start_weight: 0.065}
+    - {name: ENE2, sector: energy, market_beta: 1.08, alpha_monthly: 0.0116,
+       borrow_fee_annual: 0.0240, half_spread: 0.0011, start_weight: 0.045}
+    - {name: ENE3, sector: energy, market_beta: 1.15, alpha_monthly: 0.0083,
+       borrow_fee_annual: 0.0035, half_spread: 0.0007, start_weight: 0.000}
+    - {name: ENE4, sector: energy, market_beta: 1.02, alpha_monthly: 0.0107,
+       borrow_fee_annual: 0.0085, half_spread: 0.0009, start_weight: -0.045}
+    - {name: ENE5, sector: energy, market_beta: 1.34, alpha_monthly: 0.0025,
+       borrow_fee_annual: 0.0150, half_spread: 0.0014, start_weight: -0.065}
+    # --- staples --------------------------------------------------------
+    - {name: STP1, sector: staples, market_beta: 0.72, alpha_monthly: 0.0050,
+       borrow_fee_annual: 0.0300, half_spread: 0.0012, start_weight: 0.065}
+    - {name: STP2, sector: staples, market_beta: 0.58, alpha_monthly: 0.0018,
+       borrow_fee_annual: 0.0170, half_spread: 0.0008, start_weight: 0.045}
+    - {name: STP3, sector: staples, market_beta: 0.65, alpha_monthly: -0.0015,
+       borrow_fee_annual: 0.0025, half_spread: 0.0005, start_weight: 0.000}
+    - {name: STP4, sector: staples, market_beta: 0.60, alpha_monthly: -0.0051,
+       borrow_fee_annual: 0.0065, half_spread: 0.0007, start_weight: -0.045}
+    - {name: STP5, sector: staples, market_beta: 0.70, alpha_monthly: -0.0078,
+       borrow_fee_annual: 0.0110, half_spread: 0.0010, start_weight: -0.065}
+
+# The mandate. The starting book above uses 1.32 of the 1.40 gross budget,
+# is exactly market neutral by construction and sits flat in every sector,
+# so the solve is genuinely "what should we trade", not "what should we
+# own from scratch".
+desk_limits:
+  # sum |w|. The book may run at most 1.40 of NAV long plus short combined.
+  gross_leverage_max: 1.40
+  # sum w. Long and short legs must roughly cancel.
+  net_exposure_min: -0.10
+  net_exposure_max: 0.10
+  # market_beta . w. Tighter than net exposure, because a beta-neutral book
+  # is the point of the fund.
+  beta_min: -0.05
+  beta_max: 0.05
+  # |w_i| for any single name. 30 names at this cap could hold 3.60 of
+  # gross, comfortably above gross_leverage_max, so the cap is reachable.
+  name_gross_cap: 0.12
+  # |sum of w over one sector|. Binds first: the optimizer would happily
+  # put the whole book long energy and short staples.
+  sector_net_cap: 0.11
+  # sum of |w| over one sector.
+  sector_gross_cap: 0.35
+  # sum |w - start_weight|, one way. The desk cannot rebuild the book in a
+  # single month, and this budget binds everywhere on the frontier.
+  turnover_max: 0.50
+
+# The seeded generator. Read market.py alongside this block: every field
+# here is one component of r = alpha + beta*f + style + idiosyncratic + jump.
+market:
+  # fat_tailed is the market the fund actually faces. gaussian is the
+  # control: same factor structure, same first two moments per name, but
+  # every heavy tail replaced by a normal.
+  mode: fat_tailed
+  # Seeds and sizes. The out-of-sample block is drawn from a different seed
+  # and is never shown to the optimizer, which is what makes the in-sample
+  # optimism study honest.
+  seed: 20260920
+  scenarios: 10000
+  out_of_sample_seed: 20260921
+  out_of_sample_scenarios: 10000
+  # Style factors. Their loadings are derived from sector membership in
+  # code, so neighbouring sectors co-move without a 30-by-3 table here.
+  factor_count: 3
+  # The market factor is a two-regime mixture: a calm month, or, with
+  # probability stress_probability, a stressed one. This is what makes the
+  # market itself left-skewed, and it is also why the expected market
+  # return is slightly negative (0.035 * -0.100 = -0.0035 per month).
+  calm_sigma: 0.030
+  stress_probability: 0.035
+  stress_mean: -0.100
+  stress_sigma: 0.075
+  # Name-specific noise: a Student-t, rescaled to unit variance, so it has
+  # the same standard deviation as a normal but far heavier tails. Keep the
+  # degrees of freedom above 4 if you want the reported kurtosis to settle
+  # down; below 2 the variance does not exist at all and the loader says so.
+  idiosyncratic_df: 5.0
+  idiosyncratic_sigma: 0.045
+  # Rare one-sided crashes in the named companies. A 0.2% chance per month
+  # of a 70% drop adds only about 0.032 to a name's monthly standard
+  # deviation, which a variance model barely notices, but it lands squarely
+  # inside the worst 5% of scenarios, which is the only place CVaR looks.
+  # That asymmetry is the experiment.
+  jump_probability: 0.002
+  jump_mean: -0.70
+  jump_sigma: 0.12
+  # Eight of the thirty names, spread over five sectors, so no sector-
+  # neutral book can dodge all of them at once.
+  jump_names: [TCH1, TCH5, HLC2, FIN1, FIN5, IND2, ENE1, ENE4]
+
+# The return-target sweep behind the frontier chart. The top of the range
+# sits above what the mandate can reach, on purpose: the last point or two
+# come back infeasible and the lab reports that verbatim.
+frontier:
+  points: 25
+  min_target_monthly: 0.000
+  max_target_monthly: 0.010
+
+# The scenario-count ladder the three algorithms are timed on, and how
+# closely their objectives have to agree.
+algorithms:
+  scenario_ladder: [500, 2000, 8000]
+  objective_relative_tolerance: 1.0e-6
+
+# The two seed-averaged comparison studies.
+studies:
+  # Seeds averaged over, and scenarios per seed. This is larger than
+  # market.scenarios on purpose: the studies measure the distance between
+  # two optimized books, and that distance carries the sampling error of
+  # both tail estimates, so it needs a finer sample than a single solve.
+  seeds: 5
+  scenarios: 25000
+  # The return target both models are held to while being compared.
+  matched_target_monthly: 0.005
+  # In gaussian mode the two models should land on nearly the same book:
+  # for an elliptical distribution, minimizing CVaR and minimizing variance
+  # are the same problem. This is the L1 weight distance allowed there.
+  elliptical_weight_tolerance: 0.10
+  # In fat_tailed mode they should not. This is how many times further
+  # apart the two books have to be than they were in the control.
+  divergence_ratio_min: 2.0
+
+# Slack allowed by each independent check of a solved portfolio.
+tolerances:
+  constraint_abs: 1.0e-7
+  cvar_agreement_abs: 1.0e-6
+  var_recovery_abs: 1.0e-6
+  solver_agreement_rel: 1.0e-6
+  relaxation_abs: 1.0e-7
+  dual_relative: 0.02
