@@ -23,10 +23,12 @@ cvar_beta: 0.95
 
 # The expected one-month return, net of borrow and trading cost, that the
 # headline portfolio has to deliver. The desk mandate below makes this
-# demanding: at 0.008 the gross-leverage cap, the turnover budget and one
-# sector's net cap all bind at once. The largest net return the mandate can
-# reach is about 0.0094, so the target has real slack without being free,
-# and the starting book already earns about 0.0070 of it.
+# demanding: at 0.008 the gross-leverage cap, the turnover budget and two
+# sectors' net caps all bind at once — energy pinned at the positive cap
+# and staples at the negative one, the long and short ends of the same
+# trade. The largest net return the mandate can reach is about 0.0094, so
+# the target has real slack without being free, and the starting book
+# already earns about 0.0070 of it.
 headline_target_monthly: 0.008
 
 # Optional path to a reader-supplied return history: a CSV whose header

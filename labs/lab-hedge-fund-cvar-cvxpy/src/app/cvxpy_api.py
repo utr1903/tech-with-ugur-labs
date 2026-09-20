@@ -1,23 +1,14 @@
-"""The one module that touches the corners of CVXPY mypy cannot see.
+"""The one module that touches CVXPY's unannotated entry points.
 
-Most of CVXPY type-checks cleanly. A handful of entry points do not, for
-two separate reasons, and both are reported against the *calling* file
-rather than against `cvxpy`, so neither can be scoped to `cvxpy.*`:
-
-* `Problem.solve`, `installed_solvers`, `Canonical.parameters` and `cvar`
-  carry no annotations, so `--strict`'s `disallow_untyped_calls` rejects
-  every call to them.
-* `Problem.is_dcp` *is* annotated `(self, dpp: bool = False) -> bool`, but
-  it is wrapped in CVXPY's `compute_once` memoization decorator, which is
-  declared as `Callable[[T], R] -> Callable[[T], R]`. That signature has
-  room for `self` and nothing else, so as far as mypy is concerned the
-  `dpp` argument does not exist and `is_dcp(dpp=True)` is a bad call.
-
-Confining all of them here means two narrowly-scoped overrides on one
-forty-line file of wrappers instead of one per solving module, and every
-other module in the app stays fully strict — the same reasoning that puts
-the codebase's only `cast` in `get_logger` (see the `python-logging`
-skill).
+Most of CVXPY type-checks cleanly. Four entry points carry no annotations
+at all — `Problem.solve`, `installed_solvers`, `Canonical.parameters` and
+`cvar` — so `mypy --strict`'s `disallow_untyped_calls` rejects every call
+to them. That flag is evaluated against the *calling* file, so it cannot
+be scoped to `cvxpy.*`. Confining all four here means one narrowly-scoped
+override on one short file of wrappers instead of one per solving module,
+and every other module in the app stays fully strict — the same reasoning
+that puts the codebase's only `cast` in `get_logger` (see the
+`python-logging` skill).
 
 Every other module imports the wrappers below rather than reaching for
 the CVXPY entry points they cover.
@@ -44,8 +35,18 @@ def is_dpp(problem: cp.Problem) -> bool:
     DPP is what lets a problem holding a `Parameter` be compiled once and
     re-solved at many parameter values, which is how the lab sweeps a
     return target without rebuilding the model twenty-five times.
+
+    `problem.is_dpp()` and not the more familiar `problem.is_dcp(dpp=True)`
+    — they are the same test, and CVXPY's own documentation says so, but
+    only the first one type-checks. `is_dcp` is annotated
+    `(self, dpp: bool = False) -> bool`, then memoized by a `compute_once`
+    decorator declared `Callable[[T], R] -> Callable[[T], R]`: a signature
+    with room for `self` and nothing else. mypy therefore believes `is_dcp`
+    takes no arguments and rejects `dpp=True` outright. `is_dpp` takes its
+    context as a defaulted argument this wrapper never passes, so the same
+    erasure leaves it callable. Do not "simplify" this back.
     """
-    return problem.is_dcp(dpp=True)
+    return problem.is_dpp()
 
 
 def is_parameterized(constraint: cp.Constraint) -> bool:
