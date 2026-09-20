@@ -168,6 +168,66 @@ def small_market(small_scenario: Scenario, log: Logger) -> MarketScenarios:
 
 
 @pytest.fixture(scope="session")
+def small_out_of_sample(small_scenario: Scenario, log: Logger) -> MarketScenarios:
+    """Draw the disjoint sample a solved book is scored on afterwards.
+
+    Same generator, same distribution, a different seed — the matrix the
+    optimizer never sees. Reporting a book's tail on the scenarios it was
+    chosen to beat measures the fit, not the risk, which is why every
+    verification report carries both numbers side by side.
+    """
+    return generate_scenarios(
+        small_scenario.universe,
+        small_scenario.market,
+        seed=small_scenario.market.out_of_sample_seed,
+        count=small_scenario.market.scenarios,
+        mode=small_scenario.market.mode,
+        log=log,
+    )
+
+
+@pytest.fixture(scope="session")
+def degenerate_scenario(small_scenario: Scenario) -> Scenario:
+    """Return the mandate under which the two relaxations stop being exact.
+
+    `model_desk.py` writes `w = l - s` and `t >= |w - w0|` and then argues
+    that at an optimum the legs collapse onto `|w|` and the turnover bound
+    onto the real trade. That argument has three premises — a borrow fee, a
+    half-spread, or a gross budget an inflated pair would spend — and this
+    fixture removes all of them at once. Every fee and every spread is set
+    to zero; the gross, per-name, per-sector and turnover budgets are
+    widened far past anything the solved book uses.
+
+    Note what is *not* enough. Taking the shipped 30-name mandate and
+    zeroing only the costs leaves the gross-leverage cap binding, which is
+    a premise all by itself; so does the two-name `tiny_scenario` below,
+    whose net exposure is pinned to 1.0 under a gross cap of 1.0 — that
+    makes the gross constraint bind exactly, however generous the other
+    limits look. The budgets here are deliberately far enough out that the
+    optimum cannot reach them.
+
+    The headline target is kept at the shipped value on purpose, so the
+    fixture demonstrates the lapse on a real long-short book of about 1.08
+    gross rather than on the trivial all-zero portfolio a slack target
+    would produce.
+    """
+    zero = frozen_float_array(np.zeros(len(small_scenario.universe.names)))
+    return replace(
+        small_scenario,
+        universe=replace(
+            small_scenario.universe, borrow_fee_annual=zero, half_spread=zero
+        ),
+        limits=replace(
+            small_scenario.limits,
+            gross_leverage_max=6.0,
+            name_gross_cap=1.0,
+            sector_gross_cap=2.0,
+            turnover_max=8.0,
+        ),
+    )
+
+
+@pytest.fixture(scope="session")
 def tiny_scenario(scenario: Scenario) -> Scenario:
     """Return a two-name mandate whose feasible set is enumerable by hand.
 

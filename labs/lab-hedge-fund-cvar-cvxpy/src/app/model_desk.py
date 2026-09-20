@@ -177,13 +177,22 @@ def desk_block(scenario: Scenario, returns: FloatArray) -> DeskBlock:
         # usually enough to make it so: a positive borrow fee charges for
         # the short leg, a positive half-spread charges for the trade, and
         # a binding gross-leverage or per-name cap spends budget the
-        # position could have used. Take all three away at once — zero
-        # costs, every gross cap slack — and nothing penalises an inflated
-        # pair, so the two legs may overlap and `l + s` may exceed `|w|`.
-        # The premise is a condition on the scenario rather than something
-        # this file can guarantee, so the lab measures `max_i min(l_i,
-        # s_i)` on the solved book and reports it instead of assuming it
-        # is zero.
+        # position could have used.
+        #
+        # Take all three away at once and the guarantee really does lapse,
+        # which the lab demonstrates rather than asserts. The degenerate
+        # fixture in `conftest.py` zeroes every fee and every spread and
+        # widens every gross and turnover budget past anything the book
+        # uses; on that mandate the optimal face of the program contains a
+        # whole set of `(l, s)` pairs differing only in padding, and
+        # Clarabel returns one padded by about 0.09 of NAV on the worst
+        # name against about 2e-10 on the shipped mandate. Note what the
+        # fixture does *not* prove: HiGHS's simplex, solving the same
+        # degenerate program, finishes at a vertex with no padding at all.
+        # Which point of an optimal face comes back is a property of the
+        # algorithm, not a theorem — so the padding is a thing to measure,
+        # and `verification.py` measures `max_i min(l_i, s_i)` on every
+        # solved book instead of assuming it away.
         "signed_split": weights == long_leg - short_leg,
         "name_gross_cap": long_leg + short_leg <= limits.name_gross_cap,
         "net_exposure_max": cp.sum(weights) <= limits.net_exposure_max,
@@ -197,11 +206,13 @@ def desk_block(scenario: Scenario, returns: FloatArray) -> DeskBlock:
         # `t >= |w - w0|`, with equality only where something pushes `t`
         # back down. Here that is the turnover budget, which `t` consumes,
         # and the half-spread term in the return constraint, which charges
-        # for it. Both are conditions on the scenario, not guarantees: set
-        # every half-spread to zero and leave the budget slack and `t` is
-        # free to float above the real trade. So the lab recomputes
-        # `|w - w0|` from the weights and compares it against `t` rather
-        # than trusting the two to agree.
+        # for it. Both are conditions on the scenario rather than
+        # guarantees, and the same degenerate fixture shows it: with every
+        # half-spread at zero and the budget slack, an interior-point solve
+        # leaves `t` floating about 0.12 of NAV above the trade it is
+        # supposed to measure. So the lab recomputes `|w - w0|` from the
+        # weights and prices the trade off that, rather than trusting `t`
+        # to have collapsed onto it.
         "turnover_buys": turnover_leg >= weights - universe.start_book,
         "turnover_sells": turnover_leg >= universe.start_book - weights,
         "return_target": expected_net >= target,
