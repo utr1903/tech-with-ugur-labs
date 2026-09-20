@@ -16,15 +16,22 @@ not the other — so they are written out in full where the constraints are
 declared.
 
 That is also why this file runs past the ~200-line target the lab holds
-its modules to: most of it is those two arguments rather than code. The
+its modules to: more of this file is prose than code. The
 mandate is one dictionary a reader should be able to read top to bottom in
 one place, with each relaxation's reasoning beside the row it justifies.
 
 Neither argument is left to the prose alone. `model_desk_test.py` switches
 each term off on its own — borrow fee, half-spread, the caps, the turnover
 budget, the return target's slack — and asserts which bound collapses in
-each case. The claims below are read off that table, so a comment here
-cannot drift away from the mathematics without turning a test red.
+each case. It also writes the two rules below out as code and asserts they
+predict every arm, so the chain runs from rule to expected outcome to
+solve. The claims below are read off that table, and a comment here cannot
+drift away from the mathematics without turning a test red.
+
+Read the cap conditions carefully in one respect: the three gross caps are
+written on `l + s`, not on `|w|`, and those agree only where the split is
+exact. Where it is padded they part company badly, so anything asking
+whether a cap is active has to evaluate `l + s`.
 """
 
 from __future__ import annotations
@@ -271,12 +278,12 @@ def desk_block(scenario: Scenario, returns: FloatArray) -> DeskBlock:
         # which padding `(l, s)` cannot move, and never touches `l` or `s`.
         # The borrow fee is the mirror image: it charges `s`, so with the
         # budget slack and the spread off it leaves `t` floating 4.6e-02
-        # above the trade even at a binding target. The degenerate fixture
-        # takes both premises away at once and an interior-point solve
-        # leaves `t` floating 0.119 of NAV above the trade, measured at 600
-        # scenarios. So the lab recomputes `|w - w0|` from the weights and
-        # prices the trade off that, rather than trusting `t` to have
-        # collapsed onto it.
+        # above the trade at 600 scenarios, even at a binding target. The
+        # degenerate fixture takes both premises away at once and an
+        # interior-point solve leaves `t` floating 0.119 of NAV above the
+        # trade, also at 600. So the lab recomputes `|w - w0|` from the
+        # weights and prices the trade off that, rather than trusting `t`
+        # to have collapsed onto it.
         "turnover_buys": turnover_leg >= weights - universe.start_book,
         "turnover_sells": turnover_leg >= universe.start_book - weights,
         "return_target": expected_net >= target,

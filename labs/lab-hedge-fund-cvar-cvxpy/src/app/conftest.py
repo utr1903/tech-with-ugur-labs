@@ -216,15 +216,21 @@ def degenerate_scenario(small_scenario: Scenario) -> Scenario:
 
     Note what the widened budgets are and are not for. Zeroing the costs
     on the shipped mandate is in fact already enough to make the split
-    lapse — the gross cap comes back slack at 1.0325 of 1.32 at 600
-    scenarios and 1.2438 of 1.32 at 10,000, and the split is padded by
-    8.0e-03 and 2.3e-03 there. The budgets are widened so that the fixture
-    does not depend on that happening to be true: a reader who edits the
-    universe could easily produce a book that runs into the gross cap, and
-    then the fixture would be testing premise one rather than removing it.
-    Here the optimum cannot reach any budget, so the premises are absent by
-    construction rather than by luck, and the test asserts each one is
-    slack before it looks at the overlap.
+    lapse: the gross cap stays inactive — `sum(l + s)` reaches 1.3159 of
+    1.32 at 600 scenarios and 1.3184 of 1.32 at 10,000 — and the split is
+    padded by 8.0e-03 and 2.3e-03 there. (Read `l + s`, not `sum|w|`. That
+    is the expression the cap is written on, and the two part company by
+    0.28 of NAV here precisely because the split has gone slack.)
+
+    What widening the budgets does is not remove the padding but *enlarge*
+    it, because an interior point parks the free padding just inside
+    whatever budget it is given. Holding everything else fixed and moving
+    the gross cap alone, at 600 scenarios: cap 1.32 gives an overlap of
+    5.8e-03, cap 2.0 gives 2.1e-02, cap 6.0 gives 9.4e-02, with `sum(l+s)`
+    coming back at 1.3134, 1.9841 and 5.9697 respectively — within a
+    percent of the cap every time. So the fixture uses a wide cap to make
+    the lapse unmistakable rather than marginal, and the test reads every
+    premise off `l + s` before it looks at the overlap.
 
     What genuinely does not work is the two-name `tiny_scenario` below: its
     net exposure is pinned to 1.0 under a gross cap of 1.0, which makes the

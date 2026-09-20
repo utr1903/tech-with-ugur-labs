@@ -467,13 +467,12 @@ def test_the_signed_split_lapses_once_nothing_penalises_an_inflated_pair(
 
     What happens next is a property of the algorithm, not a theorem.
     Clarabel is an interior-point method and returns a point in the
-    relative interior of that face, so it pads both legs by 0.094 of NAV
-    on the worst name at 600 scenarios. HiGHS's simplex finishes at a
-    vertex, where the
-    padding is zero. Both answers are optimal; only one of them has
-    `l + s == |w|`. That is the honest statement of what this fixture
-    shows, and it is why the lab measures the overlap and reports it rather
-    than assuming it away.
+    relative interior of that face, so at 600 scenarios it pads both legs
+    by 0.094 of NAV on the worst name. HiGHS's simplex finishes at a
+    vertex, where the padding is zero. Both answers are optimal; only one
+    of them has `l + s == |w|`. That is the honest statement of what this
+    fixture shows, and it is why the lab measures the overlap and reports
+    it rather than assuming it away.
     """
     target = degenerate_scenario.headline_target_monthly
     built = build_cvar_problem(degenerate_scenario, small_market, log=log)
@@ -484,14 +483,26 @@ def test_the_signed_split_lapses_once_nothing_penalises_an_inflated_pair(
 
     # Every premise of the exactness argument really is gone: the caps are
     # slack at the optimum, not merely generous in the file.
+    #
+    # Read off `l + s`, which is what the three gross caps are written on.
+    # Using `|w|` here would be measuring the wrong row and flattering the
+    # result: this book's `sum|w|` is 1.08 against a cap of 6.0, while the
+    # `sum(l + s)` the solver actually constrains is 5.97 — 99.5% of it.
+    # The cap is still formally inactive, which is what the argument needs,
+    # but there is far less daylight than the weights suggest.
     limits, universe = degenerate_scenario.limits, degenerate_scenario.universe
     weights = interior.solution.weights
+    legs = interior.solution.long_leg + interior.solution.short_leg
+    tolerance = degenerate_scenario.tolerances.relaxation_abs
     assert not universe.borrow_fee_annual.any()
     assert not universe.half_spread.any()
-    assert np.abs(weights).sum() < 0.5 * limits.gross_leverage_max
-    assert np.abs(weights).max() < 0.5 * limits.name_gross_cap
-    assert (universe.sector_matrix @ np.abs(weights)).max() < (
-        0.5 * limits.sector_gross_cap
+    assert float(legs.sum()) < limits.gross_leverage_max - tolerance
+    assert float(legs.max()) < limits.name_gross_cap - tolerance
+    assert float((universe.sector_matrix @ legs).max()) < (
+        limits.sector_gross_cap - tolerance
+    )
+    assert float(interior.solution.turnover_leg.sum()) < (
+        limits.turnover_max - tolerance
     )
     assert np.abs(weights - universe.start_book).sum() < 0.5 * limits.turnover_max
 
@@ -586,9 +597,13 @@ def test_the_split_lapses_wherever_the_return_target_goes_slack(
     assert universe.half_spread.any()
     ledger = cost_ledger(universe, small_market.returns, slack.solution.weights)
     assert ledger.expected_net_return - 0.002 > 1e-3
-    assert (
-        np.abs(slack.solution.weights).sum() < small_scenario.limits.gross_leverage_max
-    )
+    # `l + s`, not `|w|` — that is the expression the gross cap is written
+    # on, and here they differ by 0.45 of NAV precisely because the split
+    # has gone slack. The cap is inactive either way, but only one of the
+    # two numbers is evidence of it: 1.3144 of 1.32 rather than 0.8597.
+    slack_legs = slack.solution.long_leg + slack.solution.short_leg
+    assert float(slack_legs.sum()) < small_scenario.limits.gross_leverage_max
+    assert float(slack_legs.max()) < small_scenario.limits.name_gross_cap
 
     assert (
         relaxation_overlap(slack.solution.long_leg, slack.solution.short_leg)

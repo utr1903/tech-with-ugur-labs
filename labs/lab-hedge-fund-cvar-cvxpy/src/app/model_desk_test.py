@@ -32,6 +32,21 @@ pinned from below by `w` and `w0` alone, so padding `(l, s)` cannot move
 it and the spread prices nothing there. And because both costs sit in the
 expected-net-return constraint rather than in the objective, neither
 charges anything at all while that constraint has slack.
+
+Those two rules are not left as prose either: `_predicted_split_exact` and
+`_predicted_turnover_exact` below are the rules written as code, and every
+arm asserts that the rule predicts the outcome the solver measured. So the
+chain runs rule -> expected flag -> solve, and changing any link without
+the others turns a test red.
+
+One thing the table makes visible that is worth carrying away. "The cap is
+slack" and "the cap is far away" are different statements. In every padded
+arm the constraint's own left-hand side, `sum(l + s)`, sits within half a
+percent of the gross cap while the book's `sum|w|` is a third of the way
+below it — an interior point parks the free padding just inside whatever
+budget it is given. Any test of whether a cap is *active* has to read the
+row the solver sees, not the portfolio the row implies when the split
+happens to be exact.
 """
 
 from __future__ import annotations
@@ -48,10 +63,14 @@ from app.solver import solve_problem
 from app.verification import relaxation_overlap
 from app.verification_exposures import cost_ledger
 
-# A lapsed relaxation is four orders of magnitude clear of an exact one on
-# every arm below — the closest pair is 2.0e-09 against 1.1e-02 — so the
-# two bands are separated rather than adjacent and nothing here rests on a
-# borderline call.
+# Measured, the two outcomes are about seven orders of magnitude apart at
+# their closest — 2.0e-09 for the tightest exact arm against 1.1e-02 for
+# the loosest lapsed one. The assertion bands are deliberately much less
+# ambitious than that: exact means at or under `relaxation_abs` (1e-7) and
+# lapsed means over a thousand times it (1e-4), which leaves three orders
+# of no-man's-land between them. Nothing here rests on a borderline call,
+# and a solver whose answer drifted into that gap would fail rather than
+# be quietly reclassified.
 LAPSE_FACTOR = 1_000
 
 
@@ -226,6 +245,34 @@ def _scenario_for(arm: PremiseArm, scenario: Scenario) -> Scenario:
     return replace(scenario, universe=universe, limits=limits)
 
 
+def _predicted_split_exact(arm: PremiseArm) -> bool:
+    """The stated rule for the signed split, as code rather than prose."""
+    return arm.gross_cap_binds or (arm.borrow_fee and arm.return_target_binds)
+
+
+def _predicted_turnover_exact(arm: PremiseArm) -> bool:
+    """The stated rule for the turnover bound, as code rather than prose."""
+    return arm.turnover_budget_binds or (arm.half_spread and arm.return_target_binds)
+
+
+@pytest.mark.parametrize("arm", PREMISE_ARMS, ids=lambda arm: arm.name)
+def test_the_stated_rule_predicts_every_arm(arm: PremiseArm) -> None:
+    """The rule in the docstrings has to generate the table, not follow it.
+
+    Without this the chain has a gap. Each arm's `split_exact` is checked
+    against measurement by the test below, but the *rule* that is supposed
+    to produce those flags would still be prose, free to drift from the
+    table it claims to summarise. Here the rule is evaluated and compared
+    to the flag, and the flag is compared to a solve — so editing either
+    the rule or a comment derived from it forces the table to move too.
+
+    It is a cheap test and it does not touch a solver; it is the hinge that
+    makes `model_desk.py`'s claim about red tests true.
+    """
+    assert _predicted_split_exact(arm) == arm.split_exact, arm.name
+    assert _predicted_turnover_exact(arm) == arm.turnover_exact, arm.name
+
+
 @pytest.mark.parametrize("arm", PREMISE_ARMS, ids=lambda arm: arm.name)
 def test_each_relaxation_is_exact_exactly_when_its_premises_hold(
     arm: PremiseArm,
@@ -259,10 +306,21 @@ def test_each_relaxation_is_exact_exactly_when_its_premises_hold(
     # The premise state the arm claims, checked before anything is read off
     # the legs. Without this an arm could drift into testing a different
     # experiment and still pass.
+    #
+    # Every one of these reads the constraint's own left-hand side, and for
+    # the three gross caps that is `l + s`, NOT `|w|`. The two are equal
+    # only where the split is exact, and they come apart hardest in exactly
+    # the padded arms this guard exists to protect: in `no costs, target
+    # binding` the book's `sum|w|` is 0.8544 while the constraint's
+    # `sum(l + s)` is 1.3139 of a 1.32 cap. A guard written on `|w|` would
+    # report 0.47 of headroom where the row the solver sees has 0.006, and
+    # would go on reporting it right up until the arm silently stopped
+    # being the experiment it claims to be.
     assert universe.borrow_fee_annual.any() == arm.borrow_fee
     assert universe.half_spread.any() == arm.half_spread
-    gross_slack = limits.gross_leverage_max - float(np.abs(weights).sum())
-    budget_slack = limits.turnover_max - float(traded.sum())
+    legs = solution.long_leg + solution.short_leg
+    gross_slack = limits.gross_leverage_max - float(legs.sum())
+    budget_slack = limits.turnover_max - float(solution.turnover_leg.sum())
     target_slack = (
         cost_ledger(universe, small_market.returns, weights).expected_net_return
         - arm.target
@@ -270,11 +328,10 @@ def test_each_relaxation_is_exact_exactly_when_its_premises_hold(
     assert (gross_slack <= tolerance) == arm.gross_cap_binds
     assert (budget_slack <= tolerance) == arm.turnover_budget_binds
     assert (target_slack <= tolerance) == arm.return_target_binds
-    # The per-name and per-sector gross caps are written on `l + s` just as
-    # the gross-leverage cap is, so an arm that claims no cap binds has to
-    # clear those two as well.
-    assert float(np.abs(weights).max()) < limits.name_gross_cap - tolerance
-    assert float((universe.sector_matrix @ np.abs(weights)).max()) < (
+    # The per-name and per-sector gross caps are written on `l + s` too, so
+    # an arm that claims no cap binds has to clear those two as well.
+    assert float(legs.max()) < limits.name_gross_cap - tolerance
+    assert float((universe.sector_matrix @ legs).max()) < (
         limits.sector_gross_cap - tolerance
     )
 
