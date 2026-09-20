@@ -16,11 +16,15 @@ not the other — so they are written out in full where the constraints are
 declared.
 
 That is also why this file runs past the ~200-line target the lab holds
-its modules to: about 80 lines are executable and the rest is those two
-arguments plus the docstrings. The mandate is one dictionary a reader
-should be able to read top to bottom in one place, and moving the
-exactness reasoning away from the rows it justifies is exactly how the
-two got stated loosely in the first place.
+its modules to: most of it is those two arguments rather than code. The
+mandate is one dictionary a reader should be able to read top to bottom in
+one place, with each relaxation's reasoning beside the row it justifies.
+
+Neither argument is left to the prose alone. `model_desk_test.py` switches
+each term off on its own — borrow fee, half-spread, the caps, the turnover
+budget, the return target's slack — and asserts which bound collapses in
+each case. The claims below are read off that table, so a comment here
+cannot drift away from the mathematics without turning a test red.
 """
 
 from __future__ import annotations
@@ -199,9 +203,12 @@ def desk_block(scenario: Scenario, returns: FloatArray) -> DeskBlock:
         # and `start_book` alone, through the two turnover rows further
         # down. Padding `(l, s)` leaves `w` untouched, so it leaves `t`
         # untouched, so the spread charges nothing for it. Measured at 600
-        # scenarios and a 0.006 target with every cap slack: both costs
-        # give an overlap of 1.7e-09, borrow alone 2.0e-09 — and the
-        # half-spread alone 1.1e-02, no better than charging nothing.
+        # scenarios and a 0.006 target, with every gross cap slack and the
+        # turnover budget left binding in all four arms — that last part
+        # matters, because it is what holds the turnover leg exact
+        # throughout and keeps the split the only thing moving: both costs
+        # give an overlap of 1.7e-09, the borrow fee alone 2.0e-09 — and
+        # the half-spread alone 1.1e-02, no better than charging nothing.
         #
         # Nor is "the costs are positive" a premise on its own. Both costs
         # live in the return constraint and never in the objective, so
@@ -221,9 +228,9 @@ def desk_block(scenario: Scenario, returns: FloatArray) -> DeskBlock:
         # anything the book uses; on that mandate the optimal face of the
         # program holds a whole set of `(l, s)` pairs differing only in
         # padding, and Clarabel returns one padded by 0.094 of NAV on the
-        # worst name. Put the premises back and the same solver on the
-        # same 600-scenario sample pads by 1.1e-10, and by exactly nothing
-        # at the shipped 10,000.
+        # worst name, measured at 600 scenarios. Put the premises back and
+        # the same solver on the same 600-scenario sample pads by 1.1e-10,
+        # and by exactly nothing at the shipped 10,000.
         #
         # Note what the fixture does *not* prove: HiGHS's simplex, solving
         # that same degenerate program, finishes at a vertex with no
@@ -244,20 +251,32 @@ def desk_block(scenario: Scenario, returns: FloatArray) -> DeskBlock:
         # split above, but with different premises, which is the thing to
         # keep straight. `t` is pinned above `w - w0` and above `w0 - w`,
         # so `t >= |w - w0|`, with equality only where something pushes
-        # `t` back down. Two things can: the turnover budget, which `t`
-        # consumes, and the half-spread in the return constraint, which
-        # charges for `t` directly.
+        # `t` back down, and they mirror the split's two exactly:
         #
-        # So the half-spread is the cost that disciplines *this*
-        # relaxation and not the split — it multiplies `t`, which padding
-        # `(l, s)` cannot move, and never touches `l` or `s`. The borrow
-        # fee is the mirror image: it charges `s` and does nothing here.
-        # Neither is a guarantee, and the degenerate fixture shows it: with
-        # every half-spread at zero and the budget slack, an interior-point
-        # solve leaves `t` floating 0.119 of NAV above the trade it is
-        # supposed to measure. So the lab recomputes `|w - w0|` from the
-        # weights and prices the trade off that, rather than trusting `t`
-        # to have collapsed onto it.
+        #   1. a binding turnover budget, which `t` consumes;
+        #   2. a positive half-spread *together with* a binding return
+        #      target, since the spread is charged on `t` inside that
+        #      constraint and nowhere else.
+        #
+        # Premise 2 carries the same condition as the split's, and for the
+        # same reason: the half-spread lives in the return constraint, so
+        # while that constraint has slack it charges for nothing and `t` is
+        # free to float. Measured at 600 scenarios with the budget widened
+        # until it is slack, the spread switched on: `t` sits 1.3e-10 above
+        # the real trade at a binding 0.006 target and 4.3e-02 above it at
+        # a slack one.
+        #
+        # What differs is which cost does the work. The half-spread
+        # disciplines this bound and not the split — it multiplies `t`,
+        # which padding `(l, s)` cannot move, and never touches `l` or `s`.
+        # The borrow fee is the mirror image: it charges `s`, so with the
+        # budget slack and the spread off it leaves `t` floating 4.6e-02
+        # above the trade even at a binding target. The degenerate fixture
+        # takes both premises away at once and an interior-point solve
+        # leaves `t` floating 0.119 of NAV above the trade, measured at 600
+        # scenarios. So the lab recomputes `|w - w0|` from the weights and
+        # prices the trade off that, rather than trusting `t` to have
+        # collapsed onto it.
         "turnover_buys": turnover_leg >= weights - universe.start_book,
         "turnover_sells": turnover_leg >= universe.start_book - weights,
         "return_target": expected_net >= target,

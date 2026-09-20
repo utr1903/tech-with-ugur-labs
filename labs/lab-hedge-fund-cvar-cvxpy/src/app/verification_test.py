@@ -468,7 +468,8 @@ def test_the_signed_split_lapses_once_nothing_penalises_an_inflated_pair(
     What happens next is a property of the algorithm, not a theorem.
     Clarabel is an interior-point method and returns a point in the
     relative interior of that face, so it pads both legs by 0.094 of NAV
-    on the worst name. HiGHS's simplex finishes at a vertex, where the
+    on the worst name at 600 scenarios. HiGHS's simplex finishes at a
+    vertex, where the
     padding is zero. Both answers are optimal; only one of them has
     `l + s == |w|`. That is the honest statement of what this fixture
     shows, and it is why the lab measures the overlap and reports it rather
@@ -562,6 +563,7 @@ def test_the_split_lapses_wherever_the_return_target_goes_slack(
     Isolating the two costs at 600 scenarios and 0.006 shows which one is
     doing the work: both costs 1.7e-09, borrow fee alone 2.0e-09, and the
     half-spread alone 1.1e-02 — no better than charging nothing at all.
+    `model_desk_test.py` holds the full table this is one row of.
 
     Two consequences worth carrying forward. The exactness premise is
     "a binding gross cap, or a binding return target with positive costs",

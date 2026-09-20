@@ -197,24 +197,38 @@ def degenerate_scenario(small_scenario: Scenario) -> Scenario:
     things rather than three.
 
     The split is disciplined by a binding gross, per-name or per-sector
-    cap, all of which are written on `l + s`, or by a binding return target
-    with a positive *borrow fee*, which is charged on `s`. The turnover
-    bound is disciplined by the turnover budget, or by a positive
-    *half-spread*, which is charged on `t`. The two costs do not swap
-    roles: padding `(l, s)` leaves `w` unchanged, so it leaves `t`
-    unchanged, so the half-spread never charges for it.
+    cap — all three are written on `l + s` — or by a binding return target
+    together with a positive *borrow fee*, which is charged on `s`. The
+    turnover bound is disciplined by a binding turnover budget, or by a
+    binding return target together with a positive *half-spread*, which is
+    charged on `t`.
+
+    Both costs need that same "binding return target" clause, because both
+    live in the return constraint and nowhere else: while it has slack
+    they charge for nothing. And the two do not swap roles — padding
+    `(l, s)` leaves `w` unchanged, so it leaves `t` unchanged, so the
+    half-spread never prices the split. `model_desk_test.py` switches each
+    term off on its own and pins all of that.
 
     This fixture removes all four at once. Every borrow fee and every
     half-spread is set to zero; the gross, per-name, per-sector and
     turnover budgets are widened far past anything the solved book uses.
 
-    Note what is *not* enough. Taking the shipped 30-name mandate and
-    zeroing only the costs leaves the gross-leverage cap binding, which is
-    a premise all by itself; so does the two-name `tiny_scenario` below,
-    whose net exposure is pinned to 1.0 under a gross cap of 1.0 — that
-    makes the gross constraint bind exactly, however generous the other
-    limits look. The budgets here are deliberately far enough out that the
-    optimum cannot reach them.
+    Note what the widened budgets are and are not for. Zeroing the costs
+    on the shipped mandate is in fact already enough to make the split
+    lapse — the gross cap comes back slack at 1.0325 of 1.32 at 600
+    scenarios and 1.2438 of 1.32 at 10,000, and the split is padded by
+    8.0e-03 and 2.3e-03 there. The budgets are widened so that the fixture
+    does not depend on that happening to be true: a reader who edits the
+    universe could easily produce a book that runs into the gross cap, and
+    then the fixture would be testing premise one rather than removing it.
+    Here the optimum cannot reach any budget, so the premises are absent by
+    construction rather than by luck, and the test asserts each one is
+    slack before it looks at the overlap.
+
+    What genuinely does not work is the two-name `tiny_scenario` below: its
+    net exposure is pinned to 1.0 under a gross cap of 1.0, which makes the
+    gross constraint bind exactly however generous the other limits look.
 
     The headline target is kept at the shipped value on purpose, so the
     fixture demonstrates the lapse on a real long-short book of about 1.08
