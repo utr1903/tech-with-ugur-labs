@@ -1,0 +1,210 @@
+"""The decision variables and the desk mandate, shared by every model here.
+
+The lab compares three programs — the Rockafellar-Uryasev linear program,
+a mean-variance control and an atom oracle — and the comparison is only
+worth anything if all three answer the *same* question. So the variables
+and the whole feasible set are built once, here, and the three builders in
+`model.py` differ by their objective and nothing else. There is no second
+copy of the mandate to drift out of step with this one.
+
+Two of the constraint families below are relaxations rather than
+definitions, and each one's exactness argument is written out at the line
+that introduces it: the signed split `w = l - s` and the turnover bound
+`t >= |w - w0|`.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import cvxpy as cp
+import numpy as np
+
+from app.contracts import FloatArray, Scenario
+from app.errors import ModelError
+
+# Borrow is quoted as an annual rate and the horizon is one month, so the
+# cost charged on short notional is the annual rate over twelve.
+MONTHS_PER_YEAR = 12.0
+
+# The constraints whose shadow prices the lab reports. They are the four
+# limits a portfolio manager actually negotiates — how much return is being
+# demanded, how much balance sheet, how much trading, and how much market
+# direction — so their duals are the ones worth a dollar interpretation.
+DUAL_BEARING_LABELS = (
+    "return_target",
+    "gross_leverage",
+    "turnover_budget",
+    "beta_upper",
+    "beta_lower",
+)
+
+
+@dataclass(frozen=True, eq=False)
+class DeskVariables:
+    """The four vectors every model in this lab decides over.
+
+    `eq=False` throughout this lab's CVXPY-holding dataclasses: `==` on a
+    CVXPY variable builds a constraint rather than answering a question, so
+    a generated `__eq__` would silently do something other than compare.
+    Identity is the only equality these ever need.
+    """
+
+    weights: cp.Variable
+    long_leg: cp.Variable
+    short_leg: cp.Variable
+    turnover_leg: cp.Variable
+
+
+@dataclass(frozen=True, eq=False)
+class DeskBlock:
+    """The shared half of a model: variables, return target and constraints.
+
+    `families` holds every constraint keyed by a readable label, in the
+    order they are declared; `labelled` is the dual-bearing subset. Both
+    dictionaries hold the *same* constraint objects, so a dual read off
+    `labelled` belongs to the constraint that went into the problem.
+    """
+
+    variables: DeskVariables
+    target: cp.Parameter
+    families: dict[str, cp.Constraint]
+    labelled: dict[str, cp.Constraint]
+
+
+def variable_list(variables: DeskVariables) -> list[cp.Variable]:
+    """Return the shared decision vectors in declaration order."""
+    return [
+        variables.weights,
+        variables.long_leg,
+        variables.short_leg,
+        variables.turnover_leg,
+    ]
+
+
+def sample_mean(returns: FloatArray) -> FloatArray:
+    """Return the per-name mean of the matrix the model will optimize on.
+
+    This — not the universe's `expected_return` — is what the return-target
+    constraint uses. The generator's expected return is what the scenarios
+    were *drawn to have*; this is what they actually came out with. Holding
+    the model to the second means the optimizer can never be right about a
+    portfolio the scenario matrix disagrees with. The two are reported side
+    by side so the sampling gap between them stays visible.
+    """
+    mean: FloatArray = returns.mean(axis=0)
+    return mean
+
+
+def sample_covariance(returns: FloatArray) -> FloatArray:
+    """Return the symmetrized sample covariance of a `[S, N]` matrix.
+
+    A sample covariance is symmetric in exact arithmetic and very nearly
+    symmetric in floating point; symmetrizing it costs nothing and removes
+    the asymmetry CVXPY would otherwise reject. Kept here beside the sample
+    mean, and importable without CVXPY, so the verification pass can
+    recompute the variance objective from the weights alone.
+    """
+    covariance: FloatArray = np.cov(returns, rowvar=False)
+    symmetric: FloatArray = (covariance + covariance.T) / 2.0
+    return symmetric
+
+
+def require_usable_returns(scenario: Scenario, returns: FloatArray) -> FloatArray:
+    """Check a return matrix can be projected onto this universe.
+
+    Raises:
+        ModelError: If `returns` is not a `[S, N]` matrix whose columns
+            match the universe, or holds fewer than two scenarios.
+    """
+    name_count = len(scenario.universe.names)
+    if returns.ndim != 2:
+        raise ModelError(f"returns must be a 2-D [S, N] matrix, got {returns.shape}")
+    if returns.shape[1] != name_count:
+        raise ModelError(
+            f"returns must have one column per universe name; the universe has "
+            f"{name_count} names and the matrix is {returns.shape}"
+        )
+    if returns.shape[0] < 2:
+        raise ModelError(
+            f"at least two scenarios are needed to build a model, "
+            f"got {returns.shape[0]}"
+        )
+    return returns
+
+
+def desk_variables(name_count: int) -> DeskVariables:
+    """Declare the shared decision vectors.
+
+    `weights` is free, because a name may be held long or short. The other
+    three are declared nonnegative on the variable itself rather than as
+    explicit rows, which is why `problem.constraints` contains only the
+    mandate below and not `l >= 0`.
+    """
+    return DeskVariables(
+        weights=cp.Variable(name_count, name="weights"),
+        long_leg=cp.Variable(name_count, name="long_leg", nonneg=True),
+        short_leg=cp.Variable(name_count, name="short_leg", nonneg=True),
+        turnover_leg=cp.Variable(name_count, name="turnover_leg", nonneg=True),
+    )
+
+
+def desk_block(scenario: Scenario, returns: FloatArray) -> DeskBlock:
+    """Build the variables, the return-target parameter and the mandate."""
+    universe, limits = scenario.universe, scenario.limits
+    variables = desk_variables(len(universe.names))
+    weights = variables.weights
+    long_leg, short_leg = variables.long_leg, variables.short_leg
+    turnover_leg = variables.turnover_leg
+
+    # A parameter, not a constant, so the frontier sweep compiles this
+    # problem once and re-solves it at every target on the grid.
+    target = cp.Parameter(name="return_target")
+
+    monthly_borrow = universe.borrow_fee_annual / MONTHS_PER_YEAR
+    expected_net = (
+        sample_mean(returns) @ weights
+        - monthly_borrow @ short_leg
+        - universe.half_spread @ turnover_leg
+    )
+
+    families: dict[str, cp.Constraint] = {
+        # The signed split. Nothing here forbids a name from carrying a
+        # long leg and a short leg at the same time, so `l + s` is only an
+        # upper bound on `|w|` — which is why this is a relaxation and not
+        # a definition. It is exact at an optimum whenever inflating both
+        # legs together is strictly worse: a positive borrow fee charges
+        # for the short leg, a positive half-spread charges for the trade,
+        # and a binding gross-leverage or per-name cap spends budget that
+        # the position could have used. Remove all three at once — zero
+        # costs, slack caps — and the premise is gone; the lab has a
+        # fixture that does exactly that and reports the overlap it sees
+        # instead of pretending the guarantee still holds.
+        "signed_split": weights == long_leg - short_leg,
+        "name_gross_cap": long_leg + short_leg <= limits.name_gross_cap,
+        "net_exposure_max": cp.sum(weights) <= limits.net_exposure_max,
+        "net_exposure_min": cp.sum(weights) >= limits.net_exposure_min,
+        "sector_net_upper": universe.sector_matrix @ weights <= limits.sector_net_cap,
+        "sector_net_lower": universe.sector_matrix @ weights >= -limits.sector_net_cap,
+        "sector_gross_cap": universe.sector_matrix @ (long_leg + short_leg)
+        <= limits.sector_gross_cap,
+        # The turnover bound, the same shape of relaxation: `t` is pinned
+        # above `w - w0` and above `w0 - w`, so `t >= |w - w0|` with
+        # equality only where something pushes `t` down. The turnover
+        # budget and the half-spread term in the return constraint both
+        # do, which is why the reported turnover is the real one.
+        "turnover_buys": turnover_leg >= weights - universe.start_book,
+        "turnover_sells": turnover_leg >= universe.start_book - weights,
+        "return_target": expected_net >= target,
+        "gross_leverage": cp.sum(long_leg + short_leg) <= limits.gross_leverage_max,
+        "turnover_budget": cp.sum(turnover_leg) <= limits.turnover_max,
+        "beta_upper": universe.market_beta @ weights <= limits.beta_max,
+        "beta_lower": universe.market_beta @ weights >= limits.beta_min,
+    }
+    # Selected by label rather than built separately, so the reported dual
+    # always belongs to the constraint that went into the problem and the
+    # tuple above stays the one place the label set is written down.
+    labelled = {label: families[label] for label in DUAL_BEARING_LABELS}
+    return DeskBlock(
+        variables=variables, target=target, families=families, labelled=labelled
+    )

@@ -87,6 +87,16 @@ implicit_reexport = true
 # to prevent exactly that.
 module = ["app.cvxpy_api"]
 disallow_untyped_calls = false
+# `Problem.is_dcp` is annotated `(self, dpp: bool = False) -> bool`, but
+# CVXPY memoizes it with a `compute_once` decorator declared as
+# `Callable[[T], R] -> Callable[[T], R]` — a signature with room for
+# `self` and nothing else. mypy therefore sees `is_dcp()` and rejects the
+# `dpp=True` the DPP check needs as an unexpected keyword. Unlike
+# `disallow_untyped_calls` this is an error code rather than a strictness
+# flag, so it is disabled only for this module, whose whole contents are
+# forty lines of one-expression wrappers where there is no real call-arg
+# mistake for it to hide.
+disable_error_code = ["call-arg"]
 
 [tool.pytest.ini_options]
 python_files = ["*_test.py"]

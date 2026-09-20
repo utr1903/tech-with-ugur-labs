@@ -10,6 +10,7 @@ from app.errors import MarketError, ScenarioError
 from app.tailrisk import (
     array_digest,
     portfolio_losses,
+    tail_count,
     tail_statistics,
     weight_distance,
 )
@@ -171,3 +172,30 @@ def test_array_digest_ignores_how_the_array_is_laid_out_in_memory() -> None:
     assert array_digest(column_major) == array_digest(
         np.arange(6, dtype=np.float64).reshape(2, 3)
     )
+
+
+def test_the_tail_count_survives_binary_floating_point_at_every_lab_size() -> None:
+    """The one arithmetic slip this module exists to prevent.
+
+    `(1 - 0.95) * 10000` is `500.00000000000045` in binary floating point,
+    so a plain `ceil` returns 501. Every size the lab runs at is affected,
+    and each extra scenario in the tail would quietly break the claim that
+    the linear program's optimum is the average of the worst `k` losses.
+    """
+    assert tail_count(500, 0.95) == 25
+    assert tail_count(4_000, 0.95) == 200
+    assert tail_count(10_000, 0.95) == 500
+    assert tail_count(25_000, 0.95) == 1_250
+
+
+def test_a_genuinely_fractional_tail_still_rounds_up() -> None:
+    """Snapping only removes representation error, not real fractions."""
+    assert tail_count(590, 0.95) == 30
+    assert tail_count(101, 0.95) == 6
+
+
+def test_the_tail_count_rejects_an_empty_sample_and_a_bad_confidence_level() -> None:
+    with pytest.raises(MarketError, match="scenario count must be positive"):
+        tail_count(0, 0.95)
+    with pytest.raises(ScenarioError, match="cvar_beta"):
+        tail_count(100, 1.0)

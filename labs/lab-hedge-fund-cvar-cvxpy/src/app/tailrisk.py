@@ -53,20 +53,55 @@ def portfolio_losses(returns: FloatArray, weights: FloatArray) -> FloatArray:
     return -(returns @ weights)
 
 
+def tail_count(scenario_count: int, beta: float) -> int:
+    """Return how many of the worst scenarios make up the `beta` tail.
+
+    The tail is the `k = ceil((1 - beta) * S)` largest losses out of `S`.
+    This is the lab's single implementation of that arithmetic, and every
+    module that needs `k` — the empirical statistics below, the atom oracle
+    in `model.py`, the checks in `verification.py` — calls this function
+    rather than writing the ceiling out again.
+
+    That rule exists because the obvious spelling is wrong. `(1 - beta) * S`
+    is snapped to nine decimals before the ceiling is taken, and that is not
+    cosmetic: in binary floating point `1 - 0.95` is `0.05000000000000004`,
+    so a plain `ceil` makes the 95% tail of 10,000 scenarios 501 scenarios
+    rather than 500 — and 201 at 4,000, 1,251 at 25,000, 26 at 500. The
+    lab's exactness claim, that the linear program's optimum equals the
+    average of the worst `k` losses when `(1 - beta) * S` is a whole number,
+    misses by one scenario at every size the lab runs. The symptom would be
+    a tiny CVaR disagreement that reads like a solver problem rather than
+    the arithmetic slip it is.
+
+    Args:
+        scenario_count: The number of scenarios, `S`.
+        beta: Confidence level, strictly between 0 and 1.
+
+    Returns:
+        The number of scenarios in the tail, at least 1.
+
+    Raises:
+        MarketError: If `scenario_count` is not positive.
+        ScenarioError: If `beta` is outside `(0, 1)`.
+    """
+    if scenario_count <= 0:
+        raise MarketError(f"scenario count must be positive, got {scenario_count}")
+    if not 0.0 < beta < 1.0:
+        raise ScenarioError(f"cvar_beta must lie strictly inside (0, 1), got {beta}")
+
+    # The clamp is reachable only through the snapping above: a tail share
+    # below 1e-9 rounds to zero, and an empty tail has no VaR to report.
+    return max(1, math.ceil(round((1.0 - beta) * scenario_count, _TAIL_DECIMALS)))
+
+
 def tail_statistics(losses: FloatArray, beta: float) -> TailStatistics:
     """Compute the empirical VaR and CVaR of `losses` at confidence `beta`.
 
-    With `S` scenarios and `k = ceil((1 - beta) * S)`, the tail is the `k`
+    With `S` scenarios and `k` scenarios in the tail, the tail is the `k`
     largest losses. VaR is the smallest of them and CVaR is their mean, so
     both are read straight off the sorted sample with no interpolation and
-    no distributional assumption.
-
-    `(1 - beta) * S` is snapped to nine decimals before the ceiling is
-    taken. That is not cosmetic: in binary floating point `1 - 0.95` is
-    `0.05000000000000004`, so the 95% tail of 10,000 scenarios would come
-    out as 501 rather than 500 and the lab's exactness claim — that the
-    linear program's optimum equals the average of the worst `k` losses
-    when `(1 - beta) * S` is a whole number — would miss by one scenario.
+    no distributional assumption. `k` comes from `tail_count` above, which
+    is the only place in the lab that arithmetic is written.
 
     Args:
         losses: A one-dimensional loss sample.
@@ -81,16 +116,12 @@ def tail_statistics(losses: FloatArray, beta: float) -> TailStatistics:
     """
     if losses.ndim != 1 or losses.size == 0:
         raise MarketError(f"losses must be a non-empty 1-D array, got {losses.shape}")
-    if not 0.0 < beta < 1.0:
-        raise ScenarioError(f"cvar_beta must lie strictly inside (0, 1), got {beta}")
 
     count = losses.shape[0]
-    # The clamp is reachable only through the snapping above: a tail share
-    # below 1e-9 rounds to zero, and an empty tail has no VaR to report.
-    tail_count = max(1, math.ceil(round((1.0 - beta) * count, _TAIL_DECIMALS)))
-    tail = np.sort(losses)[count - tail_count :]
+    in_tail = tail_count(count, beta)
+    tail = np.sort(losses)[count - in_tail :]
     return TailStatistics(
-        var=float(tail[0]), cvar=float(tail.mean()), tail_count=tail_count
+        var=float(tail[0]), cvar=float(tail.mean()), tail_count=in_tail
     )
 
 
