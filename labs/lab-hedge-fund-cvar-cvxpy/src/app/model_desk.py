@@ -173,11 +173,23 @@ def desk_block(scenario: Scenario, returns: FloatArray) -> DeskBlock:
         # long leg and a short leg at the same time, so `l + s` is only an
         # upper bound on `|w|` — which is why this is a relaxation and not
         # a definition. It is exact at an optimum whenever inflating both
-        # legs together is strictly worse, and one of three things is
-        # usually enough to make it so: a positive borrow fee charges for
-        # the short leg, a positive half-spread charges for the trade, and
-        # a binding gross-leverage or per-name cap spends budget the
-        # position could have used.
+        # legs together is strictly worse, and two things can make it so:
+        # a binding gross-leverage, per-name or per-sector cap, which an
+        # inflated pair spends budget against; or a binding return target,
+        # because the borrow fee and the half-spread are charged inside
+        # that constraint and an inflated pair therefore eats return the
+        # book has to deliver.
+        #
+        # Note the second premise carefully — it is narrower than "the
+        # costs are positive". Those costs appear only in the return
+        # constraint, never in the objective, so while that constraint has
+        # slack they charge for nothing: padding both legs spends return
+        # the book does not need and leaves the tail loss untouched. On
+        # the shipped mandate at 600 scenarios the split is padded by
+        # 1.2e-02 at a 0.002 target, where the book earns 0.0049 and the
+        # gross cap sits at 0.86 of 1.32, and by 1.7e-09 at 0.006, where
+        # the return constraint binds exactly. The low-return end of the
+        # frontier is genuinely a region where this relaxation lapses.
         #
         # Take all three away at once and the guarantee really does lapse,
         # which the lab demonstrates rather than asserts. The degenerate
@@ -185,9 +197,11 @@ def desk_block(scenario: Scenario, returns: FloatArray) -> DeskBlock:
         # widens every gross and turnover budget past anything the book
         # uses; on that mandate the optimal face of the program contains a
         # whole set of `(l, s)` pairs differing only in padding, and
-        # Clarabel returns one padded by about 0.09 of NAV on the worst
-        # name against about 2e-10 on the shipped mandate. Note what the
-        # fixture does *not* prove: HiGHS's simplex, solving the same
+        # Clarabel returns one padded by 0.094 of NAV on the worst name.
+        # Put the premises back and the same solver on the same sample
+        # pads by 1.1e-10, and by exactly nothing at the shipped 10,000
+        # scenarios. Note what the fixture does *not* prove: HiGHS's
+        # simplex, solving the same
         # degenerate program, finishes at a vertex with no padding at all.
         # Which point of an optimal face comes back is a property of the
         # algorithm, not a theorem — so the padding is a thing to measure,

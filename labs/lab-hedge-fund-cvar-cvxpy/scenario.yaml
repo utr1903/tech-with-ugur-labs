@@ -169,10 +169,15 @@ universe:
        borrow_fee_annual: 0.0110, half_spread: 0.0010, start_weight: -0.065}
 
 # The mandate. The starting book above uses exactly 1.32 of NAV gross,
-# which is the whole gross budget below, and it is exactly market neutral
-# by construction and flat in every sector. So the desk begins at its
-# balance-sheet limit: the solve is genuinely "what should we trade", and
-# every new position has to be funded by closing another.
+# which is the whole gross budget below. Its net exposure is exactly 0.0
+# and every sector net is exactly 0.0, both by construction — but it is
+# not beta neutral: the long half carries slightly more market sensitivity
+# than the short half, so the book runs a beta of +0.0065 inside a +/-0.02
+# band. Flat in notional is not the same thing as flat in risk, and the
+# gap between those two is a large part of why this mandate has a beta
+# limit at all. So the desk begins at its balance-sheet limit: the solve
+# is genuinely "what should we trade", and every new position has to be
+# funded by closing another.
 #
 # THESE LIMITS ARE TIGHTER THAN A TEXTBOOK MANDATE, ON PURPOSE. They were
 # chosen by measurement so that the constraints actually bite at the
@@ -209,18 +214,25 @@ desk_limits:
   net_exposure_min: -0.10
   net_exposure_max: 0.10
   # market_beta . w. Tighter than net exposure, because a beta-neutral book
-  # is the point of the fund. At +/-0.02 the upper side binds at the top
-  # three feasible targets, the headline among them, and carries a real
-  # price; at the +/-0.05 this started at, the book ran +0.0174 and the
-  # band was pure decoration at every target.
+  # is the point of the fund. Widening this to the +/-0.05 it started at
+  # makes it decoration: the book then runs +0.0174 at 10,000 scenarios
+  # and neither side binds at any target on the frontier.
   #
-  # The lower side is a different story and the lab keeps it deliberately.
-  # At 10,000 scenarios the book always wants to be slightly long the
-  # market, so `beta_lower` never binds and its dual sits at 2e-14. That
-  # is the honest example of a shadow price that means nothing: an
-  # inactive constraint has no price, and a number near machine epsilon is
-  # what "no price" looks like coming out of a solver rather than a small
-  # price. Do not read it as one.
+  # WHICH SIDE BINDS DEPENDS ON THE SAMPLE, and this is the sharpest
+  # example in the file of why every claim here names a scenario count.
+  # At the shipped 10,000 scenarios the book wants to be slightly long the
+  # market: the *upper* side binds at the top three feasible targets, the
+  # 0.008 headline among them, with a dual of 2.7e-03, while `beta_lower`
+  # never binds and sits at 2e-14. At the 600 scenarios the tests use, the
+  # book wants the opposite — the *lower* side binds from 0.00792 to
+  # 0.00875 and the upper side never binds at all. Same mandate, same
+  # generator, opposite sign, because at 600 draws the sample mean has not
+  # settled down yet.
+  #
+  # Whichever side is inactive is the lab's honest example of a shadow
+  # price that means nothing. An inactive constraint has no price, and a
+  # number near machine epsilon is what "no price" looks like coming out
+  # of a solver — not a small price. Do not read it as one.
   beta_min: -0.02
   beta_max: 0.02
   # |w_i| for any single name. 30 names at this cap could hold 3.60 of
@@ -228,21 +240,24 @@ desk_limits:
   # and at 10,000 scenarios it is reached, but only at the single most
   # demanding feasible target, 0.00875.
   name_gross_cap: 0.12
-  # |sum of w over one sector|. The first of the caps to start biting as
-  # the return target rises: at 10,000 scenarios staples pins at the
-  # negative cap from 0.00625 upward and energy joins at the positive cap
-  # from 0.00708, both well before the gross cap does at 0.00792. That is
-  # the trade the optimizer wants — long energy, short staples — and this
-  # is the limit that stops it being the whole book.
+  # |sum of w over one sector|. At the shipped 10,000 scenarios this is
+  # the first of the caps to start biting as the return target rises:
+  # staples pins at the negative cap from 0.00625 upward and energy joins
+  # at the positive cap from 0.00708, both well before the gross cap does
+  # at 0.00792. That is the trade the optimizer wants — long energy, short
+  # staples — and this is the limit that stops it being the whole book.
+  # At 600 scenarios it never binds at any target, and `beta_min` bites
+  # first instead.
   sector_net_cap: 0.11
-  # sum of |w| over one sector. Never binds anywhere on the frontier at
-  # the shipped settings; it is here as a limit a reader can tighten to
-  # watch a new constraint take over.
+  # sum of |w| over one sector. Binds at no target on the frontier at
+  # either 600 or 10,000 scenarios; it is here as a limit a reader can
+  # tighten to watch a new constraint take over.
   sector_gross_cap: 0.35
   # sum |w - start_weight|, one way. The desk cannot rebuild the book in a
   # single month. This is the one limit that binds at every feasible
-  # target on the frontier, from 0.000 to the ceiling — measured at 10,000
-  # scenarios, all 22 solvable points sit exactly on it.
+  # target on the frontier, from 0.000 to the ceiling, and the one claim
+  # in this block that survives a change of sample size: all 22 solvable
+  # points sit exactly on it at 10,000 scenarios, and all 25 do at 600.
   turnover_max: 0.50
 
 # The seeded generator. Read market.py alongside this block: every field

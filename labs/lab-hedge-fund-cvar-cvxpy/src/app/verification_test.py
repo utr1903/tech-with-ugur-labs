@@ -33,7 +33,11 @@ from app.model import build_atom_oracle_problem, build_cvar_problem
 from app.solver import solve_problem
 from app.tailrisk import portfolio_losses, tail_statistics
 from app.verification import relaxation_overlap, verify_solution
-from app.verification_exposures import threshold_count, var_interval
+from app.verification_exposures import (
+    cost_ledger,
+    threshold_count,
+    var_interval,
+)
 
 # The whole of the verifier, listed so the independence tests below cover
 # the helper modules and not just the entry point.
@@ -73,6 +77,7 @@ def _report(
         out_of_sample,
         outcome,
         _oracle_cvar(scenario, market, target, log),
+        target=target,
         log=log,
     )
     return outcome, report
@@ -193,10 +198,11 @@ def test_the_auxiliary_scalar_lands_inside_the_optimal_var_interval(
     """Containment, not equality — the optimum in `a` is a segment.
 
     See `verification_exposures.var_interval` for why. On this fixture the
-    segment happens to be about 4e-12 wide, because seventeen scenarios sit
+    segment happens to be about 1.8e-13 wide, because fifteen scenarios sit
     on the VaR threshold and collapse it, and the measured distance from it
-    is around 1.5e-11. Both are far inside the 1e-6 the scenario allows,
-    and neither number is something the test may depend on.
+    is zero — Clarabel lands inside. Neither number is something the test
+    may depend on: both move with the mandate and with the draw, so what is
+    asserted is containment within the tolerance the scenario allows.
     """
     outcome, report = _report(small_scenario, small_market, small_out_of_sample, log)
     assert outcome.solution is not None
@@ -287,7 +293,13 @@ def test_verification_rejects_weights_that_breach_a_cap(
 
     with pytest.raises(VerificationError, match="gross_leverage_within_cap"):
         verify_solution(
-            small_scenario, small_market, small_out_of_sample, tampered, 0.0, log=log
+            small_scenario,
+            small_market,
+            small_out_of_sample,
+            tampered,
+            0.0,
+            target=small_scenario.headline_target_monthly,
+            log=log,
         )
 
 
@@ -301,7 +313,13 @@ def test_verification_refuses_an_outcome_that_carries_no_solution(
 
     with pytest.raises(VerificationError, match="infeasible"):
         verify_solution(
-            small_scenario, small_market, small_out_of_sample, infeasible, 0.0, log=log
+            small_scenario,
+            small_market,
+            small_out_of_sample,
+            infeasible,
+            0.0,
+            target=small_scenario.headline_target_monthly,
+            log=log,
         )
 
 
@@ -335,6 +353,54 @@ def test_the_first_failing_check_in_report_order_is_the_one_raised(
             small_out_of_sample,
             unchanged_book,
             0.0,
+            target=small_scenario.headline_target_monthly,
+            log=log,
+        )
+
+
+def test_the_return_check_uses_the_solved_target_not_the_headline(
+    small_scenario: Scenario,
+    small_market: MarketScenarios,
+    small_out_of_sample: MarketScenarios,
+    log: Logger,
+) -> None:
+    """The frontier sweep solves twenty-five targets; only one is the headline.
+
+    A book solved at 0.006 meets 0.006 and does not meet 0.009. Verifying
+    it against the target it was actually solved at passes; verifying the
+    same book against a target nobody solved it for fails, and names the
+    return check. If `verify_solution` read the scenario's headline
+    instead, both calls would return the same verdict and one of them
+    would be silently wrong.
+
+    0.006 rather than something lower because the return constraint has to
+    be *active* at the target chosen — see
+    `test_the_split_lapses_wherever_the_return_target_goes_slack` below for
+    what happens when it is not.
+    """
+    modest = 0.006
+    outcome = _solved(small_scenario, small_market, modest, log)
+    oracle = _oracle_cvar(small_scenario, small_market, modest, log)
+
+    report = verify_solution(
+        small_scenario,
+        small_market,
+        small_out_of_sample,
+        outcome,
+        oracle,
+        target=modest,
+        log=log,
+    )
+    assert dict(report.checks)["return_target_met"] is True
+
+    with pytest.raises(VerificationError, match="return_target_met"):
+        verify_solution(
+            small_scenario,
+            small_market,
+            small_out_of_sample,
+            outcome,
+            oracle,
+            target=0.009,
             log=log,
         )
 
@@ -380,6 +446,7 @@ def test_a_nan_weight_is_named_as_a_nan_weight(
             small_out_of_sample,
             outcome,
             float("nan"),
+            target=small_scenario.headline_target_monthly,
             log=log,
         )
 
@@ -466,6 +533,64 @@ def test_the_turnover_bound_lapses_on_the_same_terms(
     assert padding > 1_000 * degenerate_scenario.tolerances.relaxation_abs
 
 
+def test_the_split_lapses_wherever_the_return_target_goes_slack(
+    small_scenario: Scenario, small_market: MarketScenarios, log: Logger
+) -> None:
+    """Borrow and spread only penalise padding while the return constraint binds.
+
+    This one is worth reading carefully, because it narrows the exactness
+    argument in `model_desk.py` to something smaller than it first looks.
+
+    The borrow fee and the half-spread never enter the objective — by
+    design, they sit in the expected-net-return constraint and nowhere
+    else, which is the simplification the README states. So they make an
+    inflated `(l, s)` pair *strictly worse* only when that constraint is
+    active. Let the return target go slack and the costs stop being a
+    penalty at all: padding both legs spends return the book does not need
+    and changes the tail loss not at all, so the optimal face widens and an
+    interior-point solver settles somewhere inside it.
+
+    Measured on the shipped mandate, not on the degenerate fixture: at a
+    0.002 target the book earns 0.004925 against a target of 0.002 — 2.9e-03
+    of slack — the gross cap sits at 0.86 of 1.32, and the split comes back
+    padded by 1.2e-02. At 0.006 the return constraint binds exactly and the
+    padding collapses to 1.7e-09.
+
+    Two consequences worth carrying forward. The exactness premise is
+    "a binding gross cap, or a binding return target with positive costs",
+    not "positive costs" on their own. And `verify_solution` will refuse
+    the low-return end of the frontier sweep with `relaxation_exact` — not
+    because the verifier is wrong, but because the relaxation really has
+    lapsed there and the verifier is built to say so.
+    """
+    built = build_cvar_problem(small_scenario, small_market, log=log)
+    slack = solve_problem(built, algorithm="CLARABEL", target=0.002, log=log)
+    binding = solve_problem(built, algorithm="CLARABEL", target=0.006, log=log)
+    assert slack.solution is not None
+    assert binding.solution is not None
+    universe = small_scenario.universe
+    tolerance = small_scenario.tolerances.relaxation_abs
+
+    # The premise really is absent at the slack target: costs are positive,
+    # but the constraint that charges for them has room to spare.
+    assert universe.borrow_fee_annual.any()
+    assert universe.half_spread.any()
+    ledger = cost_ledger(universe, small_market.returns, slack.solution.weights)
+    assert ledger.expected_net_return - 0.002 > 1e-3
+    assert (
+        np.abs(slack.solution.weights).sum() < small_scenario.limits.gross_leverage_max
+    )
+
+    assert (
+        relaxation_overlap(slack.solution.long_leg, slack.solution.short_leg)
+        > 1_000 * tolerance
+    )
+    assert (
+        relaxation_overlap(binding.solution.long_leg, binding.solution.short_leg)
+        <= tolerance
+    )
+
+
 def test_the_shipped_mandate_keeps_both_relaxations_tight(
     small_scenario: Scenario,
     small_market: MarketScenarios,
@@ -475,8 +600,8 @@ def test_the_shipped_mandate_keeps_both_relaxations_tight(
     """The other half of the story: with the premises in place, no padding.
 
     Same solver, same model, same sample — only the fees, the spreads and
-    the binding budgets are back. The overlap drops by eight orders of
-    magnitude, to about 2e-10.
+    the binding budgets are back. The overlap collapses from 9.4e-02 to
+    1.1e-10 here, and to exactly zero at the shipped 10,000 scenarios.
     """
     _, report = _report(small_scenario, small_market, small_out_of_sample, log)
 

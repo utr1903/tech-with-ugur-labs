@@ -27,10 +27,11 @@ def test_each_algorithm_reaches_the_same_objective(
     interior-point method and stops at a point near the optimal vertex
     rather than on it, so an absolute ceiling tight enough to be
     interesting for the simplex answer would fail a Clarabel solve that is
-    entirely correct. The measured spread on this fixture is around
-    3e-12 absolute, 3e-10 relative, comfortably inside the 1e-6 the
-    scenario allows and still three orders tighter than anything that
-    would hide a real disagreement.
+    entirely correct. The measured spread on this fixture is 1.9e-12
+    absolute and 1.5e-10 relative, and 6.4e-12 / 3.0e-10 at the shipped
+    10,000 scenarios — four decades inside the 1e-6 the scenario allows,
+    and still far tighter than anything that would hide a real
+    disagreement.
     """
     built = build_cvar_problem(small_scenario, small_market, log=log)
     outcomes = {
@@ -61,8 +62,9 @@ def test_the_two_highs_algorithms_are_genuinely_different_algorithms(
     Both HiGHS entries name the same CVXPY solver, so nothing about the
     call site says they differ. The iteration counts do: a simplex method
     takes hundreds of cheap pivots and an interior-point method takes tens
-    of expensive Newton steps, and on this fixture the two come back around
-    341 and 23. If a future CVXPY or HiGHS release ever stopped honouring
+    of expensive Newton steps, and on this fixture the two come back at
+    341 and 25 (3,525 and 42 at the shipped 10,000 scenarios). If a future
+    CVXPY or HiGHS release ever stopped honouring
     the option, this is the test that would notice — the bake-off would
     quietly become the same algorithm run twice.
     """
@@ -124,11 +126,23 @@ def test_duals_are_returned_for_every_labelled_constraint(
 def test_the_solve_is_timed_and_the_iteration_count_is_read_back(
     small_scenario: Scenario, small_market: MarketScenarios, log: Logger
 ) -> None:
+    """The recorded wall clock has to bracket the solver's own measurement.
+
+    `solve_seconds > 0` would be true of almost any bug, so it is not worth
+    asserting. The falsifiable statement is that our timer spans the solve
+    and a little more: it wraps the whole call, which is CVXPY's
+    canonicalization on top of the solve the solver itself reports, so the
+    solver's `solve_time` must fit inside it. A timer started in the wrong
+    place, or one measuring a cached second call, breaks that.
+    """
     built = build_cvar_problem(small_scenario, small_market, log=log)
     outcome = solve_problem(built, algorithm="CLARABEL", target=0.008, log=log)
+    stats = built.problem.solver_stats
 
     assert outcome.solver_name == "CLARABEL"
-    assert outcome.solve_seconds > 0.0
+    assert stats is not None
+    assert stats.solve_time is not None
+    assert 0.0 < stats.solve_time <= outcome.solve_seconds < 60.0
     assert outcome.iterations is not None
     assert outcome.iterations > 0
 

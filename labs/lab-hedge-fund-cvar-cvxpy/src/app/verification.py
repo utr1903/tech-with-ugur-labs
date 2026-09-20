@@ -23,10 +23,21 @@ mean-variance solution will correctly refuse it: a variance objective is
 not a tail average, and a model carrying no auxiliary scalar reports NaN
 for one.
 
-**Which target is checked.** `scenario.headline_target_monthly`. A caller
-verifying a point of the frontier sweep at some other target passes
-`replace(scenario, headline_target_monthly=target)`, which keeps every
-input to this function inside the scenario and the weights.
+**Which target is checked.** Whichever one the caller passes as `target`.
+It is a required keyword argument rather than a field read off the
+scenario, because the frontier sweep solves the same compiled problem at
+twenty-five different targets and only one of them is the scenario's
+headline. Checking a swept book against the headline would silently
+compare it to a number nobody asked for — a wrong answer rather than an
+error, which is the worst shape a defect can take in a verifier.
+
+This file runs past the ~200-line target the lab holds its modules to, and
+the reason is the prose rather than the code: roughly 120 lines are
+executable and the rest is the argument above and the docstrings below.
+The recomputation and the comparison vocabulary have already been lifted
+out into `verification_exposures.py` and `verification_checks.py`; what is
+left is one operation boundary and the report it assembles, and splitting
+that would separate the raise from the checks it raises on.
 """
 
 from __future__ import annotations
@@ -83,6 +94,7 @@ def _verify(
     out_of_sample: MarketScenarios,
     solution: PortfolioSolution,
     oracle_cvar: float,
+    target: float,
 ) -> tuple[VerificationReport, list[Check]]:
     """Recompute every reported number and every check from the weights."""
     weights = solution.weights
@@ -100,7 +112,7 @@ def _verify(
 
     checks = [
         *precondition_checks(weights=weights, auxiliary=solution.var_auxiliary),
-        *mandate_checks(exposures, ledger, scenario),
+        *mandate_checks(exposures, ledger, scenario, target=target),
         *model_checks(
             overlap=overlap,
             objective=solution.objective,
@@ -190,18 +202,23 @@ def verify_solution(
     outcome: SolveOutcome,
     oracle_cvar: float,
     *,
+    target: float,
     log: Logger,
 ) -> VerificationReport:
     """Rebuild every reported number from the weights and refuse a bad book.
 
     Args:
-        scenario: The universe, the mandate, the tolerances and the target.
+        scenario: The universe, the desk mandate and the tolerances.
         market: The in-sample `[S, N]` matrix the book was chosen on.
         out_of_sample: A disjoint matrix the book is scored on afterwards.
         outcome: The solve to verify. It must carry a solution.
         oracle_cvar: The objective of the independent `sum_largest` solve,
             passed in rather than computed here so that this module never
             builds a CVXPY problem.
+        target: The return target the book was solved at. Required, and
+            deliberately not defaulted to the scenario's headline: a
+            frontier point verified against the wrong target gets a
+            verdict that means nothing and says nothing about it.
         log: Logger for the operation boundary.
 
     Returns:
@@ -220,8 +237,12 @@ def verify_solution(
     solution = outcome.solution
     verify_log = log.bind(solver=outcome.solver_name, status=outcome.status)
     try:
-        verify_log.info("Verifying the solution...", names=solution.weights.size)
-        report, checks = _verify(scenario, market, out_of_sample, solution, oracle_cvar)
+        verify_log.info(
+            "Verifying the solution...", names=solution.weights.size, target=target
+        )
+        report, checks = _verify(
+            scenario, market, out_of_sample, solution, oracle_cvar, target
+        )
     except Exception:
         verify_log.exception(
             "Verifying the solution failed.", names=solution.weights.size

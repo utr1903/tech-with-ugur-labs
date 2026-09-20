@@ -17,6 +17,14 @@ is one-sided. The mandate's limits use `at_most`. The return target uses
 with a short leg and a turnover leg that can only *overstate* its costs, so
 a correct solution's honestly recomputed net return sits at or above the
 target it was held to, never below.
+
+This file runs past the ~200-line target the lab holds its modules to. It
+is a flat list: six small comparison helpers and the thirteen checks built
+out of them, with no nesting and nothing to trace through. The checks are
+kept beside the vocabulary they are written in because report order is a
+contract — `verification.py` raises on the first failure — and splitting
+the list across files would make that order something a reader has to
+reassemble from imports.
 """
 
 from __future__ import annotations
@@ -129,9 +137,19 @@ def precondition_checks(*, weights: FloatArray, auxiliary: float) -> list[Check]
 
 
 def mandate_checks(
-    exposures: DeskExposures, ledger: CostLedger, scenario: Scenario
+    exposures: DeskExposures,
+    ledger: CostLedger,
+    scenario: Scenario,
+    *,
+    target: float,
 ) -> list[Check]:
-    """Check the recomputed book against every limit the desk imposes."""
+    """Check the recomputed book against every limit the desk imposes.
+
+    `target` is the return target the book was *actually solved at*, not
+    the scenario's headline. The two differ at every point of the frontier
+    sweep but one, and checking a swept book against the headline would
+    quietly pass or fail it against a number nobody asked for.
+    """
     limits = scenario.limits
     tolerance = scenario.tolerances.constraint_abs
     return [
@@ -182,7 +200,7 @@ def mandate_checks(
         at_least(
             "return_target_met",
             ledger.expected_net_return,
-            scenario.headline_target_monthly,
+            target,
             tolerance,
         ),
     ]

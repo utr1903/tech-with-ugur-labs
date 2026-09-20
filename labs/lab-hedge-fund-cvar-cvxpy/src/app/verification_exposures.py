@@ -129,11 +129,14 @@ def var_interval(losses: FloatArray, beta: float) -> tuple[float, float]:
     So `a == var` is not a theorem, and asserting it would fail on a
     perfectly correct solve of a scenario that happens not to be
     degenerate. What the reformulation guarantees is containment in this
-    interval, and that is what `verification.py` tests. The shipped
-    scenario collapses the interval to a width of about 4e-12, because
-    seventeen of its scenarios sit exactly on the threshold — a property of
-    that mandate and that matrix, not of the method, and one a reader can
-    remove by editing either.
+    interval, and that is what `verification.py` tests.
+
+    The shipped scenario collapses the interval almost to a point, because
+    a cluster of its scenarios sit on the threshold at once: measured at
+    the headline target, the width is 3.1e-13 at the shipped 10,000
+    scenarios and 1.8e-13 at the 600 the tests use. That is a property of
+    this mandate and this return matrix, not of the method, and a reader
+    who edits either can widen it straight back out.
 
     Args:
         losses: The loss vector of the solved book.
@@ -167,7 +170,10 @@ def threshold_count(losses: FloatArray, beta: float, *, tolerance: float) -> int
     because it explains the interval above: the more scenarios pile up on
     the threshold, the narrower the set of optimal `a` becomes, and it is
     also why the tail average has a vertex to be optimal at in the first
-    place. On the shipped mandate it comes out at seventeen of six hundred.
+    place. Measured at the headline target, it comes out at 19 of the
+    shipped 10,000 scenarios and 15 of the 600 the tests use. Both move
+    with the mandate and with the draw, which is why nothing asserts on
+    them.
     """
     _, threshold = var_interval(losses, beta)
     return int(np.count_nonzero(np.abs(losses - threshold) <= tolerance))
