@@ -370,11 +370,17 @@ def test_the_signed_split_stays_exact_where_the_costs_make_it_so(
 
     `w = l - s` only bounds `|w|` from above, so this is a property of the
     mandate rather than of the algebra. It holds here on the second of the
-    two premises, not the first: the gross cap does *not* bind at these
-    settings — `sum(l + s)` comes back at 1.1922 of the 1.32 cap with a
-    dual of 2.4e-13 — but the return target binds and every name pays a
-    borrow fee, so inflating the short leg costs return the book has to
-    deliver and the relaxation stays tight.
+    two premises, not the first: at the 600 scenarios these tests run on,
+    the gross cap does *not* bind — `sum(l + s)` comes back at 1.1922 of
+    the 1.32 cap with a dual of 2.4e-13 — but the return target binds and
+    every name pays a borrow fee, so inflating the short leg costs return
+    the book has to deliver and the relaxation stays tight.
+
+    That is a statement about this sample size and not about the shipped
+    configuration. At the shipped 10,000 scenarios and the same target the
+    row reaches 1.3200 with a dual of 8.35e-03 and the cap does bind, which
+    is what `scenario.yaml` describes. Both premises hold there; only one
+    holds here, which is what makes this a useful test of the second.
 
     `model_desk_test.py` is where that claim is established rather than
     assumed; this test is one corner of its table, checked on the shipped

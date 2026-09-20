@@ -222,11 +222,19 @@ def desk_block(scenario: Scenario, returns: FloatArray) -> DeskBlock:
         # while that constraint has slack they charge for nothing at all:
         # padding spends return the book does not need and leaves the tail
         # loss untouched. At 600 scenarios the split is padded by 1.2e-02
-        # at a 0.002 target, where the book earns 0.0049 against a 0.86 of
-        # 1.32 gross cap, and by 1.7e-09 at 0.006 where the target binds;
-        # at 10,000 the same 0.002 target pads by 1.3e-02 on a book
-        # earning 0.0037 at 0.82 gross. The low-return end of the frontier
-        # is genuinely a region where this relaxation lapses.
+        # at a 0.002 target, where the book earns 0.0049; by 1.7e-09 at
+        # 0.006 where the target binds. At 10,000 the same 0.002 target
+        # pads by 1.3e-02 on a book earning 0.0037. The low-return end of
+        # the frontier is genuinely a region where this relaxation lapses.
+        #
+        # Do not reach for `sum |w|` to check that premise 1 is off in
+        # those runs — that is the trap this whole argument is about. The
+        # book runs 0.86 of NAV gross at 600 and 0.82 at 10,000, but
+        # `sum(l + s)`, which is what the cap constrains, sits at 1.3144
+        # and 1.3169 of 1.32: the row is pressed right against the cap by
+        # the padding itself. What shows the cap is not the binding
+        # premise is its dual, 2.3e-12 and 5.0e-14 — a constraint that
+        # costs nothing is not the one holding the answer in place.
         #
         # Take every premise away at once and the guarantee lapses on a
         # book with nothing else wrong with it, which the lab demonstrates

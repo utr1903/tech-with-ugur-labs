@@ -64,9 +64,10 @@ def desk_exposures(universe: Universe, weights: FloatArray) -> DeskExposures:
     per-name cap and the per-sector gross cap are written on `l + s`, and
     the turnover budget on `t`. Those legs only bound the quantities below
     from above, so `gross_leverage` here can sit far under a gross cap that
-    the row the solver sees is pressed right up against — 1.0325 against a
-    row at 1.3159 of a 1.32 cap, on the shipped mandate with the trading
-    costs switched off.
+    the row the solver sees is pressed right up against. On the shipped
+    mandate with the borrow fees and half-spreads switched off, at the
+    0.008 target: 1.0325 against a row at 1.3159 of a 1.32 cap at 600
+    scenarios, and 1.2438 against 1.3184 at the shipped 10,000.
 
     That makes these the right numbers for two jobs and the wrong numbers
     for a third. They are right for reporting what the desk will hold, and

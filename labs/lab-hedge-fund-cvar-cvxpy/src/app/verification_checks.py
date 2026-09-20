@@ -153,20 +153,37 @@ def mandate_checks(
     **Why checking the book is enough, when four of the rows constrain a
     relaxation.** Gross leverage, the per-name cap and the per-sector gross
     cap are written on `l + s`, and the turnover budget on `t`; the
-    exposures below are computed from `w` alone. Those disagree whenever
-    the split is padded, so on its own a check of the book would not tell
-    you the model's row was respected.
+    exposures below are computed from `w` alone. Those disagree whenever a
+    relaxation is padded, so on its own a check of the book would not tell
+    you the model's row was respected. The three gross rows and the
+    turnover row need different arguments, because they are padded by
+    different relaxations.
 
-    What closes the gap is `relaxation_exact`, check nine in report order.
-    The signed split is an *equality* row, `w == l - s`, with both legs
-    nonnegative, so a per-name overlap of zero forces `l_i + s_i = |w_i|`
-    for every name and hence `sum(l + s) = sum|w|` exactly. Whenever check
-    nine passes, these four checks are therefore reading the same numbers
-    the solver's rows do. Whenever it fails, `verify_solution` raises
-    before any result is reported. There is no path on which a report comes
+    *The three gross rows.* `relaxation_exact`, check ten in report order,
+    closes the gap. The signed split is an *equality* row, `w == l - s`,
+    with both legs nonnegative, so a per-name overlap of zero forces
+    `l_i + s_i = |w_i|` for every name and hence `sum(l + s) = sum|w|`
+    exactly. Whenever check ten passes, those three checks are reading the
+    same numbers the solver's rows do; whenever it fails,
+    `verify_solution` raises before any result is reported. No report comes
     back clean with one of those rows violated, apart from a sliver the
     width of `relaxation_abs` where an overlap sits just under tolerance —
-    at the shipped 1e-7, at most 6e-6 of NAV across thirty names.
+    at the shipped 1e-7, at most 6e-6 of NAV across thirty names, which is
+    above `constraint_abs` and so is a real if tiny hole, accepted in
+    exchange for a verifier that never reads the solver's legs.
+
+    *The turnover row* needs none of that, and `relaxation_exact` would not
+    help if it did: the turnover leg is a separate relaxation with its own
+    premises, and the arm table in `model_desk_test.py` has an arm where
+    the split is exact while `t` floats 4.6e-02 above the trade. The
+    argument here is simpler and unconditional. The mandate is a statement
+    about the book — do not trade more than `turnover_max` of notional —
+    and `sum|w - w0| <= sum(t)` always holds, so a book inside the budget
+    is inside the mandate whatever `t` did. What this check therefore does
+    *not* do is certify the `t` row itself; a solver returning `sum(t)`
+    over budget while the book traded less would pass here. That is a
+    solver defect rather than a mandate breach, and the mandate is what
+    this pass exists to defend.
     """
     limits = scenario.limits
     tolerance = scenario.tolerances.constraint_abs

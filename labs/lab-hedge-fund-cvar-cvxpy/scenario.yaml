@@ -226,11 +226,20 @@ desk_limits:
   # the gross dual, which shrinks as the constraint slackens. Both halves
   # of that trade are the lesson.
   #
-  # It does not bind everywhere. Swept across the 25 frontier targets at
-  # 10,000 scenarios, the book sits at 0.82 gross for the whole bottom
-  # half of the range and only reaches the cap at the top three feasible
-  # targets, 0.00792 upward — which includes the 0.008 headline. Below
-  # that the balance sheet is simply not the thing standing in the way.
+  # It does not bind everywhere, and this is the place to be careful about
+  # which quantity is being read. Swept across the 25 frontier targets at
+  # 10,000 scenarios, the *book* holds 0.82 of NAV gross for the bottom
+  # ten points, up to 0.00375, and only grows into the cap at the top
+  # three feasible targets, 0.00792 upward — which includes the 0.008
+  # headline.
+  #
+  # The *row* tells a different story and it is not the one that matters:
+  # `sum(l + s)` sits at 1.3167 to 1.3172 of 1.32 across that whole bottom
+  # stretch, because with the return target slack nothing charges for an
+  # inflated leg and the padding expands to fill the budget. The number
+  # that settles it is the dual, which runs 4e-14 to 3e-13 there — the
+  # balance sheet costs nothing, so it is not what is standing in the way.
+  # Slack in a row is not headroom; a zero shadow price is.
   gross_leverage_max: 1.32
   # sum w. Long and short legs must roughly cancel.
   net_exposure_min: -0.10
@@ -266,9 +275,8 @@ desk_limits:
   # The most any single name may be held long or short. Enforced as
   # `l_i + s_i <= 0.12`, not as `|w_i| <= 0.12`. 30 names at this cap could
   # hold 3.60 of gross, comfortably above gross_leverage_max, so it is
-  # reachable —
-  # and at 10,000 scenarios it is reached, but only at the single most
-  # demanding feasible target, 0.00875.
+  # reachable — and at 10,000 scenarios it is reached, but only at the
+  # single most demanding feasible target, 0.00875.
   name_gross_cap: 0.12
   # |sum of w over one sector|. At the shipped 10,000 scenarios this is
   # the first of the caps to start biting as the return target rises:
@@ -281,16 +289,17 @@ desk_limits:
   sector_net_cap: 0.11
   # The most one sector may hold long plus short. Enforced as
   # `Msec @ (l + s) <= 0.35`, not on `|w|`. Binds at no target on the
-  # frontier at either 600 or 10,000 scenarios; it is here as a limit a reader can
-  # tighten to watch a new constraint take over.
+  # frontier at either 600 or 10,000 scenarios; it is here as a limit a
+  # reader can tighten to watch a new constraint take over.
   sector_gross_cap: 0.35
   # How much notional the desk may trade, one way. Enforced as
   # `sum(t) <= 0.50`, where `t` is the model's stand-in for
   # `|w - start_weight|` rather than that quantity itself. The desk cannot
-  # rebuild the book in a single month. This is the one limit that binds at every feasible
-  # target on the frontier, from 0.000 to the ceiling, and the one claim
-  # in this block that survives a change of sample size: all 22 solvable
-  # points sit exactly on it at 10,000 scenarios, and all 25 do at 600.
+  # rebuild the book in a single month. This is the one limit that binds
+  # at every feasible target on the frontier, from 0.000 to the ceiling,
+  # and the one claim in this block that survives a change of sample size:
+  # all 22 solvable points sit exactly on it at 10,000 scenarios, and all
+  # 25 do at 600.
   turnover_max: 0.50
 
 # The seeded generator. Read market.py alongside this block: every field
