@@ -190,10 +190,32 @@ universe:
 # scenarios and the 0.008 target: at a 1.40 gross cap the beta band never
 # binds at all and the gross dual is 0.0010; at 1.32 the beta band binds
 # and the gross dual is 0.0083, eight times larger.
+#
+# ONE THING TO KNOW BEFORE READING THE LIMITS BELOW. Four of them are
+# mandates about the book but are *enforced* on a stand-in for it. Gross
+# leverage, the per-name cap and the per-sector gross cap are all written
+# on `l + s`, the long and short legs the model splits each weight into;
+# the turnover budget is written on `t`, the leg that stands in for
+# `|w - w0|`. Those legs are only bounded to be at least the thing they
+# stand for, so `l + s >= |w|` and `t >= |w - w0|` always, with equality
+# where the solved book makes an inflated leg strictly worse. Where that
+# holds, the two readings coincide and the distinction does not matter.
+# Where it does not, they diverge: at the 0.008 target with the borrow
+# fees and half-spreads switched off, the book runs 1.0325 of NAV gross at
+# 600 scenarios while the row the solver enforces sits at 1.3159 of the
+# 1.32 cap; at the shipped 10,000 it is 1.2438 against 1.3184.
+#
+# So each limit below says both what it means for the book and which
+# expression carries it. The three limits written directly on `w` — net
+# exposure, the beta band and the per-sector *net* cap — have no such gap
+# and are not annotated. `model_desk.py` derives when the two coincide and
+# `model_desk_test.py` pins it by experiment.
 desk_limits:
-  # sum |w|. The book may run at most 1.32 of NAV long plus short combined
-  # — exactly what the starting book already uses, so the desk begins with
+  # The book may run at most 1.32 of NAV long plus short combined —
+  # exactly what the starting book already uses, so the desk begins with
   # no balance sheet to spare.
+  #
+  # Enforced as `sum(l + s) <= 1.32`, not as `sum |w| <= 1.32`.
   #
   # Those two numbers being equal is not a coincidence and it has a
   # consequence worth knowing before you edit anything. Raise a
@@ -241,8 +263,10 @@ desk_limits:
   # of a solver — not a small price. Do not read it as one.
   beta_min: -0.02
   beta_max: 0.02
-  # |w_i| for any single name. 30 names at this cap could hold 3.60 of
-  # gross, comfortably above gross_leverage_max, so the cap is reachable —
+  # The most any single name may be held long or short. Enforced as
+  # `l_i + s_i <= 0.12`, not as `|w_i| <= 0.12`. 30 names at this cap could
+  # hold 3.60 of gross, comfortably above gross_leverage_max, so it is
+  # reachable —
   # and at 10,000 scenarios it is reached, but only at the single most
   # demanding feasible target, 0.00875.
   name_gross_cap: 0.12
@@ -255,12 +279,15 @@ desk_limits:
   # At 600 scenarios it never binds at any target, and `beta_min` bites
   # first instead.
   sector_net_cap: 0.11
-  # sum of |w| over one sector. Binds at no target on the frontier at
-  # either 600 or 10,000 scenarios; it is here as a limit a reader can
+  # The most one sector may hold long plus short. Enforced as
+  # `Msec @ (l + s) <= 0.35`, not on `|w|`. Binds at no target on the
+  # frontier at either 600 or 10,000 scenarios; it is here as a limit a reader can
   # tighten to watch a new constraint take over.
   sector_gross_cap: 0.35
-  # sum |w - start_weight|, one way. The desk cannot rebuild the book in a
-  # single month. This is the one limit that binds at every feasible
+  # How much notional the desk may trade, one way. Enforced as
+  # `sum(t) <= 0.50`, where `t` is the model's stand-in for
+  # `|w - start_weight|` rather than that quantity itself. The desk cannot
+  # rebuild the book in a single month. This is the one limit that binds at every feasible
   # target on the frontier, from 0.000 to the ceiling, and the one claim
   # in this block that survives a change of sample size: all 22 solvable
   # points sit exactly on it at 10,000 scenarios, and all 25 do at 600.

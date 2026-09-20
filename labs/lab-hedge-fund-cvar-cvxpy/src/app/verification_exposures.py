@@ -58,12 +58,32 @@ class CostLedger:
 def desk_exposures(universe: Universe, weights: FloatArray) -> DeskExposures:
     """Recompute every desk exposure from the weights and the sector map.
 
+    **These are properties of the portfolio, not left-hand sides of the
+    model's rows, and the difference matters.** Four of the desk limits are
+    enforced on a relaxation rather than on the book: gross leverage, the
+    per-name cap and the per-sector gross cap are written on `l + s`, and
+    the turnover budget on `t`. Those legs only bound the quantities below
+    from above, so `gross_leverage` here can sit far under a gross cap that
+    the row the solver sees is pressed right up against — 1.0325 against a
+    row at 1.3159 of a 1.32 cap, on the shipped mandate with the trading
+    costs switched off.
+
+    That makes these the right numbers for two jobs and the wrong numbers
+    for a third. They are right for reporting what the desk will hold, and
+    right for checking the book against the mandate — a book inside the
+    relaxed row is inside the real limit too, since `|w| <= l + s`. They
+    are **not** a test of whether a constraint is active. Anything deciding
+    that, a shadow-price table above all, must evaluate `l + s` or `t`
+    itself; an active-set test written on these would report a comfortably
+    slack gross cap exactly where the split is padded, which is the whole
+    low-return end of the frontier.
+
     Args:
         universe: Names, betas, the `[K, N]` sector indicator and `w0`.
         weights: Signed fractions of NAV, one per name.
 
     Returns:
-        The seven numbers the desk mandate is written in terms of.
+        The seven exposures the desk mandate is expressed in terms of.
     """
     absolute = np.abs(weights)
     traded = np.abs(weights - universe.start_book)

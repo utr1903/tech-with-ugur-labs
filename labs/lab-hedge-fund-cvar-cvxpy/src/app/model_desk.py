@@ -16,9 +16,9 @@ not the other — so they are written out in full where the constraints are
 declared.
 
 That is also why this file runs past the ~200-line target the lab holds
-its modules to: more of this file is prose than code. The
-mandate is one dictionary a reader should be able to read top to bottom in
-one place, with each relaxation's reasoning beside the row it justifies.
+its modules to: more of it is prose than code. The mandate is one
+dictionary a reader should be able to read top to bottom in one place,
+with each relaxation's reasoning beside the row it justifies.
 
 Neither argument is left to the prose alone. `model_desk_test.py` switches
 each term off on its own — borrow fee, half-spread, the caps, the turnover

@@ -219,8 +219,9 @@ def degenerate_scenario(small_scenario: Scenario) -> Scenario:
     lapse: the gross cap stays inactive — `sum(l + s)` reaches 1.3159 of
     1.32 at 600 scenarios and 1.3184 of 1.32 at 10,000 — and the split is
     padded by 8.0e-03 and 2.3e-03 there. (Read `l + s`, not `sum|w|`. That
-    is the expression the cap is written on, and the two part company by
-    0.28 of NAV here precisely because the split has gone slack.)
+    is the expression the cap is written on, and the two part company
+    precisely because the split has gone slack — by 0.28 of NAV at 600
+    scenarios and 0.075 at 10,000.)
 
     What widening the budgets does is not remove the padding but *enlarge*
     it, because an interior point parks the free padding just inside

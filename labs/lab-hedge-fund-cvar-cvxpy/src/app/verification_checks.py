@@ -149,6 +149,24 @@ def mandate_checks(
     the scenario's headline. The two differ at every point of the frontier
     sweep but one, and checking a swept book against the headline would
     quietly pass or fail it against a number nobody asked for.
+
+    **Why checking the book is enough, when four of the rows constrain a
+    relaxation.** Gross leverage, the per-name cap and the per-sector gross
+    cap are written on `l + s`, and the turnover budget on `t`; the
+    exposures below are computed from `w` alone. Those disagree whenever
+    the split is padded, so on its own a check of the book would not tell
+    you the model's row was respected.
+
+    What closes the gap is `relaxation_exact`, check nine in report order.
+    The signed split is an *equality* row, `w == l - s`, with both legs
+    nonnegative, so a per-name overlap of zero forces `l_i + s_i = |w_i|`
+    for every name and hence `sum(l + s) = sum|w|` exactly. Whenever check
+    nine passes, these four checks are therefore reading the same numbers
+    the solver's rows do. Whenever it fails, `verify_solution` raises
+    before any result is reported. There is no path on which a report comes
+    back clean with one of those rows violated, apart from a sliver the
+    width of `relaxation_abs` where an overlap sits just under tolerance —
+    at the shipped 1e-7, at most 6e-6 of NAV across thirty names.
     """
     limits = scenario.limits
     tolerance = scenario.tolerances.constraint_abs

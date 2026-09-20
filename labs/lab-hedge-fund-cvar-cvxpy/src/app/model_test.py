@@ -368,13 +368,28 @@ def test_the_signed_split_stays_exact_where_the_costs_make_it_so(
 ) -> None:
     """No name ends up carrying a long leg and a short leg at once.
 
-    `w = l - s` only bounds `|w|` from above. Here the gross cap binds and
-    every name pays to be shorted or traded, so inflating both legs is
-    strictly worse and the relaxation is tight.
+    `w = l - s` only bounds `|w|` from above, so this is a property of the
+    mandate rather than of the algebra. It holds here on the second of the
+    two premises, not the first: the gross cap does *not* bind at these
+    settings — `sum(l + s)` comes back at 1.1922 of the 1.32 cap with a
+    dual of 2.4e-13 — but the return target binds and every name pays a
+    borrow fee, so inflating the short leg costs return the book has to
+    deliver and the relaxation stays tight.
+
+    `model_desk_test.py` is where that claim is established rather than
+    assumed; this test is one corner of its table, checked on the shipped
+    mandate exactly as it ships.
     """
     built = build_cvar_problem(small_scenario, small_market, log=log)
     built.target.value = small_scenario.headline_target_monthly
     solve(built.problem, solver=cp.CLARABEL)
+
+    # Assert which premise is carrying this, so the docstring cannot drift
+    # back to crediting the gross cap. Read on `l + s`, the expression the
+    # cap is actually written on.
+    legs = _solved(built.long_leg) + _solved(built.short_leg)
+    assert float(legs.sum()) < small_scenario.limits.gross_leverage_max - 0.1
+    assert small_scenario.universe.borrow_fee_annual.all()
 
     overlap = np.minimum(_solved(built.long_leg), _solved(built.short_leg)).max()
     assert overlap <= small_scenario.tolerances.relaxation_abs

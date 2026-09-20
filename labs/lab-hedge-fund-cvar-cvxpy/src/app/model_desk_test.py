@@ -40,13 +40,15 @@ chain runs rule -> expected flag -> solve, and changing any link without
 the others turns a test red.
 
 One thing the table makes visible that is worth carrying away. "The cap is
-slack" and "the cap is far away" are different statements. In every padded
-arm the constraint's own left-hand side, `sum(l + s)`, sits within half a
-percent of the gross cap while the book's `sum|w|` is a third of the way
-below it — an interior point parks the free padding just inside whatever
-budget it is given. Any test of whether a cap is *active* has to read the
-row the solver sees, not the portfolio the row implies when the split
-happens to be exact.
+slack" and "the cap is far away" are different statements. In all four
+padded arms the constraint's own left-hand side, `sum(l + s)`, sits at
+99.5% of the gross cap, while the book those legs describe is nowhere near
+it — 32% to 35% below in three of them and, in `budget slack, both costs,
+target slack`, an all-zero portfolio at `sum|w| = 0.0`. An interior point
+parks the free padding just inside whatever budget it is given, so the
+budget fills up regardless of what the book does. Any test of whether a
+cap is *active* has to read the row the solver sees, not the portfolio the
+row implies when the split happens to be exact.
 """
 
 from __future__ import annotations
