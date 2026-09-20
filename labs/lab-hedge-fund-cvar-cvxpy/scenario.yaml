@@ -23,12 +23,35 @@ cvar_beta: 0.95
 
 # The expected one-month return, net of borrow and trading cost, that the
 # headline portfolio has to deliver. The desk mandate below makes this
-# demanding: at 0.008 the gross-leverage cap, the turnover budget and two
-# sectors' net caps all bind at once — energy pinned at the positive cap
-# and staples at the negative one, the long and short ends of the same
-# trade. The largest net return the mandate can reach is about 0.0094, so
-# the target has real slack without being free, and the starting book
-# already earns about 0.0070 of it.
+# demanding.
+#
+# EVERY FIGURE IN THIS BLOCK DEPENDS ON THE SAMPLE SIZE, so each one says
+# which `market.scenarios` it was measured at. The optimizer chooses
+# against the *sample* mean of the drawn matrix, not against the alphas
+# above, and those two only converge as the sample grows. A claim that is
+# true at 10,000 scenarios and false at 600 is not a claim worth stating
+# unconditionally, and this file used to state one.
+#
+# At the shipped 10,000 scenarios and a 0.008 target, five things bind at
+# once: the gross-leverage cap, the turnover budget, two sectors' net caps
+# (energy at the positive cap and staples at the negative one, the long
+# and short ends of the same trade) and the upper beta limit. The largest
+# net return the mandate can reach is 0.008882, so the target has real
+# slack without being free, and the starting book already earns 0.006866
+# of it without trading at all.
+#
+# At 4,000 scenarios the same five bind (healthcare replaces energy as the
+# second capped sector) and the ceiling rises to 0.009130. At 600 — the
+# size the test suite runs on — the book is different enough that the
+# gross cap goes slack at 1.192 and the beta band binds on the *lower*
+# side instead of the upper: the small sample wants a slightly short-market
+# book where the large one wants a slightly long-market book. The ceiling
+# there is 0.010383, above the top of the frontier sweep, so at 600
+# scenarios no frontier point comes back infeasible at all.
+#
+# Do not read that as instability in the model. It is sampling error in
+# the tail estimate, which is exactly what the in-sample optimism study
+# further down exists to measure.
 headline_target_monthly: 0.008
 
 # Optional path to a reader-supplied return history: a CSV whose header
@@ -125,30 +148,72 @@ universe:
     - {name: STP5, sector: staples, market_beta: 0.70, alpha_monthly: -0.0078,
        borrow_fee_annual: 0.0110, half_spread: 0.0010, start_weight: -0.065}
 
-# The mandate. The starting book above uses 1.32 of the 1.40 gross budget,
-# is exactly market neutral by construction and sits flat in every sector,
-# so the solve is genuinely "what should we trade", not "what should we
-# own from scratch".
+# The mandate. The starting book above uses exactly 1.32 of NAV gross,
+# which is the whole gross budget below, and it is exactly market neutral
+# by construction and flat in every sector. So the desk begins at its
+# balance-sheet limit: the solve is genuinely "what should we trade", and
+# every new position has to be funded by closing another.
+#
+# THESE LIMITS ARE TIGHTER THAN A TEXTBOOK MANDATE, ON PURPOSE. They were
+# chosen by measurement so that the constraints actually bite at the
+# headline target, because a shadow price is only worth printing when the
+# constraint it belongs to is doing something. Loosen the gross cap back
+# toward 2.0, or widen the beta band, and you will watch the matching
+# shadow prices fall to zero — which is the mathematics working exactly as
+# it should, not the lab breaking. Trying that is a better way to
+# understand duality than reading about it. Measured at the shipped 10,000
+# scenarios and the 0.008 target: at a 1.40 gross cap the beta band never
+# binds at all and the gross dual is 0.0010; at 1.32 the beta band binds
+# and the gross dual is 0.0083, eight times larger.
 desk_limits:
-  # sum |w|. The book may run at most 1.40 of NAV long plus short combined.
-  gross_leverage_max: 1.40
+  # sum |w|. The book may run at most 1.32 of NAV long plus short combined
+  # — exactly what the starting book already uses, so the desk begins with
+  # no balance sheet to spare.
+  #
+  # It does not bind everywhere. Swept across the 25 frontier targets at
+  # 10,000 scenarios, the book sits at 0.82 gross for the whole bottom
+  # half of the range and only reaches the cap at the top three feasible
+  # targets, 0.00792 upward — which includes the 0.008 headline. Below
+  # that the balance sheet is simply not the thing standing in the way.
+  gross_leverage_max: 1.32
   # sum w. Long and short legs must roughly cancel.
   net_exposure_min: -0.10
   net_exposure_max: 0.10
   # market_beta . w. Tighter than net exposure, because a beta-neutral book
-  # is the point of the fund.
-  beta_min: -0.05
-  beta_max: 0.05
+  # is the point of the fund. At +/-0.02 the upper side binds at the top
+  # three feasible targets, the headline among them, and carries a real
+  # price; at the +/-0.05 this started at, the book ran +0.0174 and the
+  # band was pure decoration at every target.
+  #
+  # The lower side is a different story and the lab keeps it deliberately.
+  # At 10,000 scenarios the book always wants to be slightly long the
+  # market, so `beta_lower` never binds and its dual sits at 2e-14. That
+  # is the honest example of a shadow price that means nothing: an
+  # inactive constraint has no price, and a number near machine epsilon is
+  # what "no price" looks like coming out of a solver rather than a small
+  # price. Do not read it as one.
+  beta_min: -0.02
+  beta_max: 0.02
   # |w_i| for any single name. 30 names at this cap could hold 3.60 of
-  # gross, comfortably above gross_leverage_max, so the cap is reachable.
+  # gross, comfortably above gross_leverage_max, so the cap is reachable —
+  # and at 10,000 scenarios it is reached, but only at the single most
+  # demanding feasible target, 0.00875.
   name_gross_cap: 0.12
-  # |sum of w over one sector|. Binds first: the optimizer would happily
-  # put the whole book long energy and short staples.
+  # |sum of w over one sector|. The first of the caps to start biting as
+  # the return target rises: at 10,000 scenarios staples pins at the
+  # negative cap from 0.00625 upward and energy joins at the positive cap
+  # from 0.00708, both well before the gross cap does at 0.00792. That is
+  # the trade the optimizer wants — long energy, short staples — and this
+  # is the limit that stops it being the whole book.
   sector_net_cap: 0.11
-  # sum of |w| over one sector.
+  # sum of |w| over one sector. Never binds anywhere on the frontier at
+  # the shipped settings; it is here as a limit a reader can tighten to
+  # watch a new constraint take over.
   sector_gross_cap: 0.35
   # sum |w - start_weight|, one way. The desk cannot rebuild the book in a
-  # single month, and this budget binds everywhere on the frontier.
+  # single month. This is the one limit that binds at every feasible
+  # target on the frontier, from 0.000 to the ceiling — measured at 10,000
+  # scenarios, all 22 solvable points sit exactly on it.
   turnover_max: 0.50
 
 # The seeded generator. Read market.py alongside this block: every field
@@ -215,8 +280,16 @@ market:
   jump_names: [TCH1, TCH5, HLC2, FIN1, FIN5, IND2, ENE1, ENE4]
 
 # The return-target sweep behind the frontier chart. The top of the range
-# sits above what the mandate can reach, on purpose: the last point or two
-# come back infeasible and the lab reports that verbatim.
+# sits above what the mandate can reach, on purpose: the last few points
+# come back infeasible and the lab reports that status verbatim instead of
+# quietly dropping them.
+#
+# Measured at the shipped 10,000 scenarios: 22 of the 25 points solve and
+# 3 do not, the first infeasible target being 0.009167 against a ceiling
+# of 0.008882. Like everything else here that depends on the draw, that
+# split moves with the sample — at 600 scenarios the ceiling is 0.010383,
+# above the top of this range, so every point solves and the infeasible
+# case is not demonstrated at all.
 frontier:
   points: 25
   min_target_monthly: 0.000
@@ -242,22 +315,30 @@ studies:
   # for an elliptical distribution, minimizing CVaR and minimizing variance
   # are the same problem. This is the L1 weight distance allowed there.
   #
-  # Measured at the settings above: 0.0299 to 0.0512 across the five seeds.
-  # What is left is sampling error in the tail estimate rather than a real
-  # difference, and it shrinks like 1 / sqrt(scenarios) — it was 0.155 at
-  # 4,000 scenarios and 0.047 at 25,000. Cut `scenarios` above and this
+  # Measured at the settings above and the recalibrated desk limits:
+  # 0.0328 to 0.0444 across the five seeds. What is left is sampling error
+  # in the tail estimate rather than a real difference, and it shrinks
+  # like 1 / sqrt(scenarios) — a three-seed check at 8,000 scenarios
+  # measures 0.060 to 0.076 instead. Cut `scenarios` above and this
   # tolerance has to rise with it.
   elliptical_weight_tolerance: 0.10
   # In fat_tailed mode they should not. This is how many times further
   # apart the two books have to be than they were in the control.
   #
-  # Measured at the settings above: a ratio of means of 3.29, with a
-  # five-seed standard error of about 0.45. The floor sits roughly three
-  # standard errors below that, which leaves room for seed-to-seed noise
-  # while still failing loudly if the effect disappears. Like the tolerance
-  # above it was calibrated at 25,000 scenarios, and because the control's
-  # distance shrinks with the sample while the fat-tailed difference does
-  # not, a smaller sample measures a smaller ratio.
+  # Measured at the settings above: a ratio of means of 3.295 at the
+  # recalibrated desk limits, against 3.293 at the looser ones — the two
+  # models diverge by the shape of the loss distribution, and tightening
+  # the mandate did not change that. The floor sits well below either,
+  # which leaves room for seed-to-seed noise while still failing loudly if
+  # the effect disappears.
+  #
+  # Like the tolerance above it was calibrated at 25,000 scenarios, and
+  # because the control's distance shrinks with the sample while the
+  # fat-tailed difference does not, a smaller sample measures a smaller
+  # ratio: five seeds give 3.295 at 25,000, while a three-seed check at
+  # 8,000 measures only 2.11, already close to this floor. Cutting
+  # `scenarios` to make a run finish faster will fail this check long
+  # before the effect it measures has actually gone away.
   divergence_ratio_min: 2.0
 
 # Slack allowed by each independent check of a solved portfolio.

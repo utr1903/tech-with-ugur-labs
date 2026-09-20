@@ -246,6 +246,12 @@ class VerificationReport:
 
     `checks` keeps the (name, passed) pairs in report order so a successful
     verification still records what was tested.
+
+    `threshold_count` is the one field nothing asserts on. It counts the
+    scenarios whose loss sits on the value-at-risk threshold, which is what
+    decides how wide the set of optimal `var_auxiliary` values is — see
+    `verification_exposures.var_interval`. A reader who edits the scenario
+    can move it freely, so it is reported and never checked.
     """
 
     gross_leverage: float
@@ -265,5 +271,6 @@ class VerificationReport:
     atom_oracle_cvar: float
     empirical_cvar: float
     var_recovery_gap: float
+    threshold_count: int
     relaxation_max_overlap: float
     checks: tuple[tuple[str, bool], ...]

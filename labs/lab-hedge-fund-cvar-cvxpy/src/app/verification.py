@@ -44,7 +44,13 @@ from app.contracts import (
 from app.errors import VerificationError
 from app.logging_setup import Logger
 from app.tailrisk import portfolio_losses, tail_statistics
-from app.verification_checks import Check, first_failure, mandate_checks, model_checks
+from app.verification_checks import (
+    Check,
+    first_failure,
+    mandate_checks,
+    model_checks,
+    precondition_checks,
+)
 from app.verification_exposures import (
     cost_ledger,
     desk_exposures,
@@ -83,24 +89,24 @@ def _verify(
     universe, beta = scenario.universe, scenario.cvar_beta
     exposures = desk_exposures(universe, weights)
     ledger = cost_ledger(universe, market.returns, weights)
-    in_sample = tail_statistics(portfolio_losses(market.returns, weights), beta)
+    losses = portfolio_losses(market.returns, weights)
+    in_sample = tail_statistics(losses, beta)
     scored = tail_statistics(portfolio_losses(out_of_sample.returns, weights), beta)
     overlap = relaxation_overlap(solution.long_leg, solution.short_leg)
-    var_gap = interval_distance(
-        solution.var_auxiliary,
-        var_interval(portfolio_losses(market.returns, weights), beta),
+    var_gap = interval_distance(solution.var_auxiliary, var_interval(losses, beta))
+    on_threshold = threshold_count(
+        losses, beta, tolerance=scenario.tolerances.var_recovery_abs
     )
 
     checks = [
+        *precondition_checks(weights=weights, auxiliary=solution.var_auxiliary),
         *mandate_checks(exposures, ledger, scenario),
         *model_checks(
             overlap=overlap,
             objective=solution.objective,
             in_sample=in_sample,
             oracle_cvar=oracle_cvar,
-            auxiliary=solution.var_auxiliary,
             var_gap=var_gap,
-            weights=weights,
             tolerances=scenario.tolerances,
         ),
     ]
@@ -122,6 +128,7 @@ def _verify(
         atom_oracle_cvar=oracle_cvar,
         empirical_cvar=in_sample.cvar,
         var_recovery_gap=var_gap,
+        threshold_count=on_threshold,
         relaxation_max_overlap=overlap,
         checks=tuple((check.name, check.passed) for check in checks),
     )
@@ -131,10 +138,13 @@ def _verify(
 def _require_all_passed(checks: list[Check], *, log: Logger) -> None:
     """Raise on the first failing check in report order.
 
-    Report order is fixed in `verification_checks.py` and it matters: the
-    desk limits come first because a book that breaches its mandate is
-    wrong for a reason a reader can act on, and a tail disagreement behind
-    it is usually a consequence of the same fault rather than a second one.
+    Report order is fixed in `verification_checks.py` and it matters. The
+    finiteness precondition comes first, because every comparison behind it
+    silently fails on a NaN and would misreport the cause. The desk limits
+    come next, because a book that breaches its mandate is wrong for a
+    reason a reader can act on. The tail agreements come last, since a
+    disagreement there is usually a consequence of a fault already named
+    above rather than a second, separate one.
 
     Raises:
         VerificationError: Naming the failing check and quoting the
@@ -149,21 +159,14 @@ def _require_all_passed(checks: list[Check], *, log: Logger) -> None:
     raise VerificationError(f"{failure.name} failed: {failure.detail}")
 
 
-def _log_success(
-    scenario: Scenario,
-    market: MarketScenarios,
-    report: VerificationReport,
-    weights: FloatArray,
-    *,
-    log: Logger,
-) -> None:
+def _log_success(report: VerificationReport, *, log: Logger) -> None:
     """Record the verified book, including the figures nothing asserts on.
 
-    `scenarios_on_var_threshold` is the one worth explaining. It is not a
-    pass mark and never will be — a reader who edits the scenario can move
-    it freely — but it is what decides how wide the optimal set of
-    value-at-risk levels is, so it belongs in the record beside the
-    recovery gap it explains.
+    `threshold_count` is the one worth explaining. It is not a pass mark
+    and never will be — a reader who edits the scenario can move it freely
+    — but it is what decides how wide the optimal set of value-at-risk
+    levels is, so it belongs in the record beside the recovery gap it
+    explains, and in `solution.json` beside it too.
     """
     log.info(
         "Verifying the solution succeeded.",
@@ -176,11 +179,7 @@ def _log_success(
         out_of_sample_cvar=round(report.out_of_sample.cvar, 6),
         relaxation_max_overlap=report.relaxation_max_overlap,
         var_recovery_gap=report.var_recovery_gap,
-        scenarios_on_var_threshold=threshold_count(
-            portfolio_losses(market.returns, weights),
-            scenario.cvar_beta,
-            tolerance=scenario.tolerances.var_recovery_abs,
-        ),
+        threshold_count=report.threshold_count,
     )
 
 
@@ -230,5 +229,5 @@ def verify_solution(
         raise
     else:
         _require_all_passed(checks, log=verify_log)
-        _log_success(scenario, market, report, solution.weights, log=verify_log)
+        _log_success(report, log=verify_log)
         return report

@@ -223,7 +223,7 @@ def test_the_threshold_count_is_reported_rather_than_asserted(
     shipped mandate, so it is worth printing — but a reader who edits the
     scenario can move it, and nothing should break when they do.
     """
-    outcome, _ = _report(small_scenario, small_market, small_out_of_sample, log)
+    outcome, report = _report(small_scenario, small_market, small_out_of_sample, log)
     assert outcome.solution is not None
     losses = portfolio_losses(small_market.returns, outcome.solution.weights)
 
@@ -233,7 +233,11 @@ def test_the_threshold_count_is_reported_rather_than_asserted(
         tolerance=small_scenario.tolerances.var_recovery_abs,
     )
 
+    assert report.threshold_count == on_threshold
     assert 1 <= on_threshold <= losses.shape[0]
+    # It is reported, so it reaches `solution.json`; it is never a pass
+    # mark, so no check bears its name.
+    assert "threshold_count" not in dict(report.checks)
 
 
 def test_out_of_sample_cvar_is_scored_on_the_disjoint_matrix(
@@ -335,19 +339,20 @@ def test_the_first_failing_check_in_report_order_is_the_one_raised(
         )
 
 
-def test_a_nan_weight_is_refused(
+def test_a_nan_weight_is_named_as_a_nan_weight(
     small_scenario: Scenario,
     small_market: MarketScenarios,
     small_out_of_sample: MarketScenarios,
     log: Logger,
 ) -> None:
-    """A NaN fails whichever comparison reaches it first, and must fail one.
+    """A NaN book is diagnosed as a NaN book, not as a cap breach.
 
-    Every comparison against a NaN is false, so the first numeric check
-    refuses the book and names NaN in its message. `weights_finite` sits
-    last in report order as the backstop for the case where a NaN slips
-    into a name whose exposure happens not to be summed into anything
-    ahead of it.
+    This is why `weights_finite` runs first. Every comparison against a NaN
+    is false, so with the mandate ahead of it a single NaN weight would
+    have been reported as `gross_leverage_within_cap` failing — sending a
+    reader to look at limits that are perfectly fine. Finite weights are
+    the precondition for all the arithmetic behind them, so they are
+    checked before any of it.
     """
     universe = small_scenario.universe
     poisoned = np.zeros(len(universe.names))
@@ -368,7 +373,7 @@ def test_a_nan_weight_is_refused(
         duals={},
     )
 
-    with pytest.raises(VerificationError, match="nan"):
+    with pytest.raises(VerificationError, match="weights_finite"):
         verify_solution(
             small_scenario,
             small_market,
@@ -488,6 +493,7 @@ def test_every_check_is_reported_in_order_and_all_of_them_pass(
     _, report = _report(small_scenario, small_market, small_out_of_sample, log)
 
     assert [name for name, _ in report.checks] == [
+        "weights_finite",
         "gross_leverage_within_cap",
         "net_exposure_within_band",
         "beta_within_band",
@@ -500,6 +506,5 @@ def test_every_check_is_reported_in_order_and_all_of_them_pass(
         "cvar_matches_model_objective",
         "cvar_matches_atom_oracle",
         "var_recovered_from_auxiliary",
-        "weights_finite",
     ]
     assert all(passed for _, passed in report.checks)

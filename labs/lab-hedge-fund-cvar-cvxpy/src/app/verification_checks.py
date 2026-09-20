@@ -104,6 +104,30 @@ def first_failure(checks: Iterable[Check]) -> Check | None:
     return next((check for check in checks if not check.passed), None)
 
 
+def precondition_checks(*, weights: FloatArray, auxiliary: float) -> list[Check]:
+    """Check the arithmetic below is even meaningful before running it.
+
+    This comes first in report order, and the ordering is the point. Every
+    comparison against a NaN is false, so a book with one NaN weight fails
+    whichever numeric check reaches it first — which, if the mandate went
+    first, would report a thirty-name portfolio as a gross-leverage breach
+    and send a reader looking at their limits. A NaN book should be
+    diagnosed as a NaN book. Finite weights are the precondition for every
+    other check's arithmetic, so they are tested before any of it.
+    """
+    missing = int(np.count_nonzero(~np.isfinite(weights)))
+    return [
+        holds(
+            "weights_finite",
+            passed=missing == 0 and bool(np.isfinite(auxiliary)),
+            detail=(
+                f"{missing} non-finite of {weights.size} weights, "
+                f"auxiliary scalar {auxiliary:.12g}"
+            ),
+        )
+    ]
+
+
 def mandate_checks(
     exposures: DeskExposures, ledger: CostLedger, scenario: Scenario
 ) -> list[Check]:
@@ -170,9 +194,7 @@ def model_checks(
     objective: float,
     in_sample: TailStatistics,
     oracle_cvar: float,
-    auxiliary: float,
     var_gap: float,
-    weights: FloatArray,
     tolerances: Tolerances,
 ) -> list[Check]:
     """Check the tail computations against each other and against the split.
@@ -200,13 +222,5 @@ def model_checks(
         # upper end; `verification_exposures.var_interval` derives why.
         at_most(
             "var_recovered_from_auxiliary", var_gap, 0.0, tolerances.var_recovery_abs
-        ),
-        holds(
-            "weights_finite",
-            passed=bool(np.isfinite(weights).all()) and bool(np.isfinite(auxiliary)),
-            detail=(
-                f"{int(np.count_nonzero(~np.isfinite(weights)))} non-finite of "
-                f"{weights.size} weights, auxiliary scalar {auxiliary:.12g}"
-            ),
         ),
     ]
