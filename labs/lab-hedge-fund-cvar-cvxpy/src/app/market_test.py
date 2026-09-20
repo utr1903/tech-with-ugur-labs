@@ -1,10 +1,11 @@
 """Behaviour tests for the seeded market generator.
 
-The distribution-shape tests draw 200,000 scenarios each, which is
-deliberate: the whole claim of the lab is that one mode has heavy, skewed
-loss tails and the other does not, and a sample small enough to be cheap is
-too small to tell them apart. They are module-scoped so the draws happen
-once. Every other test here runs on a few hundred scenarios.
+The distribution-shape tests run on the two 200,000-scenario samples from
+`conftest.py`, which is deliberate: the whole claim of the lab is that one
+mode has heavy, skewed loss tails and the other does not, and a sample
+small enough to be cheap is too small to tell them apart. Those two draws
+are session-scoped, so the suite pays for them once. Every other test here
+runs on a few hundred scenarios.
 
 `scipy` is a development dependency only. It is used here, never in `app`.
 """
@@ -23,7 +24,6 @@ from app.logging_setup import Logger
 from app.market import generate_scenarios
 from app.tailrisk import portfolio_losses
 
-LARGE_SAMPLE = 200_000
 SMALL_SAMPLE = 512
 
 
@@ -37,36 +37,6 @@ def _correlation(returns: FloatArray) -> FloatArray:
     covariance = np.cov(returns, rowvar=False)
     scale = np.sqrt(np.outer(np.diag(covariance), np.diag(covariance)))
     return covariance / scale
-
-
-@pytest.fixture(scope="module")
-def large_fat_tailed(
-    universe: Universe, generator_settings: GeneratorSettings, log: Logger
-) -> MarketScenarios:
-    """Draw one large fat-tailed sample, shared by the shape tests."""
-    return generate_scenarios(
-        universe,
-        generator_settings,
-        seed=3,
-        count=LARGE_SAMPLE,
-        mode="fat_tailed",
-        log=log,
-    )
-
-
-@pytest.fixture(scope="module")
-def large_gaussian(
-    universe: Universe, generator_settings: GeneratorSettings, log: Logger
-) -> MarketScenarios:
-    """Draw the matching large control sample from the same seed."""
-    return generate_scenarios(
-        universe,
-        generator_settings,
-        seed=3,
-        count=LARGE_SAMPLE,
-        mode="gaussian",
-        log=log,
-    )
 
 
 def test_the_same_seed_reproduces_an_identical_matrix(
@@ -165,8 +135,12 @@ def test_gaussian_mode_matches_the_fat_tailed_first_two_moments(
     # tolerance cannot be much tighter than this: a name whose monthly
     # standard deviation is 0.077 has a standard error of 1.7e-4 on its
     # sample mean at 200,000 draws, so two independent samples routinely sit
-    # several of those apart. What is exact is the closed form, which
-    # `market_moments_test.py` checks both samples against.
+    # several of those apart. What is exact is the closed form, and
+    # `market_moments_test.py` compares each draw against it separately:
+    # the Gaussian samples in
+    # `test_the_closed_form_moments_do_not_move_with_the_sample` and this
+    # fat-tailed one in
+    # `test_the_fat_tailed_draw_converges_to_the_same_closed_form`.
     fat = large_fat_tailed.returns
     gaussian = large_gaussian.returns
 

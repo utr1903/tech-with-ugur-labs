@@ -7,7 +7,7 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from app.contracts import GeneratorSettings, Universe
+from app.contracts import GeneratorSettings, MarketScenarios, Universe
 from app.errors import MarketError
 from app.logging_setup import Logger
 from app.market import generate_scenarios
@@ -75,6 +75,29 @@ def test_the_closed_form_moments_do_not_move_with_the_sample(
     small_mean_error = np.abs(small.returns.mean(axis=0) - closed_mean).max()
     large_mean_error = np.abs(large.returns.mean(axis=0) - closed_mean).max()
     assert small_mean_error > _MEAN_GAP > large_mean_error
+
+
+def test_the_fat_tailed_draw_converges_to_the_same_closed_form(
+    universe: Universe,
+    generator_settings: GeneratorSettings,
+    large_fat_tailed: MarketScenarios,
+) -> None:
+    """The independent half of the claim, which Gaussian samples cannot give.
+
+    `_draw_gaussian` is parameterized *from* these closed forms, so a helper
+    that quietly estimated its numbers from a sample of its own would still
+    leave the Gaussian draws agreeing with it — moments and draws would
+    shift together. The fat-tailed draw shares none of that machinery: a
+    two-regime mixture, a Student-t rescaled to unit variance and a
+    Bernoulli-normal jump, none of which reads a moment back out of the
+    helper. Its agreement with the same numbers is therefore evidence that
+    the formulas describe the model, not that the model describes itself.
+    """
+    closed_mean, closed_sigma = matched_gaussian_moments(generator_settings, universe)
+    returns = large_fat_tailed.returns
+
+    assert np.abs(returns.std(axis=0) / closed_sigma - 1.0).max() < 0.02
+    assert np.abs(returns.mean(axis=0) - closed_mean).max() < 1e-3
 
 
 def test_only_the_jump_carriers_gain_variance_from_the_jump_channel(

@@ -21,11 +21,24 @@ import numpy as np
 import pytest
 import yaml
 
-from app.contracts import FloatArray, GeneratorSettings, Scenario, Universe
+from app.contracts import (
+    FloatArray,
+    GeneratorSettings,
+    MarketScenarios,
+    Scenario,
+    Universe,
+)
 from app.logging_setup import Logger, get_logger
+from app.market import generate_scenarios
 from app.scenario import load_scenario
 
 LAB_ROOT = Path(__file__).resolve().parents[2]
+
+# The distribution-shape and closed-form tests need a sample large enough to
+# tell two distributions apart rather than one cheap enough to be free. The
+# two draws below are session-scoped so that cost is paid once for the whole
+# suite; the matrices they hold are read-only, like everything else here.
+LARGE_SAMPLE = 200_000
 
 Document = dict[str, Any]
 Mutation = Callable[[Document], None]
@@ -82,6 +95,36 @@ def load_mutated(tmp_path: Path, document: Document, log: Logger) -> MutatedLoad
         return load_scenario(path, log=log)
 
     return load
+
+
+@pytest.fixture(scope="session")
+def large_fat_tailed(
+    universe: Universe, generator_settings: GeneratorSettings, log: Logger
+) -> MarketScenarios:
+    """Draw one large fat-tailed sample."""
+    return generate_scenarios(
+        universe,
+        generator_settings,
+        seed=3,
+        count=LARGE_SAMPLE,
+        mode="fat_tailed",
+        log=log,
+    )
+
+
+@pytest.fixture(scope="session")
+def large_gaussian(
+    universe: Universe, generator_settings: GeneratorSettings, log: Logger
+) -> MarketScenarios:
+    """Draw the matching large control sample from the same seed."""
+    return generate_scenarios(
+        universe,
+        generator_settings,
+        seed=3,
+        count=LARGE_SAMPLE,
+        mode="gaussian",
+        log=log,
+    )
 
 
 @pytest.fixture

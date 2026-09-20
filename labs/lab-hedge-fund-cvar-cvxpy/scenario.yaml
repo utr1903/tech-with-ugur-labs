@@ -200,7 +200,7 @@ market:
   # above is symmetric and identical for every name, so it fattens the
   # tail without giving CVaR a reason to prefer one name over another, and
   # the market factor's skew is hedged away by the beta band. Tone the
-  # jumps down — say to a 1% chance of a 18% drop — and the two models
+  # jumps down — say to a 1% chance of an 18% drop — and the two models
   # converge to nearly the same book. That is the mathematics behaving
   # correctly, not the lab breaking: when the return distribution is close
   # enough to elliptical, minimizing CVaR and minimizing variance really
