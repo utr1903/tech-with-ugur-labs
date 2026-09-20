@@ -180,11 +180,31 @@ market:
   # down; below 2 the variance does not exist at all and the loader says so.
   idiosyncratic_df: 5.0
   idiosyncratic_sigma: 0.045
-  # Rare one-sided crashes in the named companies. A 0.2% chance per month
-  # of a 70% drop adds only about 0.032 to a name's monthly standard
-  # deviation, which a variance model barely notices, but it lands squarely
-  # inside the worst 5% of scenarios, which is the only place CVaR looks.
-  # That asymmetry is the experiment.
+  # Rare one-sided crashes in the named companies, and the reason this lab
+  # has anything to show.
+  #
+  # A 0.2% chance per month of a 70% drop is a jump component whose own
+  # standard deviation is 0.0317. Variances add in quadrature, though, so
+  # bolting it onto a name already carrying a standard deviation near 0.06
+  # raises that name's total by only 0.0068 to 0.0085 — well under a
+  # percentage point of monthly volatility. A variance model prices that as
+  # almost nothing. Meanwhile the chance that at least one of the eight
+  # carriers jumps in a given month is about 1.6%, which is roughly a third
+  # of the worst 5% of scenarios, and the worst 5% is the only place CVaR
+  # looks. Moving volatility by a rounding error while owning a third of
+  # the tail is the entire experiment.
+  #
+  # Be aware of what that means if you edit these three numbers. The
+  # divergence between the CVaR book and the variance book is carried by
+  # this channel and essentially only this channel: the Student-t shock
+  # above is symmetric and identical for every name, so it fattens the
+  # tail without giving CVaR a reason to prefer one name over another, and
+  # the market factor's skew is hedged away by the beta band. Tone the
+  # jumps down — say to a 1% chance of a 18% drop — and the two models
+  # converge to nearly the same book. That is the mathematics behaving
+  # correctly, not the lab breaking: when the return distribution is close
+  # enough to elliptical, minimizing CVaR and minimizing variance really
+  # are the same problem. The lab is a demonstration of when they are not.
   jump_probability: 0.002
   jump_mean: -0.70
   jump_sigma: 0.12
@@ -219,9 +239,23 @@ studies:
   # In gaussian mode the two models should land on nearly the same book:
   # for an elliptical distribution, minimizing CVaR and minimizing variance
   # are the same problem. This is the L1 weight distance allowed there.
+  #
+  # Measured at the settings above: 0.0299 to 0.0512 across the five seeds.
+  # What is left is sampling error in the tail estimate rather than a real
+  # difference, and it shrinks like 1 / sqrt(scenarios) — it was 0.155 at
+  # 4,000 scenarios and 0.047 at 25,000. Cut `scenarios` above and this
+  # tolerance has to rise with it.
   elliptical_weight_tolerance: 0.10
   # In fat_tailed mode they should not. This is how many times further
   # apart the two books have to be than they were in the control.
+  #
+  # Measured at the settings above: a ratio of means of 3.29, with a
+  # five-seed standard error of about 0.45. The floor sits roughly three
+  # standard errors below that, which leaves room for seed-to-seed noise
+  # while still failing loudly if the effect disappears. Like the tolerance
+  # above it was calibrated at 25,000 scenarios, and because the control's
+  # distance shrinks with the sample while the fat-tailed difference does
+  # not, a smaller sample measures a smaller ratio.
   divergence_ratio_min: 2.0
 
 # Slack allowed by each independent check of a solved portfolio.

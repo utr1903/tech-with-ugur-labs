@@ -1,23 +1,20 @@
 """Turn `scenario.yaml` into the frozen `Scenario` the rest of the lab uses.
 
-Parsing is deliberately unforgiving. Every mapping must hold exactly the
-documented keys, every number must be a finite non-boolean, and every array
-is copied and made read-only before it enters a dataclass. A failure names
-the full YAML path — `desk_limits.name_gross_cap`, not "bad value" — so the
-message points at the line to edit.
+Each block of the file gets one small parser below, and each parser reads
+its leaves through `scenario_fields.py`, so a failure always names the full
+YAML path — `desk_limits.name_gross_cap`, not "bad value".
 
-The file is read with `yaml.safe_load`, which constructs only plain
-strings, numbers, lists and mappings. A document carrying a Python object
-tag is rejected rather than executed.
+The file is read with `yaml.safe_load`, which constructs only plain strings,
+numbers, lists and mappings. A document carrying a Python object tag is
+rejected rather than executed.
 
-Semantic rules live next door in `validation.py`; this module only proves
-the document has the right shape and then hands the result over.
+This module only proves the document has the right shape. Whether the
+numbers make sense together is `validation.py`'s job, and `load_scenario`
+hands the result over before returning it.
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
-from math import isfinite
 from pathlib import Path
 
 import numpy as np
@@ -37,179 +34,53 @@ from app.contracts import (
 )
 from app.errors import ScenarioError
 from app.logging_setup import Logger
-from app.market import market_factor_moments
+from app.market_moments import market_factor_moments
+from app.scenario_fields import (
+    ALGORITHM_KEYS,
+    FRONTIER_KEYS,
+    LIMIT_KEYS,
+    MARKET_KEYS,
+    NAME_KEYS,
+    ROOT_KEYS,
+    STUDY_KEYS,
+    TOLERANCE_KEYS,
+    UNIVERSE_KEYS,
+    as_integer,
+    as_integer_tuple,
+    as_mapping,
+    as_number,
+    as_optional_path,
+    as_sequence,
+    as_text,
+    as_text_tuple,
+    peek_field,
+)
 from app.validation import validate_scenario
 
-_ROOT_KEYS = frozenset(
-    {
-        "cvar_beta",
-        "headline_target_monthly",
-        "returns_csv",
-        "universe",
-        "desk_limits",
-        "market",
-        "frontier",
-        "algorithms",
-        "studies",
-        "tolerances",
-    }
+_NAME_COLUMNS = (
+    "market_beta",
+    "alpha_monthly",
+    "borrow_fee_annual",
+    "half_spread",
+    "start_weight",
 )
-_UNIVERSE_KEYS = frozenset({"sectors", "names"})
-_NAME_KEYS = frozenset(
-    {
-        "name",
-        "sector",
-        "market_beta",
-        "alpha_monthly",
-        "borrow_fee_annual",
-        "half_spread",
-        "start_weight",
-    }
-)
-_LIMIT_KEYS = frozenset(
-    {
-        "gross_leverage_max",
-        "net_exposure_min",
-        "net_exposure_max",
-        "beta_min",
-        "beta_max",
-        "name_gross_cap",
-        "sector_net_cap",
-        "sector_gross_cap",
-        "turnover_max",
-    }
-)
-_MARKET_KEYS = frozenset(
-    {
-        "mode",
-        "seed",
-        "scenarios",
-        "out_of_sample_seed",
-        "out_of_sample_scenarios",
-        "factor_count",
-        "calm_sigma",
-        "stress_probability",
-        "stress_mean",
-        "stress_sigma",
-        "idiosyncratic_df",
-        "idiosyncratic_sigma",
-        "jump_probability",
-        "jump_mean",
-        "jump_sigma",
-        "jump_names",
-    }
-)
-_FRONTIER_KEYS = frozenset({"points", "min_target_monthly", "max_target_monthly"})
-_ALGORITHM_KEYS = frozenset({"scenario_ladder", "objective_relative_tolerance"})
-_STUDY_KEYS = frozenset(
-    {
-        "seeds",
-        "scenarios",
-        "matched_target_monthly",
-        "elliptical_weight_tolerance",
-        "divergence_ratio_min",
-    }
-)
-_TOLERANCE_KEYS = frozenset(
-    {
-        "constraint_abs",
-        "cvar_agreement_abs",
-        "var_recovery_abs",
-        "solver_agreement_rel",
-        "relaxation_abs",
-        "dual_relative",
-    }
-)
-
-
-def _mapping(value: object, path: str, keys: frozenset[str]) -> Mapping[str, object]:
-    """Return a mapping only when it holds exactly the documented keys."""
-    if not isinstance(value, Mapping):
-        raise ScenarioError(f"{path} must be a mapping, got {type(value).__name__}")
-    present = {str(key): item for key, item in value.items()}
-    missing = sorted(f"{path}.{key}" for key in keys - present.keys())
-    if missing:
-        raise ScenarioError(f"{path} is missing required field(s): {missing}")
-    unknown = sorted(f"{path}.{key}" for key in present.keys() - keys)
-    if unknown:
-        raise ScenarioError(f"{path} has unexpected field(s): {unknown}")
-    return present
-
-
-def _number(value: object, path: str) -> float:
-    """Return a finite float, rejecting booleans, strings and NaN alike."""
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        raise ScenarioError(f"{path} must be a number, got {type(value).__name__}")
-    result = float(value)
-    if not isfinite(result):
-        raise ScenarioError(f"{path} must be finite, got {value}")
-    return result
-
-
-def _integer(value: object, path: str) -> int:
-    """Return a whole number, rejecting booleans and fractional values."""
-    if isinstance(value, bool) or not isinstance(value, int):
-        raise ScenarioError(f"{path} must be an integer, got {type(value).__name__}")
-    return value
-
-
-def _text(value: object, path: str) -> str:
-    """Return a non-empty string, rejecting numbers YAML happened to parse."""
-    if not isinstance(value, str) or not value.strip():
-        raise ScenarioError(f"{path} must be a non-empty string")
-    return value.strip()
-
-
-def _sequence(value: object, path: str) -> Sequence[object]:
-    """Return a YAML list, rejecting a bare scalar or a mapping."""
-    if isinstance(value, (str, bytes)) or not isinstance(value, Sequence):
-        raise ScenarioError(f"{path} must be a list, got {type(value).__name__}")
-    return value
-
-
-def _text_tuple(value: object, path: str) -> tuple[str, ...]:
-    """Return a list of strings with each element's index in its own path."""
-    items = _sequence(value, path)
-    return tuple(_text(item, f"{path}[{index}]") for index, item in enumerate(items))
-
-
-def _integer_tuple(value: object, path: str) -> tuple[int, ...]:
-    """Return a list of integers with each element's index in its own path."""
-    items = _sequence(value, path)
-    return tuple(_integer(item, f"{path}[{index}]") for index, item in enumerate(items))
-
-
-def _optional_path(value: object, path: str) -> Path | None:
-    """Return a filesystem path, or `None` for the generated-market default."""
-    if value is None:
-        return None
-    return Path(_text(value, path))
 
 
 def _parse_universe(value: object, market_factor_mean: float) -> Universe:
     """Build the universe, deriving `expected_return` from alpha and beta."""
-    section = _mapping(value, "universe", _UNIVERSE_KEYS)
-    sectors = _text_tuple(section["sectors"], "universe.sectors")
-    entries = _sequence(section["names"], "universe.names")
+    section = as_mapping(value, "universe", UNIVERSE_KEYS)
+    sectors = as_text_tuple(section["sectors"], "universe.sectors")
+    entries = as_sequence(section["names"], "universe.names")
 
     names: list[str] = []
     sector_of: list[int] = []
-    columns: dict[str, list[float]] = {
-        key: []
-        for key in (
-            "market_beta",
-            "alpha_monthly",
-            "borrow_fee_annual",
-            "half_spread",
-            "start_weight",
-        )
-    }
+    columns: dict[str, list[float]] = {key: [] for key in _NAME_COLUMNS}
     for index, raw in enumerate(entries):
         located = f"universe.names[{index}]"
-        name = _text(_lookup(raw, "name", located), f"{located}.name")
+        name = as_text(peek_field(raw, "name", located), f"{located}.name")
         path = f"universe.names.{name}"
-        entry = _mapping(raw, path, _NAME_KEYS)
-        sector = _text(entry["sector"], f"{path}.sector")
+        entry = as_mapping(raw, path, NAME_KEYS)
+        sector = as_text(entry["sector"], f"{path}.sector")
         if sector not in sectors:
             raise ScenarioError(
                 f"{path}.sector is {sector!r}, which is not one of universe.sectors"
@@ -217,7 +88,7 @@ def _parse_universe(value: object, market_factor_mean: float) -> Universe:
         names.append(name)
         sector_of.append(sectors.index(sector))
         for key in columns:
-            columns[key].append(_number(entry[key], f"{path}.{key}"))
+            columns[key].append(as_number(entry[key], f"{path}.{key}"))
 
     matrix = np.zeros((len(sectors), len(names)), dtype=np.float64)
     matrix[sector_of, np.arange(len(names))] = 1.0
@@ -236,19 +107,12 @@ def _parse_universe(value: object, market_factor_mean: float) -> Universe:
     )
 
 
-def _lookup(raw: object, key: str, path: str) -> object:
-    """Read one key out of a mapping before its exact key set is known."""
-    if not isinstance(raw, Mapping) or key not in raw:
-        raise ScenarioError(f"{path} must be a mapping holding a {key!r} field")
-    return raw[key]
-
-
 def _parse_limits(value: object) -> DeskLimits:
     """Read the desk mandate."""
-    section = _mapping(value, "desk_limits", _LIMIT_KEYS)
+    section = as_mapping(value, "desk_limits", LIMIT_KEYS)
 
     def limit(key: str) -> float:
-        return _number(section[key], f"desk_limits.{key}")
+        return as_number(section[key], f"desk_limits.{key}")
 
     return DeskLimits(
         gross_leverage_max=limit("gross_leverage_max"),
@@ -265,16 +129,16 @@ def _parse_limits(value: object) -> DeskLimits:
 
 def _parse_market(value: object) -> GeneratorSettings:
     """Read the generator settings, keeping seeds and counts integral."""
-    section = _mapping(value, "market", _MARKET_KEYS)
+    section = as_mapping(value, "market", MARKET_KEYS)
 
     def whole(key: str) -> int:
-        return _integer(section[key], f"market.{key}")
+        return as_integer(section[key], f"market.{key}")
 
     def real(key: str) -> float:
-        return _number(section[key], f"market.{key}")
+        return as_number(section[key], f"market.{key}")
 
     return GeneratorSettings(
-        mode=_text(section["mode"], "market.mode"),
+        mode=as_text(section["mode"], "market.mode"),
         seed=whole("seed"),
         scenarios=whole("scenarios"),
         out_of_sample_seed=whole("out_of_sample_seed"),
@@ -289,19 +153,19 @@ def _parse_market(value: object) -> GeneratorSettings:
         jump_probability=real("jump_probability"),
         jump_mean=real("jump_mean"),
         jump_sigma=real("jump_sigma"),
-        jump_names=_text_tuple(section["jump_names"], "market.jump_names"),
+        jump_names=as_text_tuple(section["jump_names"], "market.jump_names"),
     )
 
 
 def _parse_frontier(value: object) -> FrontierSettings:
     """Read the return-target sweep."""
-    section = _mapping(value, "frontier", _FRONTIER_KEYS)
+    section = as_mapping(value, "frontier", FRONTIER_KEYS)
     return FrontierSettings(
-        points=_integer(section["points"], "frontier.points"),
-        min_target_monthly=_number(
+        points=as_integer(section["points"], "frontier.points"),
+        min_target_monthly=as_number(
             section["min_target_monthly"], "frontier.min_target_monthly"
         ),
-        max_target_monthly=_number(
+        max_target_monthly=as_number(
             section["max_target_monthly"], "frontier.max_target_monthly"
         ),
     )
@@ -309,12 +173,12 @@ def _parse_frontier(value: object) -> FrontierSettings:
 
 def _parse_algorithms(value: object) -> AlgorithmSettings:
     """Read the solver bake-off settings."""
-    section = _mapping(value, "algorithms", _ALGORITHM_KEYS)
+    section = as_mapping(value, "algorithms", ALGORITHM_KEYS)
     return AlgorithmSettings(
-        scenario_ladder=_integer_tuple(
+        scenario_ladder=as_integer_tuple(
             section["scenario_ladder"], "algorithms.scenario_ladder"
         ),
-        objective_relative_tolerance=_number(
+        objective_relative_tolerance=as_number(
             section["objective_relative_tolerance"],
             "algorithms.objective_relative_tolerance",
         ),
@@ -323,18 +187,18 @@ def _parse_algorithms(value: object) -> AlgorithmSettings:
 
 def _parse_studies(value: object) -> StudySettings:
     """Read the comparison-study settings."""
-    section = _mapping(value, "studies", _STUDY_KEYS)
+    section = as_mapping(value, "studies", STUDY_KEYS)
     return StudySettings(
-        seeds=_integer(section["seeds"], "studies.seeds"),
-        scenarios=_integer(section["scenarios"], "studies.scenarios"),
-        matched_target_monthly=_number(
+        seeds=as_integer(section["seeds"], "studies.seeds"),
+        scenarios=as_integer(section["scenarios"], "studies.scenarios"),
+        matched_target_monthly=as_number(
             section["matched_target_monthly"], "studies.matched_target_monthly"
         ),
-        elliptical_weight_tolerance=_number(
+        elliptical_weight_tolerance=as_number(
             section["elliptical_weight_tolerance"],
             "studies.elliptical_weight_tolerance",
         ),
-        divergence_ratio_min=_number(
+        divergence_ratio_min=as_number(
             section["divergence_ratio_min"], "studies.divergence_ratio_min"
         ),
     )
@@ -342,10 +206,10 @@ def _parse_studies(value: object) -> StudySettings:
 
 def _parse_tolerances(value: object) -> Tolerances:
     """Read the per-check numerical slack."""
-    section = _mapping(value, "tolerances", _TOLERANCE_KEYS)
+    section = as_mapping(value, "tolerances", TOLERANCE_KEYS)
 
     def slack(key: str) -> float:
-        return _number(section[key], f"tolerances.{key}")
+        return as_number(section[key], f"tolerances.{key}")
 
     return Tolerances(
         constraint_abs=slack("constraint_abs"),
@@ -359,7 +223,7 @@ def _parse_tolerances(value: object) -> Tolerances:
 
 def _parse_document(document: object) -> Scenario:
     """Turn one parsed YAML document into a validated scenario."""
-    root = _mapping(document, "scenario", _ROOT_KEYS)
+    root = as_mapping(document, "scenario", ROOT_KEYS)
     market = _parse_market(root["market"])
     market_factor_mean, _ = market_factor_moments(market)
     scenario = Scenario(
@@ -370,11 +234,11 @@ def _parse_document(document: object) -> Scenario:
         algorithms=_parse_algorithms(root["algorithms"]),
         studies=_parse_studies(root["studies"]),
         tolerances=_parse_tolerances(root["tolerances"]),
-        cvar_beta=_number(root["cvar_beta"], "cvar_beta"),
-        headline_target_monthly=_number(
+        cvar_beta=as_number(root["cvar_beta"], "cvar_beta"),
+        headline_target_monthly=as_number(
             root["headline_target_monthly"], "headline_target_monthly"
         ),
-        returns_csv=_optional_path(root["returns_csv"], "returns_csv"),
+        returns_csv=as_optional_path(root["returns_csv"], "returns_csv"),
     )
     validate_scenario(scenario)
     return scenario

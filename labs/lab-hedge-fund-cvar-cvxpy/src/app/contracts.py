@@ -8,6 +8,12 @@ Axis conventions, used unchanged everywhere: ``N`` is the number of names
 (30), ``K`` the number of sectors (6) and ``S`` the number of return
 scenarios. A ``[S, N]`` matrix therefore has one row per scenario and one
 column per name.
+
+This file runs past the length the lab's other modules are held to, and
+deliberately so: it is declarations only, with no logic to follow and
+nothing to step through. Splitting it would scatter one coherent set of
+contracts across several imports and make the shapes harder, not easier,
+to read side by side.
 """
 
 from __future__ import annotations

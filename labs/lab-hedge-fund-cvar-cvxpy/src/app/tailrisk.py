@@ -17,11 +17,17 @@ from __future__ import annotations
 
 import hashlib
 import math
+from typing import Any
 
 import numpy as np
+import numpy.typing as npt
 
 from app.contracts import FloatArray, TailStatistics
 from app.errors import MarketError, ScenarioError
+
+# Decimal places the tail share is snapped to before its ceiling is taken,
+# so a share that is a whole number in exact arithmetic stays one.
+_TAIL_DECIMALS = 9
 
 
 def portfolio_losses(returns: FloatArray, weights: FloatArray) -> FloatArray:
@@ -55,6 +61,13 @@ def tail_statistics(losses: FloatArray, beta: float) -> TailStatistics:
     both are read straight off the sorted sample with no interpolation and
     no distributional assumption.
 
+    `(1 - beta) * S` is snapped to nine decimals before the ceiling is
+    taken. That is not cosmetic: in binary floating point `1 - 0.95` is
+    `0.05000000000000004`, so the 95% tail of 10,000 scenarios would come
+    out as 501 rather than 500 and the lab's exactness claim — that the
+    linear program's optimum equals the average of the worst `k` losses
+    when `(1 - beta) * S` is a whole number — would miss by one scenario.
+
     Args:
         losses: A one-dimensional loss sample.
         beta: Confidence level, strictly between 0 and 1.
@@ -72,7 +85,9 @@ def tail_statistics(losses: FloatArray, beta: float) -> TailStatistics:
         raise ScenarioError(f"cvar_beta must lie strictly inside (0, 1), got {beta}")
 
     count = losses.shape[0]
-    tail_count = max(1, math.ceil((1.0 - beta) * count))
+    # The clamp is reachable only through the snapping above: a tail share
+    # below 1e-9 rounds to zero, and an empty tail has no VaR to report.
+    tail_count = max(1, math.ceil(round((1.0 - beta) * count, _TAIL_DECIMALS)))
     tail = np.sort(losses)[count - tail_count :]
     return TailStatistics(
         var=float(tail[0]), cvar=float(tail.mean()), tail_count=tail_count
@@ -97,12 +112,17 @@ def weight_distance(left: FloatArray, right: FloatArray) -> float:
     return float(np.abs(left - right).sum())
 
 
-def array_digest(array: FloatArray) -> str:
+def array_digest(array: npt.NDArray[Any]) -> str:
     """Return a sha256 digest over an array's shape, dtype and bytes.
 
     Two runs that print the same digest drew exactly the same numbers, which
     is how the lab shows that a seeded generator is reproducible without
     committing the matrix itself.
+
+    The dtype is hashed alongside the bytes, so the same values stored at a
+    different precision do not collide. Any dtype is accepted for that
+    reason: the digest is a fingerprint of the array as stored, not a claim
+    about what is in it.
     """
     digest = hashlib.sha256(f"{array.shape}|{array.dtype}".encode())
     digest.update(np.ascontiguousarray(array).tobytes())

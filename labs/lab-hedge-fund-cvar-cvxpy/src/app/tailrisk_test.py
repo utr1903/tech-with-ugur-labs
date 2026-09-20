@@ -34,7 +34,13 @@ def test_tail_statistics_ignores_the_order_the_losses_arrive_in() -> None:
     assert stats.cvar == pytest.approx(15.5)
 
 
-def test_tail_statistics_keeps_at_least_one_scenario_in_the_tail() -> None:
+def test_a_high_confidence_level_narrows_the_tail_to_the_worst_scenario() -> None:
+    """`ceil` rounds a fractional tail up, so the tail is never empty.
+
+    At `beta = 0.999` over ten scenarios the tail is `ceil(0.01) = 1`
+    scenario: the single worst loss. VaR and CVaR then coincide, which is
+    the degenerate end of the "CVaR averages everything beyond VaR" story.
+    """
     losses = np.arange(10, dtype=np.float64)
 
     stats = tail_statistics(losses, beta=0.999)
@@ -42,6 +48,42 @@ def test_tail_statistics_keeps_at_least_one_scenario_in_the_tail() -> None:
     assert stats.tail_count == 1
     assert stats.var == pytest.approx(9.0)
     assert stats.cvar == pytest.approx(9.0)
+
+
+def test_the_tail_count_is_the_ceiling_of_the_excluded_share() -> None:
+    losses = np.arange(1_000, dtype=np.float64)
+
+    assert tail_statistics(losses, beta=0.95).tail_count == 50
+    assert tail_statistics(losses, beta=0.9501).tail_count == 50
+    assert tail_statistics(losses, beta=0.9499).tail_count == 51
+
+
+def test_a_whole_number_tail_share_survives_binary_floating_point() -> None:
+    """A 95% tail of 10,000 scenarios holds 500 of them, not 501.
+
+    `1 - 0.95` is `0.05000000000000004` in binary, so the naive ceiling of
+    the product overshoots by one whole scenario. The lab's model-versus-
+    empirical agreement check is asserted to 1e-6, so an extra scenario in
+    the average would fail it — and would look like a solver problem rather
+    than an arithmetic one.
+    """
+    assert (1.0 - 0.95) * 10_000 > 500.0
+
+    assert tail_statistics(
+        np.arange(10_000, dtype=np.float64), beta=0.95
+    ).tail_count == (500)
+    assert tail_statistics(
+        np.arange(4_000, dtype=np.float64), beta=0.95
+    ).tail_count == (200)
+
+
+def test_a_tail_share_too_small_to_round_still_keeps_one_scenario() -> None:
+    losses = np.arange(100, dtype=np.float64)
+
+    stats = tail_statistics(losses, beta=1.0 - 1e-12)
+
+    assert stats.tail_count == 1
+    assert stats.var == pytest.approx(99.0)
 
 
 def test_cvar_is_never_below_var() -> None:
@@ -108,6 +150,19 @@ def test_array_digest_separates_value_and_shape() -> None:
     assert array_digest(flat) == array_digest(np.arange(6, dtype=np.float64))
     assert array_digest(flat) != array_digest(flat.reshape(2, 3))
     assert array_digest(flat) != array_digest(flat + 1.0)
+
+
+def test_array_digest_separates_two_precisions_of_the_same_values() -> None:
+    """The same numbers at a different precision are a different matrix.
+
+    The digest is what the lab prints to claim one run reproduced another.
+    Hashing only the bytes would make a float32 matrix collide or not
+    depending on padding, so the dtype is hashed alongside them.
+    """
+    double = np.arange(6, dtype=np.float64)
+    single = np.arange(6, dtype=np.float32)
+
+    assert array_digest(double) != array_digest(single)
 
 
 def test_array_digest_ignores_how_the_array_is_laid_out_in_memory() -> None:
