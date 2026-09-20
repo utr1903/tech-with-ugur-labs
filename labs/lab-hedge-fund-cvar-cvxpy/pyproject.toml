@@ -71,20 +71,29 @@ module = ["cvxpy", "cvxpy.*"]
 implicit_reexport = true
 
 [[tool.mypy.overrides]]
-# Measured, not assumed: running --strict against a module that builds and
-# solves a real CVaR-shaped LP with cp.Variable, cp.Minimize, cp.Problem,
+# Measured, not assumed: running --strict against modules that build and
+# solve a real CVaR-shaped LP with cp.Variable, cp.Minimize, cp.Problem,
 # cp.sum, cp.abs, cp.sum_largest, cp.quad_form, cp.psd_wrap,
 # constraint.dual_value, problem.value and problem.status surfaces exactly
-# two errors, both no-untyped-call: cvxpy's module-level
-# installed_solvers() and Problem.solve() carry no internal annotations.
-# Every other symbol in that surface is already strict-clean. That flag is
-# evaluated against the calling file's config, not the callee's module, so
-# (unlike implicit_reexport above) it cannot be scoped to cvxpy.* — so both
+# four no-untyped-call errors, one per entry point that cvxpy ships with
+# no internal annotations: the module-level installed_solvers() and cvar(),
+# Problem.solve() and Canonical.parameters(). Every other symbol in that
+# surface is already strict-clean. That flag is evaluated against the
+# calling file's config, not the callee's module, so (unlike
+# implicit_reexport above) it cannot be scoped to cvxpy.* — so all four
 # calls are confined to app/cvxpy_api.py, the app's one typed facade over
 # them, and only that module gets this override. Adding this override to
 # any other module is a defect: it would relax disallow_untyped_calls over
-# real model/solver logic instead of the two-function facade that exists
-# to prevent exactly that.
+# real model/solver logic instead of the short wrapper file that exists to
+# prevent exactly that.
+#
+# Note what is deliberately NOT here. Problem.is_dcp(dpp=True) fails under
+# --strict too, but as call-arg rather than no-untyped-call: is_dcp is
+# annotated, and cvxpy's compute_once memoization decorator then erases
+# the dpp argument from the signature mypy sees. Silencing that would take
+# a second, broader flag, so the facade calls Problem.is_dpp() instead —
+# cvxpy documents the two as equivalent, and is_dpp takes its context as a
+# default this codebase never passes. See app/cvxpy_api.is_dpp.
 module = ["app.cvxpy_api"]
 disallow_untyped_calls = false
 

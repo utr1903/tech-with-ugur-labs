@@ -380,6 +380,28 @@ def test_the_signed_split_stays_exact_where_the_costs_make_it_so(
     assert overlap <= small_scenario.tolerances.relaxation_abs
 
 
+def test_the_turnover_leg_lands_on_the_trade_it_is_supposed_to_bound(
+    small_scenario: Scenario, small_market: MarketScenarios, log: Logger
+) -> None:
+    """`t` only bounds `|w - w0|` from above; here it sits exactly on it.
+
+    Two things push `t` back down in this scenario: the turnover budget it
+    consumes, and the half-spread it is charged in the return constraint.
+    Both are properties of the mandate rather than of the algebra, so the
+    trade is recomputed from the weights and compared instead of being
+    read off `t` and believed.
+    """
+    built = build_cvar_problem(small_scenario, small_market, log=log)
+    built.target.value = small_scenario.headline_target_monthly
+    solve(built.problem, solver=cp.CLARABEL)
+
+    traded = np.abs(_solved(built.weights) - small_scenario.universe.start_book)
+    slack = small_scenario.tolerances.relaxation_abs
+
+    assert np.abs(_solved(built.turnover_leg) - traded).max() <= slack
+    assert _solved(built.turnover_leg).sum() == pytest.approx(traded.sum(), abs=slack)
+
+
 def test_a_return_matrix_that_does_not_fit_the_universe_is_rejected(
     small_scenario: Scenario, small_market: MarketScenarios, log: Logger
 ) -> None:

@@ -173,13 +173,17 @@ def desk_block(scenario: Scenario, returns: FloatArray) -> DeskBlock:
         # long leg and a short leg at the same time, so `l + s` is only an
         # upper bound on `|w|` — which is why this is a relaxation and not
         # a definition. It is exact at an optimum whenever inflating both
-        # legs together is strictly worse: a positive borrow fee charges
-        # for the short leg, a positive half-spread charges for the trade,
-        # and a binding gross-leverage or per-name cap spends budget that
-        # the position could have used. Remove all three at once — zero
-        # costs, slack caps — and the premise is gone; the lab has a
-        # fixture that does exactly that and reports the overlap it sees
-        # instead of pretending the guarantee still holds.
+        # legs together is strictly worse, and one of three things is
+        # usually enough to make it so: a positive borrow fee charges for
+        # the short leg, a positive half-spread charges for the trade, and
+        # a binding gross-leverage or per-name cap spends budget the
+        # position could have used. Take all three away at once — zero
+        # costs, every gross cap slack — and nothing penalises an inflated
+        # pair, so the two legs may overlap and `l + s` may exceed `|w|`.
+        # The premise is a condition on the scenario rather than something
+        # this file can guarantee, so the lab measures `max_i min(l_i,
+        # s_i)` on the solved book and reports it instead of assuming it
+        # is zero.
         "signed_split": weights == long_leg - short_leg,
         "name_gross_cap": long_leg + short_leg <= limits.name_gross_cap,
         "net_exposure_max": cp.sum(weights) <= limits.net_exposure_max,
@@ -188,11 +192,16 @@ def desk_block(scenario: Scenario, returns: FloatArray) -> DeskBlock:
         "sector_net_lower": universe.sector_matrix @ weights >= -limits.sector_net_cap,
         "sector_gross_cap": universe.sector_matrix @ (long_leg + short_leg)
         <= limits.sector_gross_cap,
-        # The turnover bound, the same shape of relaxation: `t` is pinned
-        # above `w - w0` and above `w0 - w`, so `t >= |w - w0|` with
-        # equality only where something pushes `t` down. The turnover
-        # budget and the half-spread term in the return constraint both
-        # do, which is why the reported turnover is the real one.
+        # The turnover bound, the same shape of relaxation on the same
+        # terms: `t` is pinned above `w - w0` and above `w0 - w`, so
+        # `t >= |w - w0|`, with equality only where something pushes `t`
+        # back down. Here that is the turnover budget, which `t` consumes,
+        # and the half-spread term in the return constraint, which charges
+        # for it. Both are conditions on the scenario, not guarantees: set
+        # every half-spread to zero and leave the budget slack and `t` is
+        # free to float above the real trade. So the lab recomputes
+        # `|w - w0|` from the weights and compares it against `t` rather
+        # than trusting the two to agree.
         "turnover_buys": turnover_leg >= weights - universe.start_book,
         "turnover_sells": turnover_leg >= universe.start_book - weights,
         "return_target": expected_net >= target,
