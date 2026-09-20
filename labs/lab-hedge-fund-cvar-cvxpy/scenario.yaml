@@ -214,9 +214,15 @@ desk_limits:
   net_exposure_min: -0.10
   net_exposure_max: 0.10
   # market_beta . w. Tighter than net exposure, because a beta-neutral book
-  # is the point of the fund. Widening this to the +/-0.05 it started at
-  # makes it decoration: the book then runs +0.0174 at 10,000 scenarios
-  # and neither side binds at any target on the frontier.
+  # is the point of the fund. Widening it back to the +/-0.05 this started
+  # at does not switch the limit off, but it does move it out of the way
+  # of the portfolio the lab actually reports: at 10,000 scenarios the
+  # book then runs a beta of +0.0347 at the 0.008 headline with the band
+  # nowhere near binding, and the upper side comes into contact only at
+  # 0.00875, the single most demanding feasible target, where it prices at
+  # 2.7e-03. So at +/-0.05 the headline portfolio's beta dual is zero and
+  # one point at the far end of the frontier carries the whole story; at
+  # +/-0.02 the headline itself is priced.
   #
   # WHICH SIDE BINDS DEPENDS ON THE SAMPLE, and this is the sharpest
   # example in the file of why every claim here names a scenario count.

@@ -456,18 +456,19 @@ def test_the_signed_split_lapses_once_nothing_penalises_an_inflated_pair(
 ) -> None:
     """The fixture that earns the relaxation caveat in `model_desk.py`.
 
-    Three things can make `w = l - s` exact at an optimum: a borrow fee on
-    the short leg, a half-spread on the trade, or a gross cap that an
-    inflated pair would spend. This scenario removes all three at once —
-    zero fees, zero spreads, and gross, per-name, per-sector and turnover
-    budgets set far above anything the book will use — so the optimal face
-    of the linear program contains a whole set of `(l, s)` pairs differing
-    only in how much padding they carry.
+    Two things can make `w = l - s` exact at an optimum: a gross, per-name
+    or per-sector cap that binds, since all three are written on `l + s`;
+    or a binding return target together with a positive borrow fee, which
+    is charged on `s`. The half-spread is deliberately not on that list —
+    it multiplies `t`, which padding `(l, s)` cannot move. This scenario
+    removes both premises, and the turnover bound's two as well, so that
+    the optimal face of the linear program contains a whole set of
+    `(l, s)` pairs differing only in how much padding they carry.
 
     What happens next is a property of the algorithm, not a theorem.
     Clarabel is an interior-point method and returns a point in the
-    relative interior of that face, so it pads both legs by about 0.09 of
-    NAV on the worst name. HiGHS's simplex finishes at a vertex, where the
+    relative interior of that face, so it pads both legs by 0.094 of NAV
+    on the worst name. HiGHS's simplex finishes at a vertex, where the
     padding is zero. Both answers are optimal; only one of them has
     `l + s == |w|`. That is the honest statement of what this fixture
     shows, and it is why the lab measures the overlap and reports it rather
@@ -550,11 +551,17 @@ def test_the_split_lapses_wherever_the_return_target_goes_slack(
     and changes the tail loss not at all, so the optimal face widens and an
     interior-point solver settles somewhere inside it.
 
-    Measured on the shipped mandate, not on the degenerate fixture: at a
-    0.002 target the book earns 0.004925 against a target of 0.002 — 2.9e-03
-    of slack — the gross cap sits at 0.86 of 1.32, and the split comes back
-    padded by 1.2e-02. At 0.006 the return constraint binds exactly and the
-    padding collapses to 1.7e-09.
+    Measured on the shipped desk mandate, not on the degenerate fixture.
+    At 600 scenarios and a 0.002 target the book earns 0.004925 against a
+    target of 0.002 — 2.9e-03 of slack — the gross cap sits at 0.86 of
+    1.32, and the split comes back padded by 1.2e-02; at 0.006 the return
+    constraint binds exactly and the padding collapses to 1.7e-09. At the
+    shipped 10,000 scenarios the same 0.002 target gives a book earning
+    0.003689 at 0.82 gross, padded by 1.3e-02.
+
+    Isolating the two costs at 600 scenarios and 0.006 shows which one is
+    doing the work: both costs 1.7e-09, borrow fee alone 2.0e-09, and the
+    half-spread alone 1.1e-02 — no better than charging nothing at all.
 
     Two consequences worth carrying forward. The exactness premise is
     "a binding gross cap, or a binding return target with positive costs",

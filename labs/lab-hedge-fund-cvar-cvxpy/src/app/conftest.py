@@ -192,11 +192,21 @@ def degenerate_scenario(small_scenario: Scenario) -> Scenario:
 
     `model_desk.py` writes `w = l - s` and `t >= |w - w0|` and then argues
     that at an optimum the legs collapse onto `|w|` and the turnover bound
-    onto the real trade. That argument has three premises — a borrow fee, a
-    half-spread, or a gross budget an inflated pair would spend — and this
-    fixture removes all of them at once. Every fee and every spread is set
-    to zero; the gross, per-name, per-sector and turnover budgets are
-    widened far past anything the solved book uses.
+    onto the real trade. Those are two arguments, not one, and they rest on
+    different premises — which is why this fixture has to remove four
+    things rather than three.
+
+    The split is disciplined by a binding gross, per-name or per-sector
+    cap, all of which are written on `l + s`, or by a binding return target
+    with a positive *borrow fee*, which is charged on `s`. The turnover
+    bound is disciplined by the turnover budget, or by a positive
+    *half-spread*, which is charged on `t`. The two costs do not swap
+    roles: padding `(l, s)` leaves `w` unchanged, so it leaves `t`
+    unchanged, so the half-spread never charges for it.
+
+    This fixture removes all four at once. Every borrow fee and every
+    half-spread is set to zero; the gross, per-name, per-sector and
+    turnover budgets are widened far past anything the solved book uses.
 
     Note what is *not* enough. Taking the shipped 30-name mandate and
     zeroing only the costs leaves the gross-leverage cap binding, which is

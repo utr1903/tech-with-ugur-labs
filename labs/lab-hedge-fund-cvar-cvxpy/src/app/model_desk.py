@@ -10,7 +10,17 @@ copy of the mandate to drift out of step with this one.
 Two of the constraint families below are relaxations rather than
 definitions, and each one's exactness argument is written out at the line
 that introduces it: the signed split `w = l - s` and the turnover bound
-`t >= |w - w0|`.
+`t >= |w - w0|`. Those two arguments are subtler than they look — the
+premises are different for each, and the half-spread disciplines one and
+not the other — so they are written out in full where the constraints are
+declared.
+
+That is also why this file runs past the ~200-line target the lab holds
+its modules to: about 80 lines are executable and the rest is those two
+arguments plus the docstrings. The mandate is one dictionary a reader
+should be able to read top to bottom in one place, and moving the
+exactness reasoning away from the rows it justifies is exactly how the
+two got stated loosely in the first place.
 """
 
 from __future__ import annotations
@@ -173,40 +183,55 @@ def desk_block(scenario: Scenario, returns: FloatArray) -> DeskBlock:
         # long leg and a short leg at the same time, so `l + s` is only an
         # upper bound on `|w|` — which is why this is a relaxation and not
         # a definition. It is exact at an optimum whenever inflating both
-        # legs together is strictly worse, and two things can make it so:
-        # a binding gross-leverage, per-name or per-sector cap, which an
-        # inflated pair spends budget against; or a binding return target,
-        # because the borrow fee and the half-spread are charged inside
-        # that constraint and an inflated pair therefore eats return the
-        # book has to deliver.
+        # legs together is strictly worse, and exactly two things can make
+        # it so:
         #
-        # Note the second premise carefully — it is narrower than "the
-        # costs are positive". Those costs appear only in the return
-        # constraint, never in the objective, so while that constraint has
-        # slack they charge for nothing: padding both legs spends return
-        # the book does not need and leaves the tail loss untouched. On
-        # the shipped mandate at 600 scenarios the split is padded by
-        # 1.2e-02 at a 0.002 target, where the book earns 0.0049 and the
-        # gross cap sits at 0.86 of 1.32, and by 1.7e-09 at 0.006, where
-        # the return constraint binds exactly. The low-return end of the
-        # frontier is genuinely a region where this relaxation lapses.
+        #   1. a binding gross-leverage, per-name or per-sector cap —
+        #      all three are written on `l + s`, so an inflated pair
+        #      spends budget the position could have used;
+        #   2. a binding return target *together with* a positive borrow
+        #      fee, because the fee is charged on `s` and an inflated pair
+        #      therefore eats return the book has to deliver.
         #
-        # Take all three away at once and the guarantee really does lapse,
-        # which the lab demonstrates rather than asserts. The degenerate
-        # fixture in `conftest.py` zeroes every fee and every spread and
-        # widens every gross and turnover budget past anything the book
-        # uses; on that mandate the optimal face of the program contains a
-        # whole set of `(l, s)` pairs differing only in padding, and
-        # Clarabel returns one padded by 0.094 of NAV on the worst name.
-        # Put the premises back and the same solver on the same sample
-        # pads by 1.1e-10, and by exactly nothing at the shipped 10,000
-        # scenarios. Note what the fixture does *not* prove: HiGHS's
-        # simplex, solving the same
-        # degenerate program, finishes at a vertex with no padding at all.
-        # Which point of an optimal face comes back is a property of the
-        # algorithm, not a theorem — so the padding is a thing to measure,
-        # and `verification.py` measures `max_i min(l_i, s_i)` on every
-        # solved book instead of assuming it away.
+        # Note what is NOT a premise, because it is the easy mistake. The
+        # half-spread does not discipline this split at all. It multiplies
+        # `turnover_leg`, and `turnover_leg` is pinned from below by `w`
+        # and `start_book` alone, through the two turnover rows further
+        # down. Padding `(l, s)` leaves `w` untouched, so it leaves `t`
+        # untouched, so the spread charges nothing for it. Measured at 600
+        # scenarios and a 0.006 target with every cap slack: both costs
+        # give an overlap of 1.7e-09, borrow alone 2.0e-09 — and the
+        # half-spread alone 1.1e-02, no better than charging nothing.
+        #
+        # Nor is "the costs are positive" a premise on its own. Both costs
+        # live in the return constraint and never in the objective, so
+        # while that constraint has slack they charge for nothing at all:
+        # padding spends return the book does not need and leaves the tail
+        # loss untouched. At 600 scenarios the split is padded by 1.2e-02
+        # at a 0.002 target, where the book earns 0.0049 against a 0.86 of
+        # 1.32 gross cap, and by 1.7e-09 at 0.006 where the target binds;
+        # at 10,000 the same 0.002 target pads by 1.3e-02 on a book
+        # earning 0.0037 at 0.82 gross. The low-return end of the frontier
+        # is genuinely a region where this relaxation lapses.
+        #
+        # Take every premise away at once and the guarantee lapses on a
+        # book with nothing else wrong with it, which the lab demonstrates
+        # rather than asserts. The degenerate fixture in `conftest.py`
+        # zeroes every borrow fee and widens every gross budget past
+        # anything the book uses; on that mandate the optimal face of the
+        # program holds a whole set of `(l, s)` pairs differing only in
+        # padding, and Clarabel returns one padded by 0.094 of NAV on the
+        # worst name. Put the premises back and the same solver on the
+        # same 600-scenario sample pads by 1.1e-10, and by exactly nothing
+        # at the shipped 10,000.
+        #
+        # Note what the fixture does *not* prove: HiGHS's simplex, solving
+        # that same degenerate program, finishes at a vertex with no
+        # padding at all. Which point of an optimal face comes back is a
+        # property of the algorithm, not a theorem — so the padding is a
+        # thing to measure, and `verification.py` measures
+        # `max_i min(l_i, s_i)` on every solved book instead of assuming
+        # it away.
         "signed_split": weights == long_leg - short_leg,
         "name_gross_cap": long_leg + short_leg <= limits.name_gross_cap,
         "net_exposure_max": cp.sum(weights) <= limits.net_exposure_max,
@@ -215,15 +240,21 @@ def desk_block(scenario: Scenario, returns: FloatArray) -> DeskBlock:
         "sector_net_lower": universe.sector_matrix @ weights >= -limits.sector_net_cap,
         "sector_gross_cap": universe.sector_matrix @ (long_leg + short_leg)
         <= limits.sector_gross_cap,
-        # The turnover bound, the same shape of relaxation on the same
-        # terms: `t` is pinned above `w - w0` and above `w0 - w`, so
-        # `t >= |w - w0|`, with equality only where something pushes `t`
-        # back down. Here that is the turnover budget, which `t` consumes,
-        # and the half-spread term in the return constraint, which charges
-        # for it. Both are conditions on the scenario rather than
-        # guarantees, and the same degenerate fixture shows it: with every
-        # half-spread at zero and the budget slack, an interior-point solve
-        # leaves `t` floating about 0.12 of NAV above the trade it is
+        # The turnover bound: the same shape of relaxation as the signed
+        # split above, but with different premises, which is the thing to
+        # keep straight. `t` is pinned above `w - w0` and above `w0 - w`,
+        # so `t >= |w - w0|`, with equality only where something pushes
+        # `t` back down. Two things can: the turnover budget, which `t`
+        # consumes, and the half-spread in the return constraint, which
+        # charges for `t` directly.
+        #
+        # So the half-spread is the cost that disciplines *this*
+        # relaxation and not the split — it multiplies `t`, which padding
+        # `(l, s)` cannot move, and never touches `l` or `s`. The borrow
+        # fee is the mirror image: it charges `s` and does nothing here.
+        # Neither is a guarantee, and the degenerate fixture shows it: with
+        # every half-spread at zero and the budget slack, an interior-point
+        # solve leaves `t` floating 0.119 of NAV above the trade it is
         # supposed to measure. So the lab recomputes `|w - w0|` from the
         # weights and prices the trade off that, rather than trusting `t`
         # to have collapsed onto it.
