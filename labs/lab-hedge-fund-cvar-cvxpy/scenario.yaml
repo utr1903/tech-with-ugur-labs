@@ -43,8 +43,9 @@ cvar_beta: 0.95
 # At 4,000 scenarios the same five bind (healthcare replaces energy as the
 # second capped sector) and the ceiling rises to 0.009130. At 600 — the
 # size the test suite runs on — the book is different enough that the
-# gross cap goes slack at 1.192 and the beta band binds on the *lower*
-# side instead of the upper: the small sample wants a slightly short-market
+# gross cap goes slack, with `sum(l + s)` reaching only 1.192 of 1.32 and
+# a dual of 2.4e-13, and the beta band binds on the *lower* side instead
+# of the upper: the small sample wants a slightly short-market
 # book where the large one wants a slightly long-market book. The ceiling
 # there is 0.010383, above the top of the frontier sweep, so at 600
 # scenarios no frontier point comes back infeasible at all.

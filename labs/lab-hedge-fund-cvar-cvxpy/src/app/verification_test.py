@@ -547,39 +547,52 @@ def test_the_turnover_bound_lapses_on_the_same_terms(
 def test_the_split_lapses_wherever_the_return_target_goes_slack(
     small_scenario: Scenario, small_market: MarketScenarios, log: Logger
 ) -> None:
-    """Borrow and spread only penalise padding while the return constraint binds.
+    """The borrow fee only penalises padding while the return target binds.
 
     This one is worth reading carefully, because it narrows the exactness
-    argument in `model_desk.py` to something smaller than it first looks.
+    argument in `model_desk.py` to something smaller than it first looks,
+    in two separate ways.
 
-    The borrow fee and the half-spread never enter the objective — by
-    design, they sit in the expected-net-return constraint and nowhere
-    else, which is the simplification the README states. So they make an
-    inflated `(l, s)` pair *strictly worse* only when that constraint is
-    active. Let the return target go slack and the costs stop being a
-    penalty at all: padding both legs spends return the book does not need
-    and changes the tail loss not at all, so the optimal face widens and an
-    interior-point solver settles somewhere inside it.
+    *Which cost.* Only the borrow fee can make an inflated `(l, s)` pair
+    worse, because only it is charged on `s`. The half-spread is charged
+    on `t`, and `t` is pinned from below by `w` and `w0` alone, so padding
+    the legs cannot move it and the spread never prices the padding at all.
+
+    *When.* Neither cost enters the objective — by design, both sit in the
+    expected-net-return constraint and nowhere else, which is the
+    simplification the README states — so neither charges anything while
+    that constraint has slack. Let the return target go slack and padding
+    both legs spends return the book does not need and changes the tail
+    loss not at all, so the optimal face widens and an interior-point
+    solver settles somewhere inside it.
 
     Measured on the shipped desk mandate, not on the degenerate fixture.
     At 600 scenarios and a 0.002 target the book earns 0.004925 against a
-    target of 0.002 — 2.9e-03 of slack — the gross cap sits at 0.86 of
-    1.32, and the split comes back padded by 1.2e-02; at 0.006 the return
-    constraint binds exactly and the padding collapses to 1.7e-09. At the
-    shipped 10,000 scenarios the same 0.002 target gives a book earning
-    0.003689 at 0.82 gross, padded by 1.3e-02.
+    target of 0.002 — 2.9e-03 of slack — and the split comes back padded
+    by 1.2e-02; at 0.006 the return constraint binds exactly and the
+    padding collapses to 1.7e-09. At the shipped 10,000 scenarios the same
+    0.002 target gives a book earning 0.003689, padded by 1.3e-02.
+
+    The gross cap is not what is holding either of those answers, and
+    checking that takes some care about which quantity is read. At 600 the
+    *book* runs 0.8597 of NAV gross, but the *row* the cap constrains,
+    `sum(l + s)`, sits at 1.3144 of 1.32 — the padding has expanded to
+    fill the budget. What settles it is the **dual**, 2.3e-12 at 600 and
+    5.0e-14 at 10,000: a constraint that costs nothing is not the one
+    holding the answer in place.
 
     Isolating the two costs at 600 scenarios and 0.006 shows which one is
     doing the work: both costs 1.7e-09, borrow fee alone 2.0e-09, and the
     half-spread alone 1.1e-02 — no better than charging nothing at all.
     `model_desk_test.py` holds the full table this is one row of.
 
-    Two consequences worth carrying forward. The exactness premise is
-    "a binding gross cap, or a binding return target with positive costs",
-    not "positive costs" on their own. And `verify_solution` will refuse
-    the low-return end of the frontier sweep with `relaxation_exact` — not
-    because the verifier is wrong, but because the relaxation really has
-    lapsed there and the verifier is built to say so.
+    Two consequences worth carrying forward. The exactness premise is "a
+    binding gross cap, or a binding return target together with a positive
+    *borrow fee*" — not "positive costs", which is both the wrong cost and
+    the wrong condition. And `verify_solution` will refuse the low-return
+    end of the frontier sweep with `relaxation_exact` — not because the
+    verifier is wrong, but because the relaxation really has lapsed there
+    and the verifier is built to say so.
     """
     built = build_cvar_problem(small_scenario, small_market, log=log)
     slack = solve_problem(built, algorithm="CLARABEL", target=0.002, log=log)
