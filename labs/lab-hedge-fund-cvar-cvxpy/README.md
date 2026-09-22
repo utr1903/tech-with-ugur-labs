@@ -275,8 +275,10 @@ Two runs on different machines need not: the same seed on this laptop's host
 Python and inside the Linux container produced matrices differing in 20,441 of
 300,000 elements, by at most 6.7e-16 in absolute value and 1.1e-12 relative —
 last-bit differences from a different BLAS summation order in one matrix
-product. Every reported figure above was identical to the printed precision. So
-compare digests between your own runs, not against the one printed here.
+product. Every *objective* in the block above was identical to the printed
+precision on both; what moved with the matrix was the digest and five of the
+nine ladder iteration counts, listed above. So compare digests between your own
+runs, not against the one printed here.
 
 ## Runtime
 
@@ -715,10 +717,16 @@ out - in     +0.90   +13.34    -5.11    +5.53    +2.48   bp
 Four of the ten are negative and the range is −5.23 to +13.34 bp. The mean is
 +1.70 bp with a sample standard deviation of 5.75, so a standard error of
 5.75 / sqrt(10) = 1.82 and a mean 1.70 / 1.82 = 0.93 standard errors from zero
-— nothing you could call a measurement. Score each seed against its *own* fresh
-ruler instead, which is what the seed-averaged ladder does, and the same ten
-draws give a mean of +7.07 bp with three negatives, 7.07 / 3.16 = 2.24 standard
-errors from zero and close to the ladder's own +5.45 bp at 8,000 scenarios.
+— nothing you could call a measurement.
+
+Score each seed against its *own* fresh ruler instead, which is what the
+seed-averaged ladder does. Use the lab's own convention for that ruler,
+`studies_seeds.out_of_sample_seed(seed) = seed + 10000`, because a different
+offset draws different rulers and moves both the mean and the count of
+negatives. On that convention the same ten draws give a mean of +7.07 bp with
+three negatives, a sample standard deviation of 9.99 and therefore a standard
+error of 9.99 / sqrt(10) = 3.16, putting the mean 7.07 / 3.16 = 2.24 standard
+errors from zero — and close to the ladder's own +5.45 bp at 8,000 scenarios.
 
 The lesson is the difference between those two rows, not either number: one
 draw of this gap tells you very little, and the ladder above is where the size
@@ -777,13 +785,18 @@ been honoured.
 
 **What the agreement buys.** All three read 156.60 bp at 500 scenarios,
 210.93 at 2,000 and 221.44 at 8,000 — the same numbers to two decimals in
-basis points, and to far more than that underneath. On this ladder's own
-seed the worst relative disagreement between the three is 1.60e-08, at 300
-scenarios; swept over seven in-sample seeds at the headline target the
-worst rises to 2.00e-08, which is what `tolerances.solver_agreement_rel`
-is calibrated against. Three methods with nothing in common but the
-problem statement do
-not land on the same ten decimals by accident, so the agreement is
+basis points, and to far more than that underneath. Measured on this
+ladder — the shipped `[500, 2000, 8000]`, at its own seed — the relative
+disagreement between the three is 3.66e-09 at 500 scenarios, 1.77e-09 at
+2,000 and 3.46e-09 at 8,000, so the worst is **3.66e-09**. (Two other
+figures in this lab measure the same thing on different problems and are
+looser: `algorithms_test.py` runs a cheaper two-rung ladder of 300 and 600
+scenarios whose 300 rung measures 1.60e-08, and sweeping the headline
+solve over seven in-sample seeds reaches 2.00e-08, which is what
+`tolerances.solver_agreement_rel` is calibrated against. Neither is this
+ladder's number.) Three methods with nothing in common but the problem
+statement do not land on the same ten decimals by accident, so the
+agreement is
 evidence that the program says what the derivation says it does. When it
 fails, `algorithms.py` raises and names both solvers and both objectives
 rather than picking a favourite — a lab that quietly reported whichever
