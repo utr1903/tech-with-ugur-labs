@@ -25,9 +25,10 @@ that verifies numbers while it lasts.
 
 Take both of `t`'s premises away and it floats free. The arm, with every
 other term pinned: the shipped mandate, both costs on, `turnover_max`
-widened 0.50 -> 8.0 so the budget is slack (6.1 and 6.6 of room), and the
-return target set to -0.02, where the return constraint has 1.7e-02 of
-slack in both samples so the half-spread charges for nothing. There
+widened 0.50 -> 8.0 so the budget is slack — 6.06 of room at 600
+scenarios and 6.64 at 10,000 — and the return target set to -0.02, where
+the return constraint has 1.70e-02 of slack at 600 and 1.72e-02 at 10,000
+so the half-spread charges for nothing. There
 `sum(t)` sits 6.2e-01 above the real trade at 600 scenarios and 4.3e-02
 above it at 10,000. The row is measured on `t` because that is what the
 constraint says, not because the two happen to differ today.
@@ -38,17 +39,24 @@ So every expression below is rebuilt from the *solver's own legs*, and this
 module never reaches for `VerificationReport`, whose exposures are
 portfolio quantities by design and answer a different question.
 
-**Activity is not scarcity.** A row can sit exactly on its bound and still
-be worth nothing, because an interior point parks free padding against
-whatever budget it is given. At that same 10,000-scenario 0.002 target the
-gross row has 0.0031 of slack and a dual of 5.0e-14 — the absence of a
-price, not a small one. Move the cap and the row moves with it while the
-portfolio does not: caps of 1.32, 2.0 and 6.0 give a row reading 1.3169,
-1.9951 and 2.0752 while the book's own `sum |w|` stays at 0.8200 in all
-three. So a reader shown that row's remaining slack would be reading the
-size of the budget, not the size of any spare balance sheet. That is why
-`ConstraintRow` reports the measurement and leaves the verdict to the dual
-— the number that says whether a limit is scarce.
+**Closeness is not activity, and neither is scarcity.** At that same
+10,000-scenario 0.002 target the gross row has 0.0031 of slack against a
+1.32 cap — a quarter of a percent of it, which reads like a limit about to
+bite. Under the shipped `constraint_abs` of 1e-7 it is *inactive*, and
+`is_active` returns False for it. Its dual is 5.0e-14, which is the
+absence of a price rather than a small one. Three questions with three
+answers, and a reader who conflates the first with the third gets the
+mandate exactly backwards.
+
+The reason the row is so close is that an interior point parks free
+padding against whatever budget it is given. Move the cap and the row
+moves with it while the portfolio does not: caps of 1.32, 2.0 and 6.0 give
+a row reading 1.3169, 1.9951 and 2.0752 while the book's own `sum |w|`
+stays at 0.8200 in all three. So a reader shown that 0.0031 as spare
+balance sheet would be reading the size of the budget, not the size of
+anything the book could use. That is why `ConstraintRow` reports the
+measurement and leaves the verdict to the dual — the number that says
+whether a limit is scarce.
 
 This file runs past the ~200-line target the lab holds its modules to on
 prose alone: about 90 lines are executable and the rest is the rule above,
@@ -205,9 +213,13 @@ def constraint_rows(
 def is_active(row: ConstraintRow, *, tolerance: float) -> bool:
     """Is the optimum pressed against this bound, within `tolerance`?
 
-    Active means no slack, and nothing more. It does not mean the
-    constraint is scarce — see the module docstring for the measured case
-    at 10,000 scenarios where a row sits on its cap with a dual of 5.0e-14.
+    Active means no slack, and nothing more — it does not mean the
+    constraint is scarce, and *near* no slack is not active at all. At the
+    shipped `constraint_abs` of 1e-7 the gross row at a 0.002 target is
+    0.0031 from its cap at 10,000 scenarios and comes back False here,
+    with a dual of 5.0e-14 agreeing. A caller tempted to pass a looser
+    tolerance so that such a row reads as active would be inventing a
+    price the program never charged.
     """
     return row.slack <= tolerance
 

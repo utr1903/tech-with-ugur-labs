@@ -13,7 +13,7 @@ from dataclasses import replace
 import numpy as np
 import pytest
 
-from app import duals_check
+from app import duals, duals_check
 from app.contracts import DualRow, MarketScenarios, Scenario, SolveOutcome
 from app.duals import build_dual_table
 from app.duals_check import agrees
@@ -27,12 +27,20 @@ from app.duals_constraints import (
 from app.errors import SolveError
 from app.logging_setup import Logger
 from app.model import BuiltProblem, build_cvar_problem
-from app.model_desk import DUAL_BEARING_LABELS
+from app.model_desk import DUAL_BEARING_LABELS, MONTHS_PER_YEAR, sample_mean
 from app.solver import solve_problem
 
 # A target the 600-scenario mandate reaches with room to spare, used to
 # show what an inactive return constraint does to the signed split.
 SLACK_TARGET = 0.002
+
+# The arm that separates the turnover row from the real trade: a budget
+# wide enough to have no say, and a target low enough that the half-spread
+# charges for nothing. Both of the turnover bound's premises are then gone
+# and `t` floats free, which is the only state in which a measurement on
+# `sum |w - w0|` is distinguishable from one on `sum(t)`.
+WIDE_TURNOVER_BUDGET = 8.0
+FLOATING_LEG_TARGET = -0.02
 
 
 @pytest.fixture(scope="session")
@@ -128,7 +136,7 @@ def test_the_finite_difference_carries_the_constraint_s_own_sign(
             assert row.finite_difference < 0.0
 
 
-def test_activity_is_measured_on_the_constraint_s_own_left_hand_side(
+def test_the_gross_row_is_measured_on_the_legs_and_not_on_the_weights(
     small_scenario: Scenario, small_market: MarketScenarios, log: Logger
 ) -> None:
     """The gross cap is written on `l + s`, and `sum |w|` is a different number.
@@ -136,15 +144,16 @@ def test_activity_is_measured_on_the_constraint_s_own_left_hand_side(
     Where the return target has slack, nothing in the program penalises
     holding a name long and short at once, so the legs inflate until they
     fill whatever gross budget exists. At 600 scenarios and a 0.002 target
-    the book's own `sum |w|` is well under the cap while `sum(l + s)` — the
-    expression the constraint is actually written on — sits right against
-    it. An activity test reading `sum |w|` would call the row comfortably
-    slack at exactly the place it has no room left.
+    the book's own `sum |w|` is 0.8597 while `sum(l + s)` — the expression
+    the constraint is actually written on — is 1.3144 against a 1.32 cap.
+    A measurement taken on `sum |w|` would report 0.46 of spare balance
+    sheet where the row the solver sees has 0.0056.
 
-    The test asserts the *relationship*, not two measured constants, so it
-    keeps holding when the mandate is recalibrated: the two expressions
-    differ, the model's own one is the larger, and it is the one pressed
-    against the cap.
+    The test asserts the *relationship*, not the two constants, so it keeps
+    holding when the mandate is recalibrated: the two expressions differ,
+    the model's own one is the larger, and it is the one near the cap.
+    Swapping the implementation to `sum |w|` fails the third assertion;
+    swapping the two fails the last.
     """
     built = build_cvar_problem(small_scenario, small_market, log=log)
     outcome = solve_problem(built, algorithm="CLARABEL", target=SLACK_TARGET, log=log)
@@ -168,29 +177,132 @@ def test_activity_is_measured_on_the_constraint_s_own_left_hand_side(
     # The signed split has lapsed here, so the two expressions part company
     # and the model's one is the larger of the two.
     assert gross_row.left_hand_side > portfolio_gross + 0.2
-    # And it is the model's one that has run out of room.
+    # And it is the model's one that is nearly out of room.
     assert gross_row.slack < 0.01
     assert cap - portfolio_gross > 0.2
 
 
-def test_a_row_can_be_out_of_room_and_still_be_worth_nothing(
+def test_the_turnover_row_is_measured_on_the_leg_and_not_on_the_real_trade(
     small_scenario: Scenario, small_market: MarketScenarios, log: Logger
 ) -> None:
-    """Activity is not scarcity, and only the dual tells them apart.
+    """The turnover budget is written on `sum(t)`, not on `sum |w - w0|`.
 
-    At the same 0.002 target the gross row is pressed against its cap by
-    padding rather than by demand, and its dual is 2.3e-12 at 600
-    scenarios and 5.0e-14 at 10,000 — the absence of a price, not a small
-    one. Presenting that row's remaining slack to a reader as unused
-    balance sheet would be wrong twice over: the number is tiny, and it is
-    not headroom at all.
+    At the shipped mandate those two coincide to better than 1e-10, because
+    the budget binds and pushes `t` down onto the real trade. An
+    implementation that quietly measured the real trade instead would
+    therefore pass every test taken at the shipped settings — and would
+    turn wrong the moment an edit gave the budget some slack. So the arm
+    here removes both of `t`'s premises, with every other term pinned: the
+    shipped mandate, both costs on, `turnover_max` widened 0.50 -> 8.0 so
+    the budget has 6.06 of room at 600 scenarios, and the return target set
+    to -0.02, where the return constraint has 1.70e-02 of slack so the
+    half-spread charges for nothing.
 
-    The evidence is what happens when the cap is moved. Holding everything
-    else fixed and solving at caps of 1.32, 2.0 and 6.0, the row reads
-    1.3144, 1.9796 and 2.0207 at 600 scenarios and 1.3169, 1.9951 and
+    There `sum(t)` is 1.9438 while the real trade is 1.3200 — a gap of
+    6.24e-01 of NAV at 600 scenarios, and 4.33e-02 at the shipped 10,000.
+    A measurement on the real trade reports 1.3200 and is wrong by that
+    much.
+    """
+    loose = with_limit(small_scenario, "turnover_budget", WIDE_TURNOVER_BUDGET)
+    built = build_cvar_problem(loose, small_market, log=log)
+    outcome = solve_problem(
+        built, algorithm="CLARABEL", target=FLOATING_LEG_TARGET, log=log
+    )
+    assert outcome.solution is not None
+    solution = outcome.solution
+
+    rows = {
+        row.label: row
+        for row in constraint_rows(
+            loose, small_market.returns, solution, target=FLOATING_LEG_TARGET
+        )
+    }
+    turnover_row = rows["turnover_budget"]
+    real_trade = float(np.abs(solution.weights - loose.universe.start_book).sum())
+
+    # Both premises really are absent, so this arm is reproducible.
+    assert turnover_row.slack > 5.0
+    assert rows["return_target"].slack > 1e-2
+
+    assert turnover_row.right_hand_side == WIDE_TURNOVER_BUDGET
+    assert turnover_row.left_hand_side == pytest.approx(
+        float(np.sum(solution.turnover_leg))
+    )
+    assert turnover_row.left_hand_side > real_trade + 0.5
+
+
+def test_the_return_row_is_measured_on_the_model_s_costs_not_the_book_s(
+    small_scenario: Scenario, small_market: MarketScenarios, log: Logger
+) -> None:
+    """The return constraint charges borrow on `s` and spread on `t`.
+
+    The verifier recomputes the same quantity from the weights alone —
+    borrow on `max(-w, 0)`, spread on `|w - w0|` — and gets a *better*
+    number wherever a relaxation has lapsed, because the legs can only
+    overstate the book's costs. That gap is the thing the verifier exists
+    to measure, so using its version here would price the wrong row.
+
+    At 600 scenarios and a 0.002 target, where the signed split is padded
+    by 1.20e-02 on the worst name, the model's left-hand side is 0.0046375
+    and the from-weights version is 0.0049246 — the row is 2.87e-04 of
+    monthly return worse off than the book actually is. At the shipped
+    10,000 scenarios the same gap is 3.06e-04.
+    """
+    built = build_cvar_problem(small_scenario, small_market, log=log)
+    outcome = solve_problem(built, algorithm="CLARABEL", target=SLACK_TARGET, log=log)
+    assert outcome.solution is not None
+    solution = outcome.solution
+    universe = small_scenario.universe
+
+    rows = {
+        row.label: row
+        for row in constraint_rows(
+            small_scenario, small_market.returns, solution, target=SLACK_TARGET
+        )
+    }
+    return_row = rows["return_target"]
+    monthly_borrow = universe.borrow_fee_annual / MONTHS_PER_YEAR
+    gross_return = float(sample_mean(small_market.returns) @ solution.weights)
+
+    from_legs = (
+        gross_return
+        - float(monthly_borrow @ solution.short_leg)
+        - float(universe.half_spread @ solution.turnover_leg)
+    )
+    from_weights = (
+        gross_return
+        - float(monthly_borrow @ np.maximum(-solution.weights, 0.0))
+        - float(universe.half_spread @ np.abs(solution.weights - universe.start_book))
+    )
+
+    # The split has lapsed here, which is what makes the two differ at all.
+    assert float(np.minimum(solution.long_leg, solution.short_leg).max()) > 1e-3
+    assert return_row.left_hand_side == pytest.approx(from_legs)
+    assert from_weights > return_row.left_hand_side + 1e-4
+
+
+def test_a_row_can_sit_close_to_its_cap_and_still_be_worth_nothing(
+    small_scenario: Scenario, small_market: MarketScenarios, log: Logger
+) -> None:
+    """Closeness is not activity, and neither of them is scarcity.
+
+    At the 0.002 target the gross row sits 0.0056 from its 1.32 cap at 600
+    scenarios and 0.0031 at 10,000 — a few parts in a thousand of the cap,
+    which looks for all the world like a limit about to bite. It is not
+    binding: under the shipped `constraint_abs` of 1e-7 the row is
+    *inactive*, and `is_active` says so. And its dual is 2.3e-12 at 600 and
+    5.0e-14 at 10,000, which is the absence of a price rather than a small
+    one. Three different questions, three different answers, and only the
+    dual answers the one a reader cares about.
+
+    So a reader shown the row's 0.0056 as unused balance sheet would be
+    wrong twice: it is not the book's spare capacity, and it is not spare
+    at all. The evidence is what happens when the cap is moved. Holding
+    everything else fixed and solving at caps of 1.32, 2.0 and 6.0, the row
+    reads 1.3144, 1.9796 and 2.0207 at 600 scenarios and 1.3169, 1.9951 and
     2.0752 at 10,000 — while the book's own `sum |w|` is 0.8597 at 600 and
-    0.8200 at 10,000 and does not move at all. The balance sheet the row
-    reports is being spent on padding the cap itself invited.
+    0.8200 at 10,000 and does not move at all. What the row reports is the
+    size of the budget, filled by padding the budget itself invited.
 
     Note what is asserted and what is only measured. That `sum |w|` is
     unchanged is a statement about the portfolio and holds for any solver
@@ -212,12 +324,18 @@ def test_a_row_can_be_out_of_room_and_still_be_worth_nothing(
         )
     }
     gross_row = rows["gross_leverage"]
-    assert is_active(gross_row, tolerance=0.01)
-    assert abs(outcome.duals["gross_leverage"]) < 1e-9
-    portfolio_gross = float(np.abs(outcome.solution.weights).sum())
+    cap = small_scenario.limits.gross_leverage_max
 
-    for cap in (2.0, 6.0):
-        widened = with_limit(small_scenario, "gross_leverage", cap)
+    # Close to the cap...
+    assert 0.0 < gross_row.slack < cap / 100.0
+    # ...but not on it, at the tolerance the lab actually ships.
+    assert not is_active(gross_row, tolerance=small_scenario.tolerances.constraint_abs)
+    # ...and worth nothing either way.
+    assert abs(outcome.duals["gross_leverage"]) < 1e-9
+
+    portfolio_gross = float(np.abs(outcome.solution.weights).sum())
+    for wider in (2.0, 6.0):
+        widened = with_limit(small_scenario, "gross_leverage", wider)
         wide_built = build_cvar_problem(widened, small_market, log=log)
         wide_outcome = solve_problem(
             wide_built, algorithm="CLARABEL", target=SLACK_TARGET, log=log
@@ -389,3 +507,72 @@ def test_a_nudge_that_cannot_be_solved_is_reported_as_unverifiable(
     for row in active:
         assert row.finite_difference is None
         assert row.agrees is False
+
+
+def test_a_label_the_solver_never_priced_is_refused_not_zeroed(
+    small_scenario: Scenario, small_market: MarketScenarios, log: Logger
+) -> None:
+    """A missing price is an error, not a price of zero.
+
+    `solver.py` omits any constraint the solver left no dual on, which is
+    a real possibility rather than a defensive one: a presolve can remove
+    a row, and a method can decline to form the dual at all. Defaulting
+    the gap to 0.0 would print "this limit costs nothing" about a limit
+    whose price was never reported — and on an active row that is a wrong
+    answer wearing the costume of a right one, with nothing on screen to
+    tell a reader which it is.
+    """
+    built = build_cvar_problem(small_scenario, small_market, log=log)
+    outcome = solve_problem(
+        built,
+        algorithm="CLARABEL",
+        target=small_scenario.headline_target_monthly,
+        log=log,
+    )
+    assert "turnover_budget" in outcome.duals
+    blinded = replace(
+        outcome,
+        duals={
+            label: value
+            for label, value in outcome.duals.items()
+            if label != "turnover_budget"
+        },
+    )
+
+    with pytest.raises(SolveError, match="turnover_budget"):
+        build_dual_table(small_scenario, small_market, built, blinded, log=log)
+
+
+def test_a_failed_restore_does_not_replace_the_failure_that_caused_it(
+    small_scenario: Scenario,
+    small_market: MarketScenarios,
+    log: Logger,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """The diagnosis a caller needs is the first failure, not the cleanup's.
+
+    The restore runs while an exception is already on its way out, and it
+    solves, so it can fail on its own account. Letting it raise there
+    would swap a real diagnosis for a downstream one — and the downstream
+    one always looks like a solver problem, which is the least useful
+    place to send someone.
+    """
+
+    def original_failure(*_args: object, **_kwargs: object) -> float:
+        raise SolveError("the original failure")
+
+    def restore_failure(*_args: object, **_kwargs: object) -> SolveOutcome:
+        raise SolveError("the restore failure")
+
+    built = build_cvar_problem(small_scenario, small_market, log=log)
+    outcome = solve_problem(
+        built,
+        algorithm="CLARABEL",
+        target=small_scenario.headline_target_monthly,
+        log=log,
+    )
+    monkeypatch.setattr(duals, "finite_difference", original_failure)
+    monkeypatch.setattr(duals, "solve_problem", restore_failure)
+
+    with pytest.raises(SolveError, match="the original failure"):
+        build_dual_table(small_scenario, small_market, built, outcome, log=log)

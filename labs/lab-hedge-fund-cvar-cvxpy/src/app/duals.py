@@ -27,23 +27,33 @@ slightly short-market book where the large one wants a slightly long one,
 so the band binds on the opposite side. The active set is therefore
 decided per solve and never assumed.
 
-**An active row is not necessarily a scarce one.** `beta_lower` at 10,000
-scenarios comes back at 2.06e-14. That is the lab's deliberate example of
-a dual that means nothing, and it is kept rather than tuned away: a number
-near machine epsilon is not a small price, it is the absence of one. The
-console shows the portfolio's own `sum |w|` beside these prices, and it is
-the dual — never a row's remaining slack — that answers whether a limit is
-scarce.
+**A near-zero dual is the absence of a price, not a small one.**
+`beta_lower` at 10,000 scenarios comes back at 2.06e-14, on a row with
+4.0e-02 of room — it is inactive, and that number is what an inactive row
+looks like. It is the lab's deliberate example and it is kept rather than
+tuned away, because the mistake it guards against is reading machine
+epsilon as a cheap constraint.
+
+**And closeness is not activity.** At a 0.002 target the gross row sits
+0.0031 from its 1.32 cap at 10,000 scenarios and 0.0056 at 600 — a
+fraction of a percent of the cap, which reads like a limit about to bite.
+Under the shipped `constraint_abs` of 1e-7 it is inactive at both sizes,
+and its dual agrees: 5.0e-14 at 10,000 and 2.3e-12 at 600. Three
+questions — how close, whether binding, what it is worth — with three
+different answers, and only the last is the one a reader wants.
+So the console shows the portfolio's own `sum |w|` beside these prices, and
+it is the dual — never a row's remaining slack — that says whether a limit
+is scarce.
 
 **Every price is checked by moving its bound and re-solving.**
 `duals_check.py` owns that, including the case where the nudged program
 cannot be solved. Two re-solves per active row is what makes this table
-the costliest thing in the lab per number produced — 3.9 s for five rows
-at the shipped 10,000 scenarios against 0.13 s at 600 — and it is why the
-check runs only on rows that are active.
+the costliest thing in the lab per number produced — 3.9 s for its five
+rows, four of them active, at the shipped 10,000 scenarios, against 0.14 s
+at 600 — and it is why the check runs only on rows that are active.
 
 This file runs a little past the ~200-line target the lab holds its
-modules to, and the reason is prose rather than code: about 120 lines are
+modules to, and the reason is prose rather than code: about 140 lines are
 executable and the rest is the argument above. The two pieces that could
 be lifted out already have been — the left-hand sides into
 `duals_constraints.py` and the re-solve into `duals_check.py` — and what
@@ -82,6 +92,29 @@ def _solved_target(built: BuiltProblem) -> float:
     if value is None:
         raise SolveError("the return target parameter carries no value to price")
     return float(value)
+
+
+def _dual_of(outcome: SolveOutcome, label: str) -> float:
+    """Return the solver's reported price for one labelled constraint.
+
+    A missing label is refused rather than defaulted to zero. `solver.py`
+    skips any constraint the solver left no dual on — a presolve can
+    remove a row, and a method can decline to form the dual at all — so
+    the gap is real and not defensive. Filling it with 0.0 would print
+    "this limit costs nothing" for a limit whose price was never
+    reported, which on an active row is a wrong answer rather than an
+    error, and the reader has no way to tell the two apart.
+
+    Raises:
+        SolveError: If `label` carries no dual on this outcome.
+    """
+    price = outcome.duals.get(label)
+    if price is None:
+        raise SolveError(
+            f"{outcome.solver_name} reported no dual for {label!r}; the "
+            f"labels it priced were {sorted(outcome.duals)}"
+        )
+    return price
 
 
 def _price_row(
@@ -147,6 +180,27 @@ def _restore(
     solve_problem(built, algorithm=algorithm, target=target, log=log)
 
 
+def _restore_after_failure(
+    built: BuiltProblem, *, target: float, algorithm: str, nudged: bool, log: Logger
+) -> None:
+    """Try the same restore, but never at the cost of the real failure.
+
+    This runs while an exception is already propagating. The restore
+    itself solves, so it can fail too — and if it were allowed to raise
+    here it would replace the diagnosis the caller needs with a second,
+    downstream one. So it is attempted, logged either way, and swallowed.
+    """
+    try:
+        _restore(built, target=target, algorithm=algorithm, nudged=nudged, log=log)
+    except Exception as cleanup_err:
+        log.warning(
+            "Restoring the compiled problem failed; reporting the original "
+            "failure instead.",
+            target=target,
+            cleanup_error=str(cleanup_err),
+        )
+
+
 def build_dual_table(
     scenario: Scenario,
     market: MarketScenarios,
@@ -179,8 +233,10 @@ def build_dual_table(
         failed check.
 
     Raises:
-        SolveError: If `outcome` carries no solution, or if the compiled
-            problem's target parameter is unset.
+        SolveError: If `outcome` carries no solution, if the compiled
+            problem's target parameter is unset, or if the solver reported
+            no dual for one of the labelled constraints — none of which is
+            a number this table is willing to invent.
     """
     if outcome.solution is None:
         raise SolveError(
@@ -208,7 +264,7 @@ def build_dual_table(
                 market,
                 built,
                 row,
-                dual=outcome.duals.get(row.label, 0.0),
+                dual=_dual_of(outcome, row.label),
                 target=target,
                 algorithm=algorithm,
                 log=log,
@@ -217,8 +273,12 @@ def build_dual_table(
         ]
     except Exception:
         table_log.exception("Pricing the desk limits failed.")
+        _restore_after_failure(
+            built, target=target, algorithm=algorithm, nudged=nudged, log=table_log
+        )
         raise
     else:
+        _restore(built, target=target, algorithm=algorithm, nudged=nudged, log=log)
         table_log.info(
             "Pricing the desk limits succeeded.",
             active=[row.label for row in priced if row.active],
@@ -226,5 +286,3 @@ def build_dual_table(
             unverified=[row.label for row in priced if row.active and not row.agrees],
         )
         return tuple(priced)
-    finally:
-        _restore(built, target=target, algorithm=algorithm, nudged=nudged, log=log)

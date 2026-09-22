@@ -25,6 +25,14 @@ from app.solver import ALGORITHMS, solve_problem
 # interior-point method's 25.
 TEST_LADDER = (300, 600)
 
+# What the three algorithms measurably agree to on this ladder, as a
+# relative spread: 1.60e-08 on the 300-scenario rung and 1.54e-10 on the
+# 600-scenario rung. The ceiling below is sixty times the worse of the two
+# and is deliberately a literal rather than the scenario's own
+# `objective_relative_tolerance`, so that loosening the gate cannot
+# loosen the test that checks it.
+MEASURED_SPREAD_CEILING = 1.0e-6
+
 
 @pytest.fixture(scope="session")
 def ladder_scenario(small_scenario: Scenario) -> Scenario:
@@ -56,13 +64,23 @@ def test_the_ladder_covers_every_scenario_count_and_algorithm(
 def test_every_algorithm_on_a_rung_reaches_the_same_objective(
     ladder_scenario: Scenario, ladder_rows: tuple[LadderRow, ...]
 ) -> None:
-    """The rungs pass their own agreement gate, so the spread is inside it.
+    """The three answers agree far more tightly than the gate demands.
 
-    Restated here as an assertion on the returned table rather than on the
-    absence of a raise, so a future change that loosened the gate to the
-    point of meaninglessness would still be caught by a measured number.
+    The bound here is a literal, not `objective_relative_tolerance`, and
+    that is the whole point of the test. Asserting against the scenario
+    field would only restate `_require_agreement`'s own predicate: loosen
+    the field and the assertion loosens with it, so the test could never
+    fail for any reason other than the gate being deleted — which
+    `test_the_ladder_fails_the_run_when_algorithms_disagree` already
+    covers.
+
+    `MEASURED_SPREAD_CEILING` is fixed against what the solvers actually
+    do. Measured on this ladder: a relative spread of 1.60e-08 on the
+    300-scenario rung and 1.54e-10 on the 600-scenario rung, so the
+    ceiling leaves sixty times the worse of them. The second assertion is the one
+    that catches a loosened gate: if the scenario's tolerance is ever
+    widened past what the solvers measurably need, this fails and says so.
     """
-    tolerance = ladder_scenario.algorithms.objective_relative_tolerance
     for count in ladder_scenario.algorithms.scenario_ladder:
         values = [
             row.objective
@@ -71,7 +89,12 @@ def test_every_algorithm_on_a_rung_reaches_the_same_objective(
         ]
         assert len(values) == len(ALGORITHMS)
         scale = max(abs(value) for value in values)
-        assert max(values) - min(values) <= tolerance * scale
+        assert (max(values) - min(values)) / scale <= MEASURED_SPREAD_CEILING
+
+    assert (
+        ladder_scenario.algorithms.objective_relative_tolerance
+        <= MEASURED_SPREAD_CEILING
+    )
 
 
 def test_simplex_and_interior_point_are_genuinely_different_algorithms(

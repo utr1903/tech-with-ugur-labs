@@ -11,9 +11,12 @@ from dataclasses import replace
 
 import pytest
 
-from app.contracts import FrontierPoint, MarketScenarios, Scenario
+from app import frontier
+from app.contracts import FrontierPoint, MarketScenarios, Scenario, SolveOutcome
 from app.frontier import point_relaxation_overlap, sweep_frontier, target_grid
 from app.logging_setup import Logger
+from app.model import BuiltProblem, build_cvar_problem, build_variance_problem
+from app.solver import solve_problem
 from app.tailrisk import portfolio_losses, tail_statistics
 
 # The 600-scenario sample reaches about 0.0104 of monthly net return at the
@@ -42,21 +45,62 @@ def feasible_points(
     )
 
 
-def test_the_frontier_compiles_once_and_solves_many(
+def test_the_frontier_returns_one_point_per_grid_target_in_order(
     small_scenario: Scenario, small_frontier: tuple[FrontierPoint, ...]
 ) -> None:
-    """Every point comes off one compiled problem via its target parameter.
-
-    The observable consequence is that the sweep returns exactly the
-    configured number of points, in ascending target order, each carrying
-    the grid value it was solved at. `algorithms_test.py` checks the other
-    half of the same claim — that a problem whose shape changes has to be
-    rebuilt.
-    """
+    """The sweep covers the configured grid exactly, ascending."""
     assert len(small_frontier) == small_scenario.frontier.points
     targets = [point.target_monthly for point in small_frontier]
     assert targets == sorted(targets)
     assert targets == pytest.approx(list(target_grid(small_scenario.frontier)))
+
+
+def test_the_frontier_compiles_once_and_solves_many(
+    small_scenario: Scenario,
+    small_market: MarketScenarios,
+    log: Logger,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Twenty-five points come off two compilations, not fifty.
+
+    This is the lab's headline design claim and the entire reason the
+    return target is a `cp.Parameter` and the model is written to be
+    DPP-compliant. It needs testing by counting builds, because a
+    rebuild-per-point implementation produces an identical tuple of
+    points — same count, same order, same targets, same objectives — and
+    would satisfy every other assertion in this file.
+    """
+    builds: list[str] = []
+
+    def counted_cvar(
+        scenario: Scenario, market: MarketScenarios, *, log: Logger
+    ) -> BuiltProblem:
+        builds.append("cvar")
+        return build_cvar_problem(scenario, market, log=log)
+
+    def counted_variance(
+        scenario: Scenario, market: MarketScenarios, *, log: Logger
+    ) -> BuiltProblem:
+        builds.append("variance")
+        return build_variance_problem(scenario, market, log=log)
+
+    solves: list[float] = []
+    real_solve = solve_problem
+
+    def counted_solve(
+        built: BuiltProblem, *, algorithm: str, target: float, log: Logger
+    ) -> SolveOutcome:
+        solves.append(target)
+        return real_solve(built, algorithm=algorithm, target=target, log=log)
+
+    monkeypatch.setattr(frontier, "build_cvar_problem", counted_cvar)
+    monkeypatch.setattr(frontier, "build_variance_problem", counted_variance)
+    monkeypatch.setattr(frontier, "solve_problem", counted_solve)
+
+    points = sweep_frontier(small_scenario, small_market, log=log)
+
+    assert builds == ["cvar", "variance"]
+    assert len(solves) == 2 * len(points)
 
 
 def test_cvar_rises_monotonically_with_the_return_target(
