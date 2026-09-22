@@ -53,12 +53,45 @@ cvar_beta: 0.95
 # Do not read that as instability in the model. It is sampling error in
 # the tail estimate, which is exactly what the in-sample optimism study
 # further down exists to measure.
+#
+# RAISING THIS IS SAFE; LOWERING IT IS NOT, and the boundary is not
+# arbitrary. At the shipped 10,000 scenarios the minimum-CVaR book earns a
+# net 0.003689 a month all by itself. Ask for less than that and the
+# return constraint stops binding, so the borrow fee and the half-spread
+# charge for nothing, the gross cap goes inactive too, and the signed
+# split loses both of the premises that make it exact. The legs then stop
+# describing the portfolio, and `verification.py` refuses the run:
+#
+#   VerificationError: relaxation_exact failed: 0.01298
+#   against a limit of 0 (tolerance 5e-08)
+#
+# That is the verifier working, not the lab breaking. Measured by sweeping
+# the target at 10,000 scenarios under Clarabel: 0.0000, 0.0020, 0.0030
+# and 0.0036 all return the same book earning 0.003689 and abort, with
+# overlaps of 1.2e-02 to 4.3e-02; 0.0037 upward bind exactly and verify,
+# with the overlap dropping to 5.7e-10 at 0.0037. It is solver-dependent
+# on top of that, because which point of a widened optimal face comes back
+# is a property of the method: HiGHS simplex at 0.0020 returns essentially
+# the same book with an overlap of exactly 0 and passes.
+#
+# The whole low-return region is still demonstrable without moving this
+# field. `frontier.py` sweeps it every run without asserting, and
+# `frontier.csv`'s `cvar_split_overlap` column reports the lapse target by
+# target.
 headline_target_monthly: 0.008
 
 # Optional path to a reader-supplied return history: a CSV whose header
 # names every universe column below in this exact order, followed by one
-# row of simple one-month returns per period. Leave it null to use the
-# seeded generator instead.
+# row of simple one-month returns per period.
+#
+# BE AWARE OF WHAT READS THIS TODAY: nothing in `commands/run.py` does.
+# `returns_csv.py` parses such a file into exactly the matrix the model
+# consumes, and `returns_csv_test.py` exercises it, but the default run
+# draws both its in-sample matrix and its disjoint out-of-sample ruler
+# from the seeded generator -- and one history cannot supply both without
+# a holdout convention this lab does not define. The README's
+# "Bring your own return history" section says which line to change and
+# what the file has to satisfy. Leaving this null is the supported path.
 returns_csv: null
 
 universe:
@@ -235,12 +268,15 @@ desk_limits:
   # headline.
   #
   # The *row* tells a different story and it is not the one that matters:
-  # `sum(l + s)` sits at 1.3167 to 1.3172 of 1.32 across that whole bottom
-  # stretch, because with the return target slack nothing charges for an
-  # inflated leg and the padding expands to fill the budget. The number
-  # that settles it is the dual, which runs 4e-14 to 3e-13 there — the
-  # balance sheet costs nothing, so it is not what is standing in the way.
-  # Slack in a row is not headroom; a zero shadow price is.
+  # `sum(l + s)` sits at 1.3167 to 1.3172 of 1.32 across the first *nine*
+  # of those ten points, 0.00000 to 0.00333, because with the return
+  # target slack nothing charges for an inflated leg and the padding
+  # expands to fill the budget. (At the tenth, 0.00375, the split has
+  # already collapsed and the row reads 0.8200, the same as the book — the
+  # two counts differ by one point and that is not a typo.) The number
+  # that settles it is the dual, which runs 4e-14 to 4e-13 across those
+  # nine — the balance sheet costs nothing, so it is not what is standing
+  # in the way. Slack in a row is not headroom; a zero shadow price is.
   gross_leverage_max: 1.32
   # sum w. Long and short legs must roughly cancel.
   net_exposure_min: -0.10
@@ -313,6 +349,15 @@ market:
   # Seeds and sizes. The out-of-sample block is drawn from a different seed
   # and is never shown to the optimizer, which is what makes the in-sample
   # optimism study honest.
+  #
+  # THESE TWO SEEDS ARE CONSECUTIVE, unlike the studies' own convention of
+  # `seed + 10000`. Nothing the lab ships sweeps them, but if you write a
+  # loop over `range(seed, seed + n)` to see how much a figure moves with
+  # the draw, one iteration will draw `out_of_sample_seed` as its
+  # in-sample matrix -- the ruler itself -- and report a gap of exactly
+  # 0.00 that is arithmetic rather than measurement. Skip it. Setting the
+  # two fields equal, or passing `--seed 20260921`, is refused by the
+  # loader for the same reason.
   seed: 20260920
   scenarios: 10000
   out_of_sample_seed: 20260921
@@ -339,26 +384,40 @@ market:
   #
   # A 0.2% chance per month of a 70% drop is a jump component whose own
   # standard deviation is 0.0317. Variances add in quadrature, though, so
-  # bolting it onto a name already carrying a standard deviation near 0.06
-  # raises that name's total by only 0.0068 to 0.0085 — well under a
-  # percentage point of monthly volatility. A variance model prices that as
-  # almost nothing. Meanwhile the chance that at least one of the eight
-  # carriers jumps in a given month is about 1.6%, which is roughly a third
-  # of the worst 5% of scenarios, and the worst 5% is the only place CVaR
-  # looks. Moving volatility by a rounding error while owning a third of
-  # the tail is the entire experiment.
+  # bolting it onto a carrier already running a monthly standard deviation
+  # of 0.064 to 0.077 raises that name's total by only 0.0068 to 0.0085 —
+  # well under a percentage point of monthly volatility. A variance model
+  # prices that as almost nothing. Meanwhile the chance that at least one
+  # of the eight carriers jumps in a given month is 1 - 0.998^8 = 1.59%,
+  # and 1.59% / 5% = 0.32, so roughly a third of the worst 5% of scenarios
+  # holds a crash — and the worst 5% is the only place CVaR looks. Moving
+  # volatility by a rounding error while owning a third of the tail is the
+  # entire experiment.
   #
   # Be aware of what that means if you edit these three numbers. The
   # divergence between the CVaR book and the variance book is carried by
-  # this channel and essentially only this channel: the Student-t shock
-  # above is symmetric and identical for every name, so it fattens the
-  # tail without giving CVaR a reason to prefer one name over another, and
-  # the market factor's skew is hedged away by the beta band. Tone the
-  # jumps down — say to a 1% chance of an 18% drop — and the two models
-  # converge to nearly the same book. That is the mathematics behaving
-  # correctly, not the lab breaking: when the return distribution is close
-  # enough to elliptical, minimizing CVaR and minimizing variance really
-  # are the same problem. The lab is a demonstration of when they are not.
+  # this channel and essentially only this channel, and that is measured
+  # by switching each channel off on its own rather than argued. Three
+  # seeds at 8,000 scenarios, every other field at its shipped value,
+  # reporting the divergence ratio:
+  #
+  #   every channel on ................... 2.108
+  #   jump_probability -> 0 .............. 0.939   <- the divergence is gone
+  #   stress_probability -> 0 ............ 2.210   (2.210 / 2.108 = 1.05)
+  #   idiosyncratic_df 5 -> 200 .......... 1.708   (1.708 / 2.108 = 0.81)
+  #
+  # Only the jump channel is necessary: without it the ratio drops below
+  # 1.0, which is "the two books are no further apart in this market than
+  # in the elliptical control". Removing the market factor's stress regime
+  # changes nothing measurable, and flattening the Student-t's tail costs
+  # about a fifth of the ratio while leaving the effect plainly there.
+  #
+  # So tone the jumps down — say to a 1% chance of an 18% drop — and the
+  # two models converge toward the same book. That is the mathematics
+  # behaving correctly, not the lab breaking: when the return distribution
+  # is close enough to elliptical, minimizing CVaR and minimizing variance
+  # really are the same problem. The lab is a demonstration of when they
+  # are not, and it needs a market where they are not.
   jump_probability: 0.002
   jump_mean: -0.70
   jump_sigma: 0.12
@@ -404,10 +463,17 @@ studies:
   #
   # Measured at the settings above and the recalibrated desk limits:
   # 0.0328 to 0.0444 across the five seeds. What is left is sampling error
-  # in the tail estimate rather than a real difference, and it shrinks
-  # like 1 / sqrt(scenarios) — a three-seed check at 8,000 scenarios
-  # measures 0.060 to 0.076 instead. Cut `scenarios` above and this
-  # tolerance has to rise with it.
+  # in the tail estimate rather than a real difference, and it shrinks as
+  # the sample grows — a three-seed check at 8,000 scenarios measures a
+  # mean of 0.0659, and one at 600 measures 0.1667. Cut `scenarios` above
+  # and this tolerance has to rise with it.
+  #
+  # `1 / sqrt(scenarios)` is the right shape at the large-sample end only.
+  # From the 8,000 figure it predicts 0.0659 * sqrt(8000/25000) = 0.0373
+  # against the 0.0386 measured at 25,000, which is 3.4% low, but
+  # 0.0659 * sqrt(8000/600) = 0.2406 against the 0.1667 measured at 600,
+  # which is 44% high. Do not size this tolerance for a small sample by
+  # scaling the shipped number up by a square root.
   elliptical_weight_tolerance: 0.10
   # In fat_tailed mode they should not. This is how many times further
   # apart the two books have to be than they were in the control.
@@ -429,10 +495,66 @@ studies:
   divergence_ratio_min: 2.0
 
 # Slack allowed by each independent check of a solved portfolio.
+#
+# EVERY NUMBER HERE IS CALIBRATED AGAINST A MEASUREMENT, not chosen for
+# comfort, and each one says what it was measured against and how much
+# room it leaves. The measurements sweep both sample sizes the lab runs at
+# -- the shipped 10,000 and the 600 the test suite uses -- across seven
+# in-sample seeds, because a tolerance fitted to one draw is a tolerance
+# fitted to one draw's luck: the VaR recovery gap, for instance, is
+# exactly 0 at the shipped seed and 1.9e-11 two seeds away. Every figure
+# below is the worst of those draws. Taken inside the container and
+# repeated on the host; the two agreed to the digits quoted.
+#
+# A tolerance that has to be widened to make a run pass is a defect to
+# investigate, not a number to raise.
 tolerances:
+  # How far a desk limit may be breached before the independent check
+  # refuses the book, and how close a row has to be to its bound before
+  # `duals.py` calls it active. This one is a judgement about the mandate
+  # rather than a measurement of the solver: at 1e-7 a book is allowed one
+  # ten-millionth of NAV past a cap, far below anything a desk could
+  # trade, and a row sitting 0.0031 from its cap at 10,000 scenarios is
+  # correctly reported inactive rather than nearly binding.
   constraint_abs: 1.0e-7
-  cvar_agreement_abs: 1.0e-6
-  var_recovery_abs: 1.0e-6
-  solver_agreement_rel: 1.0e-6
-  relaxation_abs: 1.0e-7
+  # The independent readings of the same tail average have to agree to
+  # this. Worst over fourteen draws: 4.16e-10, between the linear
+  # program's objective and the empirical tail mean at 10,000 scenarios;
+  # the `sum_largest` oracle agrees with that mean to 1e-17 throughout. So
+  # the ceiling leaves 5.0e-9 / 4.16e-10 = 12.0 times the worst, while
+  # staying five orders of magnitude below the 1.14e-04 separation that
+  # appears the moment `(1 - cvar_beta) * scenarios` stops being a whole
+  # number -- the disagreement this check exists to catch.
+  cvar_agreement_abs: 5.0e-9
+  # How far the Rockafellar-Uryasev scalar `a` may sit outside the optimal
+  # VaR interval. Worst over the same fourteen draws: 1.88e-11, at 600
+  # scenarios. 2.0e-10 / 1.88e-11 = 10.6 times it.
+  var_recovery_abs: 2.0e-10
+  # Relative disagreement allowed between the three algorithms on one
+  # sample at the headline target. Worst over twelve draws: 2.00e-08, at
+  # 10,000 scenarios; the shipped seed measures 3.00e-10 at that size and
+  # 1.54e-10 at 600, so one draw in twelve is nearly two orders worse than
+  # the shipped one and that is the number to calibrate against.
+  # 2.0e-7 / 2.00e-08 = 10.0 times it.
+  # `algorithms.objective_relative_tolerance` above is the same kind of
+  # number for the ladder rather than for this single solve.
+  solver_agreement_rel: 2.0e-7
+  # `max_i min(l_i, s_i)`: how far the signed split may lapse before the
+  # verifier refuses the book. The shipped run measures exactly 0 at
+  # 10,000 scenarios, so the binding measurement is not the headline but
+  # the worst exact case anywhere in the lab -- 2.86e-09, on a 600-scenario
+  # draw two seeds from the shipped one, against 2.04e-09 for the tightest
+  # isolation arm in `model_desk_test.py`. 5.0e-8 / 2.86e-09 = 17.5 times
+  # it, rather than the ten the other three get, because an interior-point
+  # residual on a nearly degenerate face is the least stable quantity in
+  # this lab and this check only has to separate 3e-09 from the 1.1e-02 a
+  # genuinely lapsed split produces -- seven orders of room either way.
+  relaxation_abs: 5.0e-8
+  # Relative agreement between a reported shadow price and the central
+  # difference of two nudged re-solves. Worst at the shipped defaults and
+  # 10,000 scenarios: 1.69e-03 on `turnover_budget`, against 8.31e-04 on
+  # `gross_leverage`, 2.97e-04 on `return_target` and 3.24e-05 on
+  # `beta_upper`. 0.02 / 1.69e-03 = 11.8 times the worst. A finite
+  # difference of a piecewise-linear value function is a far blunter
+  # instrument than the checks above, and this tolerance says so.
   dual_relative: 0.02

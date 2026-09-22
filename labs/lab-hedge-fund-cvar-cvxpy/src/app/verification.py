@@ -32,7 +32,7 @@ compare it to a number nobody asked for — a wrong answer rather than an
 error, which is the worst shape a defect can take in a verifier.
 
 This file runs past the ~200-line target the lab holds its modules to, and
-the reason is the prose rather than the code: roughly 120 lines are
+the reason is the prose rather than the code: roughly 140 lines are
 executable and the rest is the argument above and the docstrings below.
 The recomputation and the comparison vocabulary have already been lifted
 out into `verification_exposures.py` and `verification_checks.py`; what is

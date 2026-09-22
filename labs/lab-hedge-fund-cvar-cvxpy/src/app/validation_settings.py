@@ -71,6 +71,19 @@ def _validate_market_shape(market: GeneratorSettings) -> None:
             f"and its neighbour load on different style factors, "
             f"got {market.factor_count}"
         )
+    # The two seeds have to differ, and the failure is quiet rather than
+    # loud if they do not: an out-of-sample matrix drawn from the in-sample
+    # seed is byte-for-byte the in-sample matrix, so every out-of-sample
+    # figure in the report comes back equal to its in-sample twin and the
+    # gap between them reads as a clean zero produced by arithmetic instead
+    # of by measurement. `--seed` can reach this from the command line,
+    # which is why it is a rule here and not a comment in the file.
+    if market.seed == market.out_of_sample_seed:
+        raise ScenarioError(
+            f"market.out_of_sample_seed must differ from market.seed; both are "
+            f"{market.seed}, which would draw the same matrix twice and report "
+            f"an out-of-sample gap of exactly zero by construction"
+        )
 
 
 def _validate_market_shocks(market: GeneratorSettings) -> None:

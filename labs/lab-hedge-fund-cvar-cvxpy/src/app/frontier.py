@@ -35,7 +35,7 @@ exposes it per point and the sweep logs it; the hard `relaxation_exact`
 check stays where it belongs, on the single headline portfolio.
 
 This file runs a little past the ~200-line target the lab holds its
-modules to, and the reason is prose rather than code: about 110 lines are
+modules to, and the reason is prose rather than code: about 113 lines are
 executable and the rest is the three arguments above. Splitting it would
 separate the compile-once rule from the loop that depends on it.
 """
@@ -60,9 +60,11 @@ from app.verification import relaxation_overlap
 
 # Clarabel traces the sweep, because the sweep is fifty solves and it is
 # the cheap one: on the ladder's 8,000-scenario rung it solves this program
-# in 0.31 s against HiGHS's 1.10 and 1.28. Cross-algorithm agreement is the
-# ladder's job, in `algorithms.py`, where it is the point rather than an
-# overhead.
+# in 0.31 s against HiGHS's 1.28 for simplex and 1.13 for its
+# interior-point method. Those three are wall clock on one laptop and will
+# not reproduce to the digit anywhere else; the ordering is the durable
+# part. Cross-algorithm agreement is the ladder's job, in `algorithms.py`,
+# where it is the point rather than an overhead.
 SWEEP_ALGORITHM = "CLARABEL"
 
 
@@ -108,8 +110,18 @@ def _cvar_of(
     axis. It is deliberately *not* a call to `verify_solution`: that pass
     checks claims specific to the Rockafellar-Uryasev program — that the
     objective is a tail average, that the auxiliary scalar recovers the
-    value at risk — and a variance book satisfies neither, so it would be
-    correctly refused rather than scored.
+    value at risk — and a variance book satisfies neither.
+
+    What actually happens if a variance solve is handed to the verifier is
+    blunter than that, and worth recording rather than inferring. The
+    variance program has no `var_auxiliary` variable at all, so the
+    extracted solution carries `nan` in that field and the very first
+    check, `weights_finite`, raises: `weights_finite failed: 0 non-finite
+    of 30 weights, auxiliary scalar nan`. Measured at both 600 and 10,000
+    scenarios at the 0.005 matched target. The refusal is real but it
+    never reaches the objective comparison, so nothing about that comparison
+    can be read off it — which is exactly why the scoring here is a
+    NumPy tail average and not a verification pass.
     """
     if outcome.solution is None:
         return None

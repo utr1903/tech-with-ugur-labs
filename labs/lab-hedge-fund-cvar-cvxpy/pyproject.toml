@@ -96,6 +96,13 @@ disallow_untyped_calls = false
 python_files = ["*_test.py"]
 testpaths = ["src"]
 addopts = "--import-mode=importlib"
+markers = [
+  # The one test file that runs the shipped scenario.yaml at its real
+  # settings rather than a cut-down fixture. It is part of the default
+  # run; the marker exists so it can be selected on its own with
+  # `-m e2e`, or skipped with `-m "not e2e"` while iterating.
+  "e2e: the full default run, end to end, at the shipped settings",
+]
 
 [tool.deptry]
 known_first_party = ["app"]

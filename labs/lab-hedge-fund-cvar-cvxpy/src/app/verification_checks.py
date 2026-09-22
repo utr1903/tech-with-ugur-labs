@@ -168,14 +168,17 @@ def mandate_checks(
     `verify_solution` raises before any result is reported. No report comes
     back clean with one of those rows violated, apart from a sliver the
     width of `relaxation_abs` where an overlap sits just under tolerance —
-    at the shipped 1e-7, at most 6e-6 of NAV across thirty names, which is
-    above `constraint_abs` and so is a real if tiny hole, accepted in
-    exchange for a verifier that never reads the solver's legs.
+    at the shipped 5.0e-8, at most 30 * 5.0e-8 = 1.5e-6 of NAV across the
+    thirty names, which is above `constraint_abs` and so is a real if tiny
+    hole, accepted in exchange for a verifier that never reads the
+    solver's legs.
 
     *The turnover row* needs none of that, and `relaxation_exact` would not
     help if it did: the turnover leg is a separate relaxation with its own
     premises, and the arm table in `model_desk_test.py` has an arm where
-    the split is exact while `t` floats 4.6e-02 above the trade. The
+    the split is exact while the worst name's `t_i` floats 4.6e-02 of NAV
+    above its own trade — `budget slack, borrow fee only, target binding`,
+    measured at 600 scenarios. The
     argument here is simpler and unconditional. The mandate is a statement
     about the book — do not trade more than `turnover_max` of notional —
     and `sum|w - w0| <= sum(t)` always holds, so a book inside the budget

@@ -48,9 +48,11 @@ is scarce.
 **Every price is checked by moving its bound and re-solving.**
 `duals_check.py` owns that, including the case where the nudged program
 cannot be solved. Two re-solves per active row is what makes this table
-the costliest thing in the lab per number produced — 3.9 s for its five
-rows, four of them active, at the shipped 10,000 scenarios, against 0.14 s
-at 600 — and it is why the check runs only on rows that are active.
+an expensive table for the five numbers it produces — about 3.8 s at the
+shipped 10,000 scenarios, where four rows are active and each costs two
+extra full-size solves, against about 0.12 s for the three active rows at
+600 — and it is why the check runs only on rows that are active. Both are
+wall clock on one laptop, so read the ratio rather than either figure.
 
 This file runs a little past the ~200-line target the lab holds its
 modules to, and the reason is prose rather than code: about 140 lines are

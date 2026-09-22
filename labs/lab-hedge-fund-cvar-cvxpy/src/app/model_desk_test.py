@@ -68,11 +68,11 @@ from app.verification_exposures import cost_ledger
 # Measured, the two outcomes are about seven orders of magnitude apart at
 # their closest — 2.0e-09 for the tightest exact arm against 1.1e-02 for
 # the loosest lapsed one. The assertion bands are deliberately much less
-# ambitious than that: exact means at or under `relaxation_abs` (1e-7) and
-# lapsed means over a thousand times it (1e-4), which leaves three orders
-# of no-man's-land between them. Nothing here rests on a borderline call,
-# and a solver whose answer drifted into that gap would fail rather than
-# be quietly reclassified.
+# ambitious than that: exact means at or under `relaxation_abs` (5.0e-8 as
+# shipped) and lapsed means over a thousand times it (5.0e-5), which
+# leaves more than two orders of no-man's-land between them. Nothing here
+# rests on a borderline call, and a solver whose answer drifted into that
+# gap would fail rather than be quietly reclassified.
 LAPSE_FACTOR = 1_000
 
 
@@ -100,8 +100,18 @@ class PremiseArm:
 
 
 # Measured at 600 scenarios, seed 20260920. The `overlap` and `padding`
-# columns in the comments are what this table was read off; they are
+# figures in the comments are what this table was read off; they are
 # recorded for a reader's orientation and are not asserted as values.
+#
+# Both are per-name worsts, matching what the test below computes:
+# `overlap` is `max_i min(l_i, s_i)` and `padding` is
+# `max_i (t_i - |w_i - w0_i|)`. Neither is a sum over the thirty names.
+# The distinction is not pedantry — the summed padding of the last arm
+# here is 6.2e-01 against the 4.3e-02 recorded beside it, and
+# `duals_constraints.py` quotes the summed reading of the same experiment.
+# A figure from one file compared against a figure from the other without
+# checking which quantity each names will look like a sample-count error
+# and is not one.
 PREMISE_ARMS = (
     # --- the signed split: the turnover budget is left binding throughout,
     # so the turnover bound stays exact and the split is the only thing

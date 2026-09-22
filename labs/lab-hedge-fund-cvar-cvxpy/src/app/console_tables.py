@@ -15,7 +15,7 @@ left in a relaxed row is not balance sheet anyone can use, and the shadow
 price a few tables further down is what says whether a limit is scarce.
 
 This file runs a little past the ~200-line target the lab holds its
-modules to: about 185 lines are executable, and the rest is the warning
+modules to: about 188 lines are executable, and the rest is the warning
 above plus the two headings that say which estimator each `out - in`
 column belongs to — both of which belong beside the tables they are
 about.
@@ -143,7 +143,7 @@ def _tail_line(label: str, in_sample: float, scored: float) -> str:
 def _print_agreement(report: VerificationReport) -> None:
     """Print the independent paths to the same tail average, and the checks."""
     passed = sum(1 for _, ok in report.checks if ok)
-    write_line("  Four independent readings of the same number (bp of NAV)")
+    write_line("  Three independent readings of the same number (bp of NAV)")
     write_line(f"    model objective       {basis_points(report.model_objective):>10}")
     write_line(f"    sum_largest oracle    {basis_points(report.atom_oracle_cvar):>10}")
     write_line(f"    empirical CVaR        {basis_points(report.empirical_cvar):>10}")

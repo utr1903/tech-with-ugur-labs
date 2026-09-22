@@ -50,13 +50,18 @@ mandate exactly backwards.
 
 The reason the row is so close is that an interior point parks free
 padding against whatever budget it is given. Move the cap and the row
-moves with it while the portfolio does not: caps of 1.32, 2.0 and 6.0 give
-a row reading 1.3169, 1.9951 and 2.0752 while the book's own `sum |w|`
-stays at 0.8200 in all three. So a reader shown that 0.0031 as spare
-balance sheet would be reading the size of the budget, not the size of
-anything the book could use. That is why `ConstraintRow` reports the
-measurement and leaves the verdict to the dual — the number that says
-whether a limit is scarce.
+moves with it while the portfolio does not. Measured on the shipped
+mandate at 10,000 scenarios and the same 0.002 target, changing nothing
+but the cap: caps of 1.32, 2.0 and 6.0 give a row reading 1.3169, 1.9951
+and 2.0752 while the book's own `sum |w|` stays at 0.8200 in all three.
+At 600 scenarios the same sweep reads 1.3144, 1.9796 and 2.0207 against a
+book of 0.8597. So a reader shown that 0.0031 as spare balance sheet
+would be reading the size of the budget, not the size of anything the
+book could use. That is why `ConstraintRow` reports the measurement and
+leaves the verdict to the dual — the number that says whether a limit is
+scarce. (How far the padding follows a very wide cap is a property of the
+algorithm, not of the model: at 6.0 the row stops well short of the cap
+at both sample sizes.)
 
 This file runs past the ~200-line target the lab holds its modules to on
 prose alone: about 90 lines are executable and the rest is the rule above,

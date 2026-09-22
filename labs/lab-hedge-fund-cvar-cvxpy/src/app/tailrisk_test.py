@@ -64,9 +64,11 @@ def test_a_whole_number_tail_share_survives_binary_floating_point() -> None:
 
     `1 - 0.95` is `0.05000000000000004` in binary, so the naive ceiling of
     the product overshoots by one whole scenario. The lab's model-versus-
-    empirical agreement check is asserted to 1e-6, so an extra scenario in
-    the average would fail it — and would look like a solver problem rather
-    than an arithmetic one.
+    empirical agreement check is asserted to `tolerances.cvar_agreement_abs`,
+    5.0e-9 as shipped, and one extra scenario in a 500-long tail moves that
+    average by about 1e-04 — five orders past the ceiling. So the slip would
+    fail the check, and would read as a solver problem rather than as the
+    arithmetic one it is.
     """
     assert (1.0 - 0.95) * 10_000 > 500.0
 

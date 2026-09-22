@@ -110,12 +110,22 @@ STUDY_NAME = "elliptical"
 # and it is not a scale to reason about.
 #
 # Do not read a magnitude off it, because the control distance does not
-# have one magnitude — it shrinks like 1 / sqrt(scenarios), and on the
-# shipped generator it measures 0.0386 at five seeds and 25,000
-# scenarios, 0.0659 at three seeds and 8,000, and 0.1667 at three seeds
-# and 600. The number worth reasoning about is
-# `studies.elliptical_weight_tolerance` in `scenario.yaml`, which names
-# the sample count it was calibrated at.
+# have one magnitude — it shrinks as the sample grows, and on the shipped
+# generator it measures 0.0386 at five seeds and 25,000 scenarios, 0.0659
+# at three seeds and 8,000, and 0.1667 at three seeds and 600.
+#
+# `1 / sqrt(scenarios)` is the right shape for the large-sample end of
+# that and is not a law the measurement obeys everywhere. Extrapolating
+# the 8,000-scenario figure: 0.0659 * sqrt(8000 / 25000) = 0.0659 *
+# 0.56569 = 0.0373 against a measured 0.0386, which is 3.4% low; but
+# 0.0659 * sqrt(8000 / 600) = 0.0659 * 3.65148 = 0.2406 against a
+# measured 0.1667, which is 44% high. The root rule tracks between 8,000
+# and 25,000 and overpredicts badly at 600. Why it breaks down at the
+# small end is not isolated here and nothing depends on the answer; what
+# is recorded is that it does. So: it shrinks with the sample, roughly like
+# `1 / sqrt(scenarios)` once the sample is large, and the number worth
+# reasoning about is `studies.elliptical_weight_tolerance` in
+# `scenario.yaml`, which names the sample count it was calibrated at.
 DIVERGENCE_FLOOR = 1e-12
 
 

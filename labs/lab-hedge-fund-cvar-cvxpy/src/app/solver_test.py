@@ -29,9 +29,11 @@ def test_each_algorithm_reaches_the_same_objective(
     interesting for the simplex answer would fail a Clarabel solve that is
     entirely correct. The measured spread on this fixture is 1.9e-12
     absolute and 1.5e-10 relative, and 6.4e-12 / 3.0e-10 at the shipped
-    10,000 scenarios — four decades inside the 1e-6 the scenario allows,
-    and still far tighter than anything that would hide a real
-    disagreement.
+    10,000 scenarios. The scenario allows 2.0e-7, which is ten times the
+    worst relative spread measured anywhere in the lab — 2.0e-08, at
+    10,000 scenarios on a seed two away from the shipped one — so this
+    fixture sits about three decades inside it and the calibration still
+    covers a draw far less lucky than this one.
     """
     built = build_cvar_problem(small_scenario, small_market, log=log)
     outcomes = {

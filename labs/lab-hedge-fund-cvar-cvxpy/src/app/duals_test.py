@@ -152,8 +152,11 @@ def test_the_gross_row_is_measured_on_the_legs_and_not_on_the_weights(
     The test asserts the *relationship*, not the two constants, so it keeps
     holding when the mandate is recalibrated: the two expressions differ,
     the model's own one is the larger, and it is the one near the cap.
-    Swapping the implementation to `sum |w|` fails the third assertion;
-    swapping the two fails the last.
+    Both failure modes were checked by mutating the implementation and
+    watching this test: computing the row on `sum |w|` fails the second
+    assertion, which reads 0.8597 where it expects 1.3144; swapping the
+    row's two sides fails the first, which reads 1.3144 where it expects
+    the 1.32 cap.
     """
     built = build_cvar_problem(small_scenario, small_market, log=log)
     outcome = solve_problem(built, algorithm="CLARABEL", target=SLACK_TARGET, log=log)

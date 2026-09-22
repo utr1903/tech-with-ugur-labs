@@ -24,6 +24,10 @@ def _too_few_out_of_sample_scenarios(document: Document) -> None:
     document["market"]["out_of_sample_scenarios"] = 10
 
 
+def _colliding_seeds(document: Document) -> None:
+    document["market"]["out_of_sample_seed"] = document["market"]["seed"]
+
+
 def _single_style_factor(document: Document) -> None:
     document["market"]["factor_count"] = 1
 
@@ -111,6 +115,9 @@ def _zero_tolerance(document: Document) -> None:
             id="too-few-out-of-sample",
         ),
         pytest.param(_single_style_factor, "market.factor_count", id="one-factor"),
+        pytest.param(
+            _colliding_seeds, "market.out_of_sample_seed", id="colliding-seeds"
+        ),
         pytest.param(_zero_calm_sigma, "market.calm_sigma", id="zero-calm-sigma"),
         pytest.param(
             _certain_stress, "market.stress_probability", id="always-stressed"

@@ -25,13 +25,34 @@ from app.solver import ALGORITHMS, solve_problem
 # interior-point method's 25.
 TEST_LADDER = (300, 600)
 
-# What the three algorithms measurably agree to on this ladder, as a
-# relative spread: 1.60e-08 on the 300-scenario rung and 1.54e-10 on the
-# 600-scenario rung. The ceiling below is sixty times the worse of the two
-# and is deliberately a literal rather than the scenario's own
-# `objective_relative_tolerance`, so that loosening the gate cannot
-# loosen the test that checks it.
-MEASURED_SPREAD_CEILING = 1.0e-6
+# What the three algorithms measurably agree to, as a relative spread:
+# 1.60e-08 on this file's 300-scenario rung and 1.54e-10 on its
+# 600-scenario rung, with the shipped ladder's three rungs measuring
+# 3.66e-09 at 500, 1.77e-09 at 2,000 and 3.46e-09 at 8,000. So 1.60e-08
+# is the worst disagreement on this fixture's own seed, and the ceiling
+# below leaves 1.0e-7 / 1.60e-08 = 6.25 times it. (Swept over seven
+# in-sample seeds at the headline target the worst rises to 2.00e-08,
+# which is what `tolerances.solver_agreement_rel` is calibrated on. This
+# ladder runs one fixed seed, so 1.60e-08 is the number that governs
+# here — and 1.0e-7 still leaves five times the seed-swept worst.)
+#
+# It used to be 1.0e-6, which is numerically the same as the shipped
+# `objective_relative_tolerance` — so the assertion below reproduced the
+# production gate's own arithmetic instead of checking it, and a genuine
+# relative disagreement of 5e-7, thirty-one times worse than anything ever
+# measured here (5e-7 / 1.60e-08 = 31.25), would have passed this file in
+# silence. A ceiling that exists to catch drift has to sit close to the
+# measurement, not next to the gate.
+MEASURED_SPREAD_CEILING = 1.0e-7
+
+# And the gate itself, pinned separately. This one *is* the shipped value,
+# and equality is the point: the second assertion below fails the moment
+# `algorithms.objective_relative_tolerance` is widened past it, which is a
+# different job from the ceiling above and needs a different number. The
+# production gate is deliberately looser than the measurement — 1.0e-6 is
+# 62.5 times the worst spread — because it has to hold across solver
+# versions and machines the measurement was never taken on.
+GATE_CEILING = 1.0e-6
 
 
 @pytest.fixture(scope="session")
@@ -77,9 +98,16 @@ def test_every_algorithm_on_a_rung_reaches_the_same_objective(
     `MEASURED_SPREAD_CEILING` is fixed against what the solvers actually
     do. Measured on this ladder: a relative spread of 1.60e-08 on the
     300-scenario rung and 1.54e-10 on the 600-scenario rung, so the
-    ceiling leaves sixty times the worse of them. The second assertion is the one
-    that catches a loosened gate: if the scenario's tolerance is ever
-    widened past what the solvers measurably need, this fails and says so.
+    ceiling leaves 6.25 times the worse of them.
+
+    The two constants are two jobs and must not be collapsed into one.
+    The first assertion catches the solvers drifting apart, so its bound
+    tracks the measurement. The second catches the *gate* being widened,
+    so its bound is the shipped value itself. When the ceiling was 1.0e-6
+    they were the same number, and the first assertion then re-derived
+    the production gate's own predicate rather than testing anything: a
+    5e-7 disagreement, thirty-one times the worst ever measured here,
+    cleared both.
     """
     for count in ladder_scenario.algorithms.scenario_ladder:
         values = [
@@ -91,10 +119,7 @@ def test_every_algorithm_on_a_rung_reaches_the_same_objective(
         scale = max(abs(value) for value in values)
         assert (max(values) - min(values)) / scale <= MEASURED_SPREAD_CEILING
 
-    assert (
-        ladder_scenario.algorithms.objective_relative_tolerance
-        <= MEASURED_SPREAD_CEILING
-    )
+    assert ladder_scenario.algorithms.objective_relative_tolerance <= GATE_CEILING
 
 
 def test_simplex_and_interior_point_are_genuinely_different_algorithms(

@@ -25,7 +25,7 @@ are not shadow prices of a portfolio, and reading them would put
 meaningless figures in a table headed "what this constraint costs you".
 
 This file runs past the ~200-line target the lab holds its modules to, and
-the reason is the prose rather than the code: about 90 lines are executable
+the reason is the prose rather than the code: about 115 lines are executable
 and the rest is the explanation above and the docstrings below. Splitting
 it would put the algorithm table, the status rule and the extraction that
 depends on both into separate files, and a reader would have to hold all

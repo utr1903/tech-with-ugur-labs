@@ -276,22 +276,44 @@ def desk_block(scenario: Scenario, returns: FloatArray) -> DeskBlock:
         # Premise 2 carries the same condition as the split's, and for the
         # same reason: the half-spread lives in the return constraint, so
         # while that constraint has slack it charges for nothing and `t` is
-        # free to float. Measured at 600 scenarios with the budget widened
-        # until it is slack, the spread switched on: `t` sits 1.3e-10 above
-        # the real trade at a binding 0.006 target and 4.3e-02 above it at
-        # a slack one.
+        # free to float.
+        #
+        # WHICH QUANTITY EVERY FIGURE BELOW IS. All of them are
+        # `max_i (t_i - |w_i - w0_i|)`, the worst single name's padding,
+        # which is the quantity `model_desk_test.py`'s arm table asserts.
+        # None of them is `sum(t) - sum|w - w0|`, which is what
+        # `duals_constraints.py` quotes for the same experiment and which
+        # is larger by one to two orders of magnitude here. The two
+        # readings collide numerically — 4.3e-02 is the per-name figure at
+        # 600 scenarios *and* the summed figure at 10,000 — so a reader who
+        # compares the two files without checking which quantity each names
+        # will conclude one of them has the wrong sample count. Neither
+        # does. Read the quantity first.
+        #
+        # THE ARM, with every non-isolated term pinned: the shipped
+        # mandate, both costs on, the gross, per-name and per-sector caps
+        # left at their shipped values and all three slack, and
+        # `turnover_max` widened 0.50 -> 8.00 so the budget has 7.10 of
+        # room at 600 scenarios and 7.43 at 10,000. At a binding 0.006
+        # target — the return constraint's slack is 3.3e-14 — the worst
+        # name's `t` sits 1.3e-10 above its own trade at 600 scenarios and
+        # 4.7e-12 at 10,000. At a slack -0.02 target, where the return
+        # constraint has 1.70e-02 of room at 600 and 1.72e-02 at 10,000, it
+        # sits 4.3e-02 above it at 600 and 4.2e-03 at 10,000 — on a book
+        # the slack target has driven all the way to `sum|w| = 0`.
         #
         # What differs is which cost does the work. The half-spread
         # disciplines this bound and not the split — it multiplies `t`,
         # which padding `(l, s)` cannot move, and never touches `l` or `s`.
-        # The borrow fee is the mirror image: it charges `s`, so with the
-        # budget slack and the spread off it leaves `t` floating 4.6e-02
-        # above the trade at 600 scenarios, even at a binding target. The
+        # The borrow fee is the mirror image: it charges `s`, so on that
+        # same widened budget, at the same binding 0.006 target, switching
+        # the spread off alone leaves the worst name's `t` floating 4.6e-02
+        # above its trade at 600 scenarios and 1.4e-02 at 10,000. The
         # degenerate fixture takes both premises away at once and an
-        # interior-point solve leaves `t` floating 0.119 of NAV above the
-        # trade, also at 600. So the lab recomputes `|w - w0|` from the
-        # weights and prices the trade off that, rather than trusting `t`
-        # to have collapsed onto it.
+        # interior-point solve leaves the worst name floating 0.119 of NAV
+        # above its trade at 600 scenarios and 0.020 at 10,000. So the lab
+        # recomputes `|w - w0|` from the weights and prices the trade off
+        # that, rather than trusting `t` to have collapsed onto it.
         "turnover_buys": turnover_leg >= weights - universe.start_book,
         "turnover_sells": turnover_leg >= universe.start_book - weights,
         "return_target": expected_net >= target,
