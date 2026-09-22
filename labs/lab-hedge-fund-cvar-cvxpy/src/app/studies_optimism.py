@@ -65,6 +65,15 @@ points, nearly two fifths of the figure itself. By 8,000 scenarios that
 is down to 5 basis points. The direction is the lesson; the sizes belong
 to this scenario file.
 
+Those rows are seed averages, and they have to be. Per seed at the same
+settings, 3 of the 15 seed-and-rung cells come back negative: seed
+20260920 measures -7.7e-04 at 8,000 scenarios, and seed 20260923 measures
+-8.0e-04 at 2,000 and -4.0e-05 at 8,000. A single out-of-sample draw has
+a worst 5% of its own, and it can happen to flatter a book that never saw
+it — the more so at the top of the ladder, where the effect being measured
+is smallest. Averaging five seeds is what makes the mean positive at every
+rung, and it is why `studies.seeds` is not 1.
+
 This file runs past the ~200-line target the lab holds its modules to, and
 the reason is prose rather than code: about 128 lines are executable and
 the rest is the argument and the table above.
