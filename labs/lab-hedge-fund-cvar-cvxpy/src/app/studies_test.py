@@ -110,9 +110,9 @@ BOOKKEEPING_SCENARIOS = 600
 # A scenario count whose tail share is deliberately not a whole number:
 # (1 - 0.95) * 610 is 30.5, so the tail is 31 scenarios and the linear
 # program's optimum parts company with the average of those 31 losses.
-# The separation floor is an order of magnitude below the 1.14e-04
-# measured there and twelve orders above the 6.6e-14 the two agree to at
-# 600 scenarios, where the share is a whole number.
+# The separation floor sits about an order of magnitude below the 1.14e-04
+# measured there and about eight orders above the 6.6e-14 the two agree to
+# at 600 scenarios, where the share is a whole number.
 FRACTIONAL_TAIL_RUNG = 610
 FRACTIONAL_TAIL_SEPARATION = 1.0e-05
 
