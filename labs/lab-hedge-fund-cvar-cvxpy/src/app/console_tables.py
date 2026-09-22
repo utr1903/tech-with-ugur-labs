@@ -174,9 +174,10 @@ def print_tails(
     — this run's in-sample matrix against this run's out-of-sample matrix,
     for the one book the report is about. The second **averages seeds**,
     redrawing the in-sample matrix at every rung and scoring against a
-    single larger ruler. Both use the same sign convention, named in the
-    column heading rather than left to a docstring: `out - in`, so a
-    positive number is an optimistic in-sample tail.
+    larger ruler of its own — one per seed, held fixed across the rungs.
+    Both use the same sign convention, named in the column heading rather
+    than left to a docstring: `out - in`, so a positive number is an
+    optimistic in-sample tail.
 
     A single draw's gap carries the seed-to-seed noise of both tail
     estimates and can land either side of zero while the averaged ladder
@@ -237,11 +238,15 @@ def _print_optimism(optimism: OptimismResult, *, study_scenarios: int) -> None:
         "  size of the effect: every row redraws an in-sample matrix of that size for"
     )
     write_line(
-        f"  each seed, scores the book on one fixed {study_scenarios}-scenario "
-        f"ruler, and"
+        f"  each seed and scores the book on that seed's own {study_scenarios}-scenario"
     )
-    write_line("  averages. Same sign convention, so a positive `out - in` is again an")
-    write_line("  optimistic in-sample tail.")
+    write_line(
+        "  ruler -- one ruler per seed, held fixed across the rungs so the sample"
+    )
+    write_line(
+        "  size is the only thing moving down a column. Same sign convention, so a"
+    )
+    write_line("  positive `out - in` is again an optimistic in-sample tail.")
     write_line(
         row(["  scenarios", "in sample", "out of sample", "out - in"], _OPTIMISM_WIDTHS)
     )

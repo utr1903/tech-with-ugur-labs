@@ -27,10 +27,10 @@ Measured on the shipped mandate at 10,000 scenarios and a 0.002 return
 target, that distinction is the difference between a row sitting 0.0031
 from its cap and a limit whose price is 5.0e-14.
 
-This file runs a little past the ~200-line target the lab holds its
-modules to, and the reason is prose: about 120 lines are executable and
-the rest is the argument above, which is the one a reader of the table
-most needs.
+This file sits a few lines past the ~200-line target the lab holds its
+modules to, on prose rather than code: about 120 of its 203 lines are
+executable and the rest is the argument above, which is the one a reader
+of the table most needs.
 """
 
 from __future__ import annotations
@@ -156,12 +156,15 @@ def _print_header(report: VerificationReport, limits: DeskLimits) -> None:
         "  a different expression, never below sum |w|. Do not subtract the two:"
     )
     write_line(
-        "  the difference is not balance sheet the book could use, and neither is"
+        "  the difference is gross the book chose not to hold, not room the row is"
     )
     write_line(
-        "  the room left in the row. The gross_leverage price below is what says"
+        "  leaving it. And the room the row does have left is not capacity either,"
     )
-    write_line("  whether balance sheet is scarce.")
+    write_line(
+        "  because an inflated leg pads that row while holding nothing. What says"
+    )
+    write_line("  whether balance sheet is scarce is the gross_leverage price below.")
 
 
 def print_duals(

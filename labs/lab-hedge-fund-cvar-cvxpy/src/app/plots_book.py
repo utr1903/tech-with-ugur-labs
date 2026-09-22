@@ -42,22 +42,30 @@ from app.plots_theme import (
     style_legend,
 )
 
-# How far above the gross-cap line the top of the axis sits, as a multiple
-# of that cap. The legend goes in the band this opens up, so the band has
-# to be taller than the legend: two rows of 9-point text is about 25 pt,
-# which at the figure's 150 dpi is 25 * 150 / 72 = 52 px against an axes
-# height near 600 px, so the legend needs about 0.09 of the height. On the
-# shipped mandate 1.32 opens a band of (1.32 - 1.00) * 0.35 = 0.112 of NAV
-# above a 0.35 cap, which is 0.18 of the plotted range — twice what the
-# legend occupies. Raising it wastes white space; lowering it past about
-# 1.15 puts the legend on the cap line.
-LEGEND_HEADROOM = 1.32
+# How far above the *sector* gross-cap line the top of the axis sits, as
+# a multiple of that cap. Note which 1.3-ish number this is not: it has
+# nothing to do with `gross_leverage_max`, which is also near 1.3 and is
+# a whole-book limit. This one scales `sector_gross_cap`, and it is 1.30
+# rather than 1.32 so the two never read as the same constant.
+#
+# The legend goes in the band this opens up, so the band has to be taller
+# than the legend. Two rows of 9-point text is about 25 pt, which at the
+# figure's 150 dpi is 25 * 150 / 72 = 52.08 px against an axes height
+# near 600 px, so the legend needs 52.08 / 600 = 0.087 of the height. On
+# the shipped mandate 1.30 gives a band of (1.30 - 1.00) * 0.35 = 0.1050
+# of NAV over a plotted range of 0.4550 + 0.1595 = 0.6145, which is
+# 0.1050 / 0.6145 = 0.171 of the height, and 0.171 / 0.087 = 1.96 times
+# what the legend occupies. Raising it wastes white space; at 1.15 the
+# same arithmetic gives 0.0525 / 0.5620 = 0.093, or 0.093 / 0.087 = 1.07
+# times the legend, which is the floor.
+LEGEND_HEADROOM = 1.30
 
 # The matching margin under the deepest downside line, as a multiple of
 # it, so the lower sector-net cap is not drawn on the axis floor. On the
-# shipped mandate 1.45 leaves 0.08 of the plotted range below that line,
-# which is a clear gap at this figure size without doubling the empty
-# space beneath the bars.
+# shipped mandate 1.45 puts the floor at -0.11 * 1.45 = -0.1595, leaving
+# -0.11 - (-0.1595) = 0.0495 of NAV under that line, or
+# 0.0495 / 0.6145 = 0.081 of the plotted range: a clear gap at this
+# figure size without doubling the empty space beneath the bars.
 FLOOR_MARGIN = 1.45
 
 

@@ -163,10 +163,13 @@ def test_the_table_prints_a_verdict_for_every_row(
     out = _report(bundle, capsys)
     for entry in bundle.duals:
         expected = CONFIRMED if entry.active else NOT_PRICED
+        # A table row, not the prose above it: the `per` column's wording
+        # appears on the row and nowhere else.
+        unit = READINGS[entry.label].unit_name
         line = next(
             candidate
             for candidate in out.splitlines()
-            if candidate.strip().startswith(entry.label)
+            if candidate.strip().startswith(entry.label) and unit in candidate
         )
         assert expected in line, entry.label
 
