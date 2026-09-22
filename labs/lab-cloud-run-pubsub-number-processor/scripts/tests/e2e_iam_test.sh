@@ -30,7 +30,7 @@ curl() {
   done
   echo "$token $method $url" >> "$REQUESTS"
   case "$url" in
-    *processor.example.run.app*) status=204;;
+    *processor.example.run.app*) status=${PROCESSOR_STATUS:-404};;
     *pubsub.googleapis.com*)
       if [[ "$token" == server ]]; then body='{"messageIds":["123"]}'; else status=403; body='{"error":{"code":403,"message":"pubsub.topics.publish"}}'; fi;;
     *storage.googleapis.com*)
@@ -61,6 +61,7 @@ grep -q 'processor POST .*ifGenerationMatch=42' "$REQUESTS" || { echo 'FAIL: ove
 if ( NO_IMPERSONATION=true verify_iam ) > "$TMP/out" 2>&1; then echo 'FAIL: impersonation failure swallowed'; exit 1; fi
 [[ ! -s "$REQUESTS" ]] || { echo 'FAIL: API operations after failed impersonation'; exit 1; }
 if ( BAD_ALLOW=true verify_iam ) > "$TMP/out" 2>&1; then echo 'FAIL: unexpected permission allowed'; exit 1; fi
+if ( PROCESSOR_STATUS=204 verify_iam ) > "$TMP/out" 2>&1; then echo 'FAIL: external authenticated processor invocation allowed'; exit 1; fi
 # Cleanup runs with the reader and a failed cleanup must make the verifier fail.
 if ( CLEANUP_CODE=403 cleanup_objects ) > "$TMP/out" 2>&1; then echo 'FAIL: cleanup failure swallowed'; exit 1; fi
 echo 'PASS: IAM operation matrix, impersonation separation, unexpected grants, cleanup failure'

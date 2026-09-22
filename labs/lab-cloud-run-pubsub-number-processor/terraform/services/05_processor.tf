@@ -2,7 +2,7 @@ resource "google_cloud_run_v2_service" "processor" {
   name                = "${var.lab_name}-processor"
   location            = var.region
   deletion_protection = false
-  ingress             = "INGRESS_TRAFFIC_ALL"
+  ingress             = "INGRESS_TRAFFIC_INTERNAL_ONLY"
   template {
     service_account                  = local.processor_sa
     max_instance_request_concurrency = 20
@@ -39,4 +39,3 @@ resource "google_cloud_run_v2_service_iam_member" "processor_invoker" {
   role     = "roles/run.invoker"
   member   = "serviceAccount:${local.push_sa}"
 }
-output "processor_url" { value = google_cloud_run_v2_service.processor.uri }

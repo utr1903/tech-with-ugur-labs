@@ -32,9 +32,12 @@ CLEANUP_OBJECTS=()
 READER_TOKEN=$(gcloud auth print-access-token)
 trap cleanup_objects EXIT
 inspect_policies
+# Confirm the live resource and URL before treating HTTP 404 as network rejection.
+gcloud run services describe "$LAB_NAME-processor" --region="$REGION" --project="$PROJECT_ID" --format=json > "$TMP/processor-config.json"
+check_processor_config "$TMP/processor-config.json"
 request '' POST "$PROCESSOR_URL/" -H 'Content-Type: application/json' -d '{"message":{"data":"eyJudW1iZXIiOjEwMH0=","messageId":"unauthenticated-check"}}'
-expect_status 403
-echo 'PASS: unauthenticated processor invocation denied with HTTP 403'
+expect_status 404
+echo 'PASS: external unauthenticated processor request blocked; this is network rejection, not an IAM-denial proof'
 for payload in '{}' '{"number":"101"}' '{"number":null}' '{"number":true}' '{"number":1e999}' 'broken'; do
   request '' POST "$SERVER_URL/" -H 'Content-Type: application/json' -d "$payload"
   expect_status 400

@@ -7,6 +7,10 @@ variables {
 run "private_delivery" {
   command = apply
   assert {
+    condition     = google_cloud_run_v2_service.processor.ingress == "INGRESS_TRAFFIC_INTERNAL_ONLY" && google_cloud_run_v2_service.server.ingress == "INGRESS_TRAFFIC_ALL"
+    error_message = "Processor must restrict network ingress while server remains public."
+  }
+  assert {
     condition     = google_cloud_run_v2_service_iam_member.server_invoker.member == "allUsers" && google_cloud_run_v2_service_iam_member.processor_invoker.member == "serviceAccount:number-pipeline-push@test-project.iam.gserviceaccount.com" && google_cloud_run_v2_service_iam_member.processor_invoker.role == "roles/run.invoker" && google_cloud_run_v2_service_iam_member.processor_invoker.name == google_cloud_run_v2_service.processor.name
     error_message = "Only server is public; push identity invokes processor."
   }

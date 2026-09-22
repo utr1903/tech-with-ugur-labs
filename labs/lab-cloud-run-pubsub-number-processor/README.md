@@ -69,6 +69,115 @@ binding can give a runtime identity more access than the table shows. The
 verifier reads the visible ancestor allow policies and tests a defined set of
 allowed and denied operations, but it cannot prove universal least privilege.
 
+## How a published message reaches the processor
+
+The topic does not call Python directly. The **push subscription** connects
+this topic to the processor's default HTTPS `run.app` URL. The two Terraform
+roots separate resources needed before image builds from services that need
+those images. Each root collects its outputs in `99_outputs.tf`; moving an
+output there changes neither its name nor its value.
+
+```mermaid
+sequenceDiagram
+  participant H as Public Hono server
+  participant P as Pub/Sub topic and subscription
+  participant T as Google token-signing service
+  participant R as Cloud Run ingress and IAM
+  participant C as Python processor
+  participant B as Private bucket
+  H->>P: Publish JSON bytes as server runtime identity
+  P-->>H: Message ID (server returns HTTP 202)
+  P->>T: Obtain ID token for dedicated push identity
+  T-->>P: Google-signed OIDC token, audience = processor URI
+  P->>R: HTTPS POST, bearer token, wrapped message
+  R->>R: Check internal ingress, token, and invoke permission
+  R->>C: Forward accepted request to container
+  C->>C: Decode base64, parse JSON, validate number
+  opt Number greater than 100
+    C->>B: Create UUID.txt as processor runtime identity
+    B-->>C: Write succeeded
+  end
+  C-->>P: HTTP 204 acknowledges delivery
+  Note over P,C: HTTP 503 or missing acknowledgment causes retry
+```
+
+1. The Hono server publishes the UTF-8 JSON bytes `{"number":101}` using
+   its runtime credentials and topic-scoped `roles/pubsub.publisher`.
+   Pub/Sub accepts the message and returns a message ID. The subscription
+   tracks delivery and acknowledgment independently of the client's request.
+2. `terraform/services/06_subscription.tf` sets `push_endpoint` to the
+   processor URI and configures `oidc_token.service_account_email` as the
+   dedicated push account, with `audience` equal to that same URI.
+3. Pub/Sub's Google-managed service agent
+   (`service-PROJECT_NUMBER@gcp-sa-pubsub.iam.gserviceaccount.com`) obtains
+   a Google-signed ID token representing the push account. It needs
+   `iam.serviceAccounts.getOpenIdToken`; its normal service-agent role
+   supplies this, with the account-scoped legacy option described below.
+   The deployer separately needs `iam.serviceAccounts.actAs` to attach the
+   push account to the subscription. Neither operation uses a downloaded key.
+4. Pub/Sub sends an HTTPS POST with `Authorization: Bearer <ID_TOKEN>`.
+   For same-project Pub/Sub subscriptions using the default `run.app` URL,
+   Google recognizes the request as internal and keeps it within Google's
+   network. This lab needs no VPC connector, private IP, custom domain,
+   load balancer, or Eventarc trigger for that delivery path. The URL alone
+   does not grant access. [Cloud Run ingress documentation](https://docs.cloud.google.com/run/docs/securing/ingress)
+5. Cloud Run checks the token's signature, validity and audience and the
+   caller's `run.routes.invoke` permission before forwarding the request
+   to Python. The service-scoped `roles/run.invoker` binding in
+   `terraform/services/05_processor.tf` grants that permission to the push
+   account. The Python container runs as the **processor runtime account**,
+   not the caller's push account. [Push authentication documentation](https://docs.cloud.google.com/pubsub/docs/authenticate-push-subscriptions)
+
+For example, the POST body is a wrapped Pub/Sub message (IDs and timestamp
+below are illustrative):
+
+```json
+{
+  "message": {
+    "data": "eyJudW1iZXIiOjEwMX0=",
+    "messageId": "1234567890",
+    "publishTime": "2026-09-22T10:00:00Z"
+  },
+  "subscription": "projects/your-project/subscriptions/number-pipeline-push"
+}
+```
+
+`message.data` is base64 encoding of `{"number":101}`, not encryption. The
+processor decodes it, validates the number, and writes `101` into a fresh
+UUID-named object using its own bucket-scoped create permission. It returns
+`204` only after a successful write or deliberate skip; `503` lets Pub/Sub
+retry. The HTTP response is the acknowledgment—Python never polls a
+subscription or calls an acknowledgment API. See [push delivery and response codes](https://docs.cloud.google.com/pubsub/docs/push).
+
+### What “only Pub/Sub can invoke” means here
+
+Two independent controls protect the processor:
+
+- **Network:** `INGRESS_TRAFFIC_INTERNAL_ONLY` rejects internet-origin
+  requests, including a laptop request carrying a valid push-account token.
+  The same-project push subscription can reach the default `run.app` URL.
+- **Identity:** the only direct invoker grant created by the lab is for its
+  dedicated push account. Neither the server runtime nor the processor
+  runtime gets this grant; there is no processor `allUsers` binding.
+
+Internal ingress is not an allowlist of one subscription: other eligible
+internal sources exist. IAM authenticates the identity, not a particular
+subscription ID or JSON body. Someone who can impersonate the push account
+and use an allowed internal path can also invoke the service. Inherited
+invoker grants or an administrator changing policy can widen access. Keep
+that account dedicated to delivery, restrict who can mint its tokens or
+attach it to subscriptions, and remove the verifier's temporary impersonation
+grants after testing. A `subscription` field in a request is not authentication.
+
+Run `make e2e` from a laptop or another host **outside** an allowed internal
+network path. It checks live processor ingress and URL, expects `404` for
+external requests both without credentials and with a push-account token,
+and verifies real successful delivery through the public server, correlated
+processor logs, and the stored object. An ingress rejection is not proof of
+an IAM denial; direct policies and readable inherited policies are assessed
+separately. Running this external-boundary test from an allowed internal
+source intentionally fails its expected status. [Cloud Run 404 troubleshooting](https://docs.cloud.google.com/run/docs/troubleshooting#http_404_not_found)
+
 ## Credential-free local checks
 
 From a fresh clone, this path needs package and provider registry access but
@@ -164,7 +273,8 @@ At minimum, the hierarchy check calls for
 `resourcemanager.projects.get`, `resourcemanager.projects.getIamPolicy`,
 `resourcemanager.folders.getIamPolicy`,
 `resourcemanager.organizations.getIamPolicy`, and
-`run.services.getIamPolicy` at their corresponding resources. If any ancestor
+`run.services.getIamPolicy`, and `run.services.get` at their corresponding
+resources. If any ancestor
 policy cannot be read, the verifier stops instead of reporting a pass.
 
 ### 2. Bootstrap the staged deployment
@@ -347,13 +457,16 @@ make e2e
 
 It checks:
 
-- unauthenticated processor invocation returns `403`;
+- live processor configuration keeps internal ingress and IAM enforcement,
+  and external unauthenticated invocation returns `404`;
 - invalid public inputs return `400` (the stronger no-publication guarantee
   comes from the local injected-publisher tests);
 - a unique qualifying number reaches a correlated stored log and exact object;
 - `100` and `99` reach skipped logs without a stored completion during the
   observation windows;
-- the push identity can invoke only the processor operation under test;
+- even a valid push-identity token cannot invoke the processor from the
+  external verifier host; successful authenticated push delivery is established
+  by the correlated end-to-end processing checks;
 - the server can publish but cannot perform tested Storage operations;
 - the processor can create a new object but cannot publish, list, read, delete,
   or overwrite; and

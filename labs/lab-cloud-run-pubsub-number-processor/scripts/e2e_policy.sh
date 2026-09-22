@@ -44,3 +44,8 @@ inspect_policies() {
     || die 'Push identity has an unexpected direct server grant'
   echo 'PASS: readable ancestor allow policies and lab invocation bindings. Live operations cover only the tested permissions and current request context.'
 }
+
+check_processor_config() {
+  jq -e --arg url "$PROCESSOR_URL" '.status.url == $url and .metadata.annotations["run.googleapis.com/ingress"] == "internal" and (.metadata.annotations["run.googleapis.com/invoker-iam-disabled"] != "true")' "$1" >/dev/null \
+    || die 'Processor URL, internal ingress, or IAM enforcement differs from the expected configuration'
+}

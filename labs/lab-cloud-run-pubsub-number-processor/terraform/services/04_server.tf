@@ -39,4 +39,3 @@ resource "google_cloud_run_v2_service_iam_member" "server_invoker" {
   role     = "roles/run.invoker"
   member   = "allUsers"
 }
-output "server_url" { value = google_cloud_run_v2_service.server.uri }

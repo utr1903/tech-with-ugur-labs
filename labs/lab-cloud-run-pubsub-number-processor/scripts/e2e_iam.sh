@@ -14,8 +14,8 @@ verify_iam() {
     || die "Cannot mint push ID token for $PROCESSOR_URL"
   request "$id_token" POST "$PROCESSOR_URL/" -H 'Content-Type: application/json' \
     -d '{"message":{"data":"eyJudW1iZXIiOjEwMH0=","messageId":"iam-invocation-check"}}'
-  expect_status 204
-  echo 'PASS: push identity invokes processor'
+  expect_status 404
+  echo 'PASS: external invocation blocked even with push identity; successful Pub/Sub delivery is checked through correlated processing logs'
 
   # Positive publish establishes an existing, well-formed topic operation.
   request "$server_token" POST "https://pubsub.googleapis.com/v1/$TOPIC:publish" \

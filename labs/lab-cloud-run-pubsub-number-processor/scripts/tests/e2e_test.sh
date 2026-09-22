@@ -33,6 +33,17 @@ for malformed in 'null' '[]' '{"bindings":null}' '{"bindings":{}}' '{"bindings":
   printf '%s' "$malformed" > "$tmp/policy"
   expect_failure check_ancestor_policy "$tmp/policy"
 done
+# Reject configuration drift before interpreting external HTTP 404 responses.
+PROCESSOR_URL=https://processor.example.run.app
+valid_config='{"status":{"url":"https://processor.example.run.app"},"metadata":{"annotations":{"run.googleapis.com/ingress":"internal"}}}'
+printf '%s' "$valid_config" > "$tmp/processor-config"
+check_processor_config "$tmp/processor-config"
+for mutation in '.status.url = "https://wrong.example.run.app"' \
+  '.metadata.annotations["run.googleapis.com/ingress"] = "all"' \
+  '.metadata.annotations["run.googleapis.com/invoker-iam-disabled"] = "true"'; do
+  jq "$mutation" <<< "$valid_config" > "$tmp/processor-config"
+  expect_failure check_processor_config "$tmp/processor-config"
+done
 # External-command seam called by sourced polling functions.
 # shellcheck disable=SC2329
 gcloud() { echo '[]'; }
