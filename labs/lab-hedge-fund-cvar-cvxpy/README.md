@@ -81,14 +81,14 @@ Long/short equity fund -- 95% CVaR portfolio construction
   market           fat_tailed, 10000 scenarios, seed 20260920
   out of sample    fat_tailed, 10000 scenarios, seed 20260921
   in-sample digest 44b215b4325dd4f0389360a42102ec8df183cc65c6dfb626324d55c5aaf5d917
-  scenario digest  dab17fac4c6aef4e3993f6737882441afa0248a65e12a28a1a00a1cb50611b04
+  scenario digest  235d44e871d35a598315fab84fa70a27c44ac473867424c3062d678ab7108d30
   tail             worst 500 of 10000 scenarios
   return target    80.00 bp per month, net of borrow and trading cost
 
 Solve
   status           optimal
   solver           CLARABEL
-  wall clock       0.483 s over 24 iterations
+  wall clock       0.478 s over 24 iterations
   objective        214.59 bp of NAV   (the monthly CVaR the model minimized)
 
 Optimal book, in % of NAV -- 27 of 30 names listed
@@ -230,15 +230,15 @@ CVaR against mean-variance
 The same program under three algorithms
   scenarios              solver                status  objective bp     seconds   iterations
   -----------  ----------------  --------------------  ------------  ----------  -----------
-  500                  CLARABEL               optimal        156.60       0.020           17
-  500             HIGHS_SIMPLEX               optimal        156.60       0.024          297
-  500                 HIGHS_IPM               optimal        156.60       0.047           29
-  2000                 CLARABEL               optimal        210.93       0.069           15
-  2000            HIGHS_SIMPLEX               optimal        210.93       0.121          887
-  2000                HIGHS_IPM               optimal        210.93       0.197           36
-  8000                 CLARABEL               optimal        221.44       0.325           20
-  8000            HIGHS_SIMPLEX               optimal        221.44       1.417         3394
-  8000                HIGHS_IPM               optimal        221.44       1.069           38
+  500                  CLARABEL               optimal        156.60       0.019           17
+  500             HIGHS_SIMPLEX               optimal        156.60       0.023          297
+  500                 HIGHS_IPM               optimal        156.60       0.040           29
+  2000                 CLARABEL               optimal        210.93       0.066           15
+  2000            HIGHS_SIMPLEX               optimal        210.93       0.119          887
+  2000                HIGHS_IPM               optimal        210.93       0.221           36
+  8000                 CLARABEL               optimal        221.44       0.313           20
+  8000            HIGHS_SIMPLEX               optimal        221.44       1.432         3394
+  8000                HIGHS_IPM               optimal        221.44       1.115           38
 
 Frontier sweep
   targets swept                                   25
@@ -287,22 +287,24 @@ three consecutive runs of `time python -m app`:
 
 | Run | Wall clock |
 |---|---|
-| 1 | 36.7 s |
-| 2 | 36.5 s |
-| 3 | 36.2 s |
+| 1 | 43.6 s |
+| 2 | 38.1 s |
+| 3 | 36.9 s |
 
-Median 36.5 s, on an Apple M4 (10 cores) running macOS 26.6.2 and Docker
+Median 38.1 s, on an Apple M4 (10 cores) running macOS 26.6.2 and Docker
 28.3.2, in a `linux/arm64` container. No default was reduced to reach the
 budget: `market.scenarios` is the 10,000 the design called for, the frontier
 sweeps 25 targets, the ladder climbs to 8,000 and both studies average 5 seeds
 of 25,000 scenarios.
 
 Where the time goes, read off that run's own JSON log inside the container:
-the elliptical study 14.8 s, the frontier sweep 9.2 s, the shadow-price table
-4.1 s, the algorithm ladder 3.3 s, the optimism study 2.7 s, and the headline
+the elliptical study 15.0 s, the frontier sweep 9.8 s, the shadow-price table
+4.0 s, the algorithm ladder 3.4 s, the optimism study 2.7 s, and the headline
 solve itself 0.48 s. Writing the six artifacts, the three plots and the report
-together cost 0.28 s. The log's first record to its last is 35.4 s; the rest of
-the 36.2 s that `time` reported is interpreter startup and imports.
+together cost 0.28 s. The log's first record to its last is 36.2 s; the rest of
+the 36.9 s that `time` reported is interpreter startup and imports. The spread
+across the three runs above is the machine's, not the lab's — the first run of
+a batch is routinely the slowest.
 
 If you cut something to make it faster, cut `studies.scenarios`
 first and `market.scenarios` last — the optimism story is weakest at small
@@ -405,8 +407,9 @@ both are the same distance from the mean. A fund that is paid to carry crash
 risk does not experience them as the same event. Worse, variance is blind to
 *shape*: the generator's rare one-sided jumps have a component standard
 deviation of 0.0317, but variances add in quadrature, so bolting that onto a
-name already carrying a monthly standard deviation of 0.064 to 0.077 raises its
-total by only 0.0068 to 0.0085 — under a percentage point. A covariance matrix
+carrier whose monthly standard deviation *without* the jump is 0.055 to 0.070
+raises its total by only 0.0068 to 0.0085, taking it to 0.064 to 0.077 — a lift
+of under a percentage point. A covariance matrix
 prices that as almost nothing. Meanwhile the chance that at least one of the
 eight jump carriers crashes in a month is 1 − 0.998⁸ = 1.59%, and
 1.59% / 5% = 0.32, so roughly a third of the worst 5% of months contains a
@@ -622,9 +625,10 @@ absence of a price and not a small one; the console says so rather than printing
 
 Second, every active price is confirmed by re-solving the program twice with its
 right-hand side nudged by `h` and comparing the central difference
-$(f(\text{rhs}+h) - f(\text{rhs}-h)) / (2h)$ against the reported dual. Eight
-extra full-size solves for five rows is why that table costs 4.1 s of the run,
-and why only active rows get them.
+$(f(\text{rhs}+h) - f(\text{rhs}-h)) / (2h)$ against the reported dual. Nine
+extra full-size solves for five rows — two nudges for each of the four active
+rows, plus one to put the compiled problem back on its own target afterwards —
+is why that table costs 4.0 s of the run, and why only active rows get them.
 
 ## Gaussian against fat tails
 
@@ -696,6 +700,13 @@ month costs 1.59% of NAV when the book delivers 2.21% — the reported figure
 understates the delivered one by 61.57 / 159.17 = 39% of itself. By 8,000
 scenarios that is 5.45 / 205.79 = 2.6%. The direction is the lesson; the sizes
 belong to this generator.
+
+**The direction is a claim about the average, not about every cell.** Under the
+same three rows, 3 of the 15 seed-and-rung cells behind them come back
+negative: seed 20260920 measures −7.7e-04 at 8,000 scenarios, and seed 20260923
+measures −8.0e-04 at 2,000 and −4.0e-05 at 8,000. A single out-of-sample draw
+has a worst 5% of its own and can happen to flatter a book that never saw it.
+That is why `studies.seeds` is not 1, and why the row to read is the average.
 
 **Do not read the headline row's −1.32 bp as "the in-sample tail was
 pessimistic".** That number is one draw: this run's 10,000 in-sample scenarios
@@ -808,8 +819,8 @@ variable to the tail-shortfall block, so 10,000 scenarios is a large one.
 Across the ladder's 16-fold growth from 500 to 8,000 scenarios, Clarabel's
 iteration count barely moves — 17 to 20 — while the simplex row needs
 3394 / 297 = 11 times as many pivots. Wall clock follows: reading the run
-pasted above, Clarabel grows 0.325 / 0.020 = 16 times and the simplex row
-1.417 / 0.024 = 59 times. Read the iteration ratios rather than the
+pasted above, Clarabel grows 0.313 / 0.019 = 16 times and the simplex row
+1.432 / 0.023 = 62 times. Read the iteration ratios rather than the
 seconds, which move by tens of percent between runs: interior-point cost is a fixed number of
 expensive steps, simplex cost is a growing number of cheap ones, and which
 wins depends on the sample size. Each rung compiles its own problem,
@@ -880,21 +891,29 @@ in `duals[]`, `weights.csv` and `sectors.csv` as noted above.
 Follow the data in this order:
 
 ```text
-scenario.yaml -> scenario.py -> validation.py -> market.py -> model.py
-   -> solver.py -> verification.py -> frontier.py / algorithms.py / duals.py
-   -> studies.py -> artifacts.py / console.py / plots.py
+scenario.yaml -> scenario.py -> validation.py -> market.py -> tailrisk.py
+   -> model.py -> solver.py -> verification.py
+   -> frontier.py / algorithms.py / duals.py / limits.py
+   -> studies.py / studies_optimism.py
+   -> artifacts.py / console.py / plots.py
 ```
 
 `scenario.py` parses and freezes the inputs; `validation.py` and
 `validation_settings.py` hold every semantic rule. `market.py` draws the seeded
 factor model and `market_moments.py` derives its closed-form moments.
+**`tailrisk.py` is small and worth opening early**: it owns the one correct
+tail count and the pure-NumPy VaR and CVaR that every other module calls, and
+the reason it exists at all is the floating-point trap two sections above.
 `model.py` builds the three programs and `model_desk.py` holds the constraint
 block they share — that file is where the derivation above lives as code.
 `solver.py` runs one built problem under one named algorithm and reports the
 status verbatim. `verification.py`, with `verification_checks.py` and
-`verification_exposures.py`, recomputes every figure from the weights alone.
-`commands/run.py` coordinates one run in the one order that works, and
-`__main__.py` parses arguments and maps failures to exit codes.
+`verification_exposures.py`, recomputes every figure from the weights alone,
+and `limits.py` is the single mapping from a constraint label to the expression
+it is written on. `studies.py` holds the elliptical comparison and
+`studies_optimism.py` the optimism ladder. `commands/run.py` coordinates one
+run in the one order that works, and `__main__.py` parses arguments and maps
+failures to exit codes.
 
 ## Bring your own return history
 
@@ -931,7 +950,15 @@ python -m app --scenario scenario.yaml --output output --mode gaussian --seed 7
 
 `--mode` overrides `market.mode` for both matrices; `--seed` overrides
 `market.seed` for the in-sample draw only. Omit either to keep the file's own
-value. `uv run app` is equivalent to `python -m app`.
+value.
+
+`[project.scripts]` also exposes the application as `app`, but **inside the
+container use `python -m app`, or `uv run --no-sync app`**. A bare
+`uv run app` re-syncs the project first, and the image installed its
+dependencies with `--no-dev`, so the re-sync downloads the development group —
+`ruff`, `mypy`, `deptry` and their dependencies — and needs the network the
+rest of the lab does not. On the host, where `uv sync --frozen` has already
+installed that group, `uv run app` and `python -m app` are the same thing.
 
 | Exit code | Meaning |
 |---|---|

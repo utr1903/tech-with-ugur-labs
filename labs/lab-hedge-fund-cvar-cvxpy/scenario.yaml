@@ -393,9 +393,13 @@ market:
   #
   # A 0.2% chance per month of a 70% drop is a jump component whose own
   # standard deviation is 0.0317. Variances add in quadrature, though, so
-  # bolting it onto a carrier already running a monthly standard deviation
-  # of 0.064 to 0.077 raises that name's total by only 0.0068 to 0.0085 —
-  # well under a percentage point of monthly volatility. A variance model
+  # bolting it onto a carrier whose monthly standard deviation WITHOUT the
+  # jump is 0.055 to 0.070 raises that name's total by only 0.0068 to
+  # 0.0085, taking it to 0.064 to 0.077 — a lift well under a percentage
+  # point of monthly volatility. (Check it: the smallest carrier is
+  # sqrt(0.0553^2 + 0.031731^2) = 0.0638, a lift of 0.0085. Read 0.064 as
+  # the base instead and the quadrature gives 0.0074, which is neither
+  # endpoint.) A variance model
   # prices that as almost nothing. Meanwhile the chance that at least one
   # of the eight carriers jumps in a given month is 1 - 0.998^8 = 1.59%,
   # and 1.59% / 5% = 0.32, so roughly a third of the worst 5% of scenarios

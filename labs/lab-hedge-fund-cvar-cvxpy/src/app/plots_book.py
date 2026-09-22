@@ -185,9 +185,12 @@ def build_exposures(bundle: RunBundle) -> Figure:
         axes,
         title="Where the risk sits, sector by sector",
         subtitle=(
-            f"the solved book at a "
-            f"{bundle.scenario.headline_target_monthly / BASIS_POINT:.0f} bp "
-            f"target, {int(bundle.market.returns.shape[0])} scenarios"
+            # "at a target of N bp" rather than "at a N bp target": the
+            # number is the scenario's, so an article in front of it would
+            # be right for 75 and wrong for 80.
+            f"the solved book at a target of "
+            f"{bundle.scenario.headline_target_monthly / BASIS_POINT:.0f} bp, "
+            f"{int(bundle.market.returns.shape[0])} scenarios"
         ),
         xlabel="",
         ylabel="exposure (bp of NAV)",

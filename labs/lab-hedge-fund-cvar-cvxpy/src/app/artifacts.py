@@ -16,7 +16,7 @@ then moved onto its final name with `Path.replace`, which is atomic on a
 single filesystem. A reader tailing `output/` sees the old file or the new
 one, never a truncated one.
 
-The formats are split by audience. The four CSVs are for a spreadsheet and
+The formats are split by audience. The five CSVs are for a spreadsheet and
 `solution.json` is for a script; both carry raw floats, because the console
 beside them is where rounding belongs.
 """
