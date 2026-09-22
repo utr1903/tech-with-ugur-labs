@@ -213,13 +213,19 @@ def test_the_atom_oracle_reaches_the_same_optimum(
 def test_the_cvxpy_cvar_atom_reaches_the_same_optimum_as_well(
     small_scenario: Scenario, small_market: MarketScenarios, log: Logger
 ) -> None:
-    """A third path: CVXPY's own `cvar` atom over the identical desk block.
+    """A fourth spelling, and deliberately not a fourth derivation.
 
-    The lab does not build this one, because `sum_largest` already gives an
-    independent oracle and this atom is a thin wrapper over it. It is worth
-    one test anyway: it is the spelling a reader reaching for CVXPY would
-    try first, and showing it lands on the same number is what justifies
-    the claim that the hand-written program is not doing anything exotic.
+    The lab reaches this tail average by three independent routes — the
+    linear program's objective, the `sum_largest` oracle solved as its own
+    problem, and the empirical mean computed in NumPy — and the console
+    and the README both say *three*. This atom is not a fourth: CVXPY
+    expands `cvar(x, beta)` internally to `sum_largest(x, k) / k`, which is
+    route two, so it can only agree.
+
+    It is worth one test anyway, for a different reason: it is the spelling
+    a reader reaching for CVXPY would try first, and showing the
+    hand-written program lands on the same optimum is what justifies the
+    claim that the reformulation is not doing anything exotic.
     """
     target = small_scenario.headline_target_monthly
     linear_program, _ = _solved_cvar(small_scenario, small_market, target, log)

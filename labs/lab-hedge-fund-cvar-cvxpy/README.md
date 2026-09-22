@@ -81,14 +81,14 @@ Long/short equity fund -- 95% CVaR portfolio construction
   market           fat_tailed, 10000 scenarios, seed 20260920
   out of sample    fat_tailed, 10000 scenarios, seed 20260921
   in-sample digest 44b215b4325dd4f0389360a42102ec8df183cc65c6dfb626324d55c5aaf5d917
-  scenario digest  d73f7f45e824f30be290e68f4ceddf1c574fe47b041396c3310103a67e745fc1
+  scenario digest  dab17fac4c6aef4e3993f6737882441afa0248a65e12a28a1a00a1cb50611b04
   tail             worst 500 of 10000 scenarios
   return target    80.00 bp per month, net of borrow and trading cost
 
 Solve
   status           optimal
   solver           CLARABEL
-  wall clock       0.465 s over 24 iterations
+  wall clock       0.483 s over 24 iterations
   objective        214.59 bp of NAV   (the monthly CVaR the model minimized)
 
 Optimal book, in % of NAV -- 27 of 30 names listed
@@ -230,15 +230,15 @@ CVaR against mean-variance
 The same program under three algorithms
   scenarios              solver                status  objective bp     seconds   iterations
   -----------  ----------------  --------------------  ------------  ----------  -----------
-  500                  CLARABEL               optimal        156.60       0.018           17
-  500             HIGHS_SIMPLEX               optimal        156.60       0.021          297
-  500                 HIGHS_IPM               optimal        156.60       0.039           29
-  2000                 CLARABEL               optimal        210.93       0.065           15
-  2000            HIGHS_SIMPLEX               optimal        210.93       0.119          887
-  2000                HIGHS_IPM               optimal        210.93       0.217           36
-  8000                 CLARABEL               optimal        221.44       0.312           20
-  8000            HIGHS_SIMPLEX               optimal        221.44       1.404         3394
-  8000                HIGHS_IPM               optimal        221.44       1.080           38
+  500                  CLARABEL               optimal        156.60       0.020           17
+  500             HIGHS_SIMPLEX               optimal        156.60       0.024          297
+  500                 HIGHS_IPM               optimal        156.60       0.047           29
+  2000                 CLARABEL               optimal        210.93       0.069           15
+  2000            HIGHS_SIMPLEX               optimal        210.93       0.121          887
+  2000                HIGHS_IPM               optimal        210.93       0.197           36
+  8000                 CLARABEL               optimal        221.44       0.325           20
+  8000            HIGHS_SIMPLEX               optimal        221.44       1.417         3394
+  8000                HIGHS_IPM               optimal        221.44       1.069           38
 
 Frontier sweep
   targets swept                                   25
@@ -248,12 +248,23 @@ Frontier sweep
   CVaR at the highest feasible target         255.40   bp, target 87.50 bp
 ```
 
-Only the wall-clock columns move between runs. Re-running that command on this
-machine reproduced every other character of the block above — the same book, the
-same limits, the same prices, the same studies, the same frontier — while the
-headline solve came back anywhere between 0.46 s and 0.49 s and the ladder's
-timings shifted by a few percent. If a *number* other than a time differs on
-your machine, something real is different; see below.
+**Within one machine, only the wall-clock columns move.** Re-running that
+command in this container reproduced every other character of the block above
+— the same digest, the same book, the same limits, the same prices, the same
+studies, the same frontier — while the headline solve came back anywhere
+between 0.46 s and 0.49 s and the ladder's timings shifted by a few percent.
+
+**Across machines, two more things move, and neither is a defect.** Running
+the same commit on this laptop's host Python instead of in the container
+changed the in-sample digest, and changed five of the nine ladder rows'
+iteration counts: `HIGHS_SIMPLEX` 297 → 293, 887 → 893 and 3,394 → 3,414, and
+`HIGHS_IPM` 36 → 34 and 38 → 45. Clarabel's counts did not move and **no
+objective moved at all** — all three algorithms still read 156.60, 210.93 and
+221.44 bp on both. Iteration counts follow the matrix, and the matrix moves in
+its last bits (see below); a method that takes twenty more pivots to reach the
+same optimum has not found a different answer. So the figures to compare
+against this page are the objectives, the book, the limits, the prices and the
+studies — not the digest, the timings or the iteration counts.
 
 ### Reproducing the digests
 
@@ -274,22 +285,22 @@ three consecutive runs of `time python -m app`:
 
 | Run | Wall clock |
 |---|---|
-| 1 | 35.9 s |
-| 2 | 36.1 s |
-| 3 | 37.1 s |
+| 1 | 36.7 s |
+| 2 | 36.5 s |
+| 3 | 36.2 s |
 
-Median 36.1 s, on an Apple M4 (10 cores) running macOS 26.6.2 and Docker
+Median 36.5 s, on an Apple M4 (10 cores) running macOS 26.6.2 and Docker
 28.3.2, in a `linux/arm64` container. No default was reduced to reach the
 budget: `market.scenarios` is the 10,000 the design called for, the frontier
 sweeps 25 targets, the ladder climbs to 8,000 and both studies average 5 seeds
 of 25,000 scenarios.
 
 Where the time goes, read off that run's own JSON log inside the container:
-the elliptical study 15.3 s, the frontier sweep 9.9 s, the shadow-price table
-4.0 s, the algorithm ladder 3.3 s, the optimism study 2.7 s, and the headline
-solve itself 0.47 s. Writing the six artifacts, the three plots and the report
-together cost 0.26 s. The log's first record to its last is 36.4 s; the rest of
-the 37.1 s that `time` reported is interpreter startup and imports.
+the elliptical study 14.8 s, the frontier sweep 9.2 s, the shadow-price table
+4.1 s, the algorithm ladder 3.3 s, the optimism study 2.7 s, and the headline
+solve itself 0.48 s. Writing the six artifacts, the three plots and the report
+together cost 0.28 s. The log's first record to its last is 35.4 s; the rest of
+the 36.2 s that `time` reported is interpreter startup and imports.
 
 If you cut something to make it faster, cut `studies.scenarios`
 first and `market.scenarios` last — the optimism story is weakest at small
@@ -495,9 +506,13 @@ The mandate's turnover budget binds at every feasible target on the shipped
 frontier, so `t` sits on the real trade to 3.0e-12 of NAV at the headline, and
 to 9.1e-11 at the 600 scenarios the tests use. That is a fact about this
 calibration and not a theorem: widen `turnover_max` to 8.00 and drop the return
-target to −0.02, and the worst name's `t` floats 4.3e-02 of NAV above its own
-trade. Which is why the verifier recomputes `|w - w0|` from the weights and
-prices the trade off that rather than trusting `t`.
+target to −0.02, and the worst name's `t` floats 4.29e-02 of NAV above its own
+trade at 600 scenarios, and 4.18e-03 at the shipped 10,000. Both are
+`max_i (t_i - |w_i - w0_i|)`, the worst single name — the *summed* float over
+all thirty names is 6.24e-01 and 4.33e-02 at those two sample sizes, and 4.3e-02
+is therefore two different quantities depending on which count you are reading.
+Which is why the verifier recomputes `|w - w0|` from the weights and prices the
+trade off that rather than trusting `t`.
 
 ### The desk constraints
 
@@ -606,7 +621,7 @@ absence of a price and not a small one; the console says so rather than printing
 Second, every active price is confirmed by re-solving the program twice with its
 right-hand side nudged by `h` and comparing the central difference
 $(f(\text{rhs}+h) - f(\text{rhs}-h)) / (2h)$ against the reported dual. Eight
-extra full-size solves for five rows is why that table costs 4.0 s of the run,
+extra full-size solves for five rows is why that table costs 4.1 s of the run,
 and why only active rows get them.
 
 ## Gaussian against fat tails
@@ -683,12 +698,31 @@ belong to this generator.
 **Do not read the headline row's −1.32 bp as "the in-sample tail was
 pessimistic".** That number is one draw: this run's 10,000 in-sample scenarios
 against this run's 10,000 out-of-sample scenarios, for one book. It carries the
-sampling noise of both estimates and lands either side of zero. Three
-independent five-seed samples of that same quantity at 10,000 scenarios measured
-seed-to-seed spreads of 4.6, 7.2 and 6.0 bp, and pooling all 14 distinct draws
-gives +1.75 ± 1.58 bp — not distinguishable from zero. The seed-averaged ladder
-above is where the size of the effect lives; the one-draw table is there to show
-you what a single draw of it looks like.
+sampling noise of both estimates and lands either side of zero.
+
+Measured, so you can repeat it. Ten in-sample seeds — 20260920 and
+20260922 through 20260930, skipping 20260921 because that one *is* the
+out-of-sample ruler — each solved at the headline target on 10,000 scenarios
+and scored against the shipped ruler:
+
+```text
+seed      20260920 20260922 20260923 20260924 20260925
+out - in     -1.32    +4.95    -5.23    +4.58    -3.15   bp
+seed      20260926 20260927 20260928 20260929 20260930
+out - in     +0.90   +13.34    -5.11    +5.53    +2.48   bp
+```
+
+Four of the ten are negative and the range is −5.23 to +13.34 bp. The mean is
++1.70 bp with a sample standard deviation of 5.75, so a standard error of
+5.75 / sqrt(10) = 1.82 and a mean 1.70 / 1.82 = 0.93 standard errors from zero
+— nothing you could call a measurement. Score each seed against its *own* fresh
+ruler instead, which is what the seed-averaged ladder does, and the same ten
+draws give a mean of +7.07 bp with three negatives, 7.07 / 3.16 = 2.24 standard
+errors from zero and close to the ladder's own +5.45 bp at 8,000 scenarios.
+
+The lesson is the difference between those two rows, not either number: one
+draw of this gap tells you very little, and the ladder above is where the size
+of the effect lives.
 
 ## Where the relaxation lapses
 
@@ -716,6 +750,62 @@ Two consequences worth knowing before you edit anything:
   1.3e-02 and HiGHS's simplex returns essentially the same book — L1 distance
   1.5e-10 — with an overlap of exactly zero, because a simplex method finishes
   at a vertex. The headline uses Clarabel.
+
+## One program, three algorithms
+
+The report's second-to-last block is a bake-off, and it exists because a
+reader is entitled to be sceptical of a hand-written reformulation. If the
+CVaR of this book were an artifact of whichever solver happened to be
+installed, the lab would have no claim at all. So the same program is
+solved by three genuinely different methods at three sample sizes, and the
+objectives have to land on top of each other before the run continues.
+
+| Name in the table | What it is |
+|---|---|
+| `CLARABEL` | An interior-point method for conic programs, and CVXPY's default here. It walks through the middle of the feasible region and stops near the optimal vertex, so its answers are right to about ten decimals and never to the last bit. The headline book, the frontier sweep and every nudged re-solve behind the shadow prices all use it. |
+| `HIGHS_SIMPLEX` | HiGHS's simplex method. It walks the edges of the feasible region and finishes exactly *on* a vertex, which is why it is the one that returns an exactly-zero signed-split overlap where Clarabel returns 1.3e-02 (see [Where the relaxation lapses](#where-the-relaxation-lapses)). |
+| `HIGHS_IPM` | HiGHS's own interior-point method. Same library and same problem as the row above it — the only difference is the option string `highs_options={"solver": "ipm"}`. |
+
+That third row is a control rather than a third opinion. Both HiGHS rows
+name the same CVXPY solver, so if a future release quietly stopped
+honouring the option, the lab would be running one algorithm twice and
+calling it a bake-off. The **iteration counts are the runtime evidence
+that it is not**: at 8,000 scenarios the simplex row takes 3,394 pivots
+against the interior-point row's 38, a ratio of 3394 / 38 = 89, and
+`solver_test.py` asserts the gap rather than trusting the option to have
+been honoured.
+
+**What the agreement buys.** All three read 156.60 bp at 500 scenarios,
+210.93 at 2,000 and 221.44 at 8,000 — the same numbers to two decimals in
+basis points, and to far more than that underneath. On this ladder's own
+seed the worst relative disagreement between the three is 1.60e-08, at 300
+scenarios; swept over seven in-sample seeds at the headline target the
+worst rises to 2.00e-08, which is what `tolerances.solver_agreement_rel`
+is calibrated against. Three methods with nothing in common but the
+problem statement do
+not land on the same ten decimals by accident, so the agreement is
+evidence that the program says what the derivation says it does. When it
+fails, `algorithms.py` raises and names both solvers and both objectives
+rather than picking a favourite — a lab that quietly reported whichever
+answer arrived first would be hiding the thing it was built to test.
+
+**What the ladder is for.** Cost lives on the scenario axis, not the name
+axis. Thirty names is a small problem; every *scenario* adds a row and a
+variable to the tail-shortfall block, so 10,000 scenarios is a large one.
+Across the ladder's 16-fold growth from 500 to 8,000 scenarios, Clarabel's
+iteration count barely moves — 17 to 20 — while the simplex row needs
+3394 / 297 = 11 times as many pivots. Wall clock follows: reading the run
+pasted above, Clarabel grows 0.325 / 0.020 = 16 times and the simplex row
+1.417 / 0.024 = 59 times. Read the iteration ratios rather than the
+seconds, which move by tens of percent between runs: interior-point cost is a fixed number of
+expensive steps, simplex cost is a growing number of cheap ones, and which
+wins depends on the sample size. Each rung compiles its own problem,
+because the matrix changes shape between rungs and the `cp.Parameter`
+trick that lets the frontier reuse one compilation cannot apply.
+
+**Iteration counts are not a stable figure across machines.** They follow
+the matrix, and the matrix moves in its last bits with the BLAS — see
+[Reproducing the digests](#reproducing-the-digests). Objectives do not.
 
 ## The cardinality constraint this lab does not have
 
@@ -870,8 +960,9 @@ if you want the report alone.
 - **A run exits 2.** Read the last JSON log line: the message names the full
   path of the offending field, for example `desk_limits.gross_leverage_max`.
 - **A run exits 3.** The return target is above what the mandate can reach on
-  this sample — at the shipped settings the ceiling is 0.008882 a month. Lower
-  the target toward 0.008, or loosen a limit.
+  this sample — bisected at the shipped settings, the largest reachable net
+  return is 0.0088818 a month, and 0.008882 is already refused. Lower the
+  target toward 0.008, or loosen a limit.
 - **A run exits 4 with `relaxation_exact failed`.** You have almost certainly
   lowered `headline_target_monthly` below 0.003689. See
   [Where the relaxation lapses](#where-the-relaxation-lapses).

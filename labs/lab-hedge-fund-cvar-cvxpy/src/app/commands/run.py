@@ -28,13 +28,20 @@ twenty-five targets and records every `infeasible` among them verbatim,
 which is where a reader sees an unreachable target without the run
 having to fail.
 
-**`market.returns_csv` is not read here.** The loader in `returns_csv.py`
+**`returns_csv` — the top-level field, not one inside `market` — is not
+read here.** The loader in `returns_csv.py`
 turns a reader's own history into exactly the `MarketScenarios` this
 orchestration passes around, but the run draws both matrices from the
 seeded generator: the out-of-sample ruler has to be disjoint from the
 in-sample matrix, and one history cannot supply both without a holdout
 convention the lab does not define. The README says what the loader
 needs and which line to change.
+
+This file runs past the ~200-line target the lab holds its modules to, on
+prose rather than code: about 136 of its 236 lines are executable and the
+rest is the three rules above. It is deliberately one function's worth of
+straight-line wiring — the order is the whole content, and splitting it
+would put half the sequence in a file that cannot see the other half.
 """
 
 from __future__ import annotations

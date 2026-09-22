@@ -36,9 +36,10 @@ cvar_beta: 0.95
 # once: the gross-leverage cap, the turnover budget, two sectors' net caps
 # (energy at the positive cap and staples at the negative one, the long
 # and short ends of the same trade) and the upper beta limit. The largest
-# net return the mandate can reach is 0.008882, so the target has real
-# slack without being free, and the starting book already earns 0.006866
-# of it without trading at all.
+# net return the mandate can reach is 0.0088818 — bisected, and 0.008882
+# is already refused, so do not type that one in — which leaves the target
+# real slack without making it free. The starting book already earns
+# 0.006866 of it without trading at all.
 #
 # At 4,000 scenarios the same five bind (healthcare replaces energy as the
 # second capped sector) and the ceiling rises to 0.009130. At 600 — the
@@ -56,7 +57,15 @@ cvar_beta: 0.95
 #
 # RAISING THIS IS SAFE; LOWERING IT IS NOT, and the boundary is not
 # arbitrary. At the shipped 10,000 scenarios the minimum-CVaR book earns a
-# net 0.003689 a month all by itself. Ask for less than that and the
+# net 0.003689 a month all by itself — and that figure is the return
+# recomputed FROM THE WEIGHTS, `verification.py`'s reading, not the
+# model's own return row. The two differ over exactly this region and the
+# difference is the point: the model's row charges borrow on `s` and the
+# spread on `t`, both of which the padding has inflated, so it reads
+# 0.003351 to 0.003601 across the targets below the boundary while the
+# book itself earns a flat 0.003689. The from-weights reading is the one
+# that predicts where the boundary falls, because it is the one that says
+# what the book actually earns. Ask for less than that and the
 # return constraint stops binding, so the borrow fee and the half-spread
 # charge for nothing, the gross cap goes inactive too, and the signed
 # split loses both of the premises that make it exact. The legs then stop
@@ -498,13 +507,22 @@ studies:
 #
 # EVERY NUMBER HERE IS CALIBRATED AGAINST A MEASUREMENT, not chosen for
 # comfort, and each one says what it was measured against and how much
-# room it leaves. The measurements sweep both sample sizes the lab runs at
-# -- the shipped 10,000 and the 600 the test suite uses -- across seven
-# in-sample seeds, because a tolerance fitted to one draw is a tolerance
-# fitted to one draw's luck: the VaR recovery gap, for instance, is
-# exactly 0 at the shipped seed and 1.9e-11 two seeds away. Every figure
-# below is the worst of those draws. Taken inside the container and
-# repeated on the host; the two agreed to the digits quoted.
+# room it leaves.
+#
+# ONE SWEEP FEEDS ALL FOUR of the measured fields, so the counts below
+# agree with each other: both sample sizes the lab runs at -- the shipped
+# 10,000 and the 600 the test suite uses -- crossed with seven in-sample
+# seeds (20260920, 20260922, 20260923, 20260930, 20261101, 7, 42). That is
+# 14 draws attempted and 13 solved; 600 scenarios at seed 20260922 cannot
+# reach the 0.008 headline target and is skipped. Every figure below is
+# the worst of those 13.
+#
+# Seven seeds rather than one because a tolerance fitted to one draw is a
+# tolerance fitted to one draw's luck: the VaR recovery gap is exactly 0
+# at the shipped seed and 1.9e-11 ten seeds away, and the cross-solver
+# spread is 3.0e-10 at the shipped seed and 2.0e-08 at 20261101. Taken
+# inside the container and repeated on the host; the two agreed to the
+# digits quoted.
 #
 # A tolerance that has to be widened to make a run pass is a defect to
 # investigate, not a number to raise.
@@ -518,37 +536,44 @@ tolerances:
   # correctly reported inactive rather than nearly binding.
   constraint_abs: 1.0e-7
   # The independent readings of the same tail average have to agree to
-  # this. Worst over fourteen draws: 4.16e-10, between the linear
+  # this. Worst over those 13 draws: 4.16e-10, between the linear
   # program's objective and the empirical tail mean at 10,000 scenarios;
   # the `sum_largest` oracle agrees with that mean to 1e-17 throughout. So
   # the ceiling leaves 5.0e-9 / 4.16e-10 = 12.0 times the worst, while
-  # staying five orders of magnitude below the 1.14e-04 separation that
-  # appears the moment `(1 - cvar_beta) * scenarios` stops being a whole
-  # number -- the disagreement this check exists to catch.
+  # staying well below the 1.138e-04 separation that appears the moment
+  # `(1 - cvar_beta) * scenarios` stops being a whole number -- the
+  # disagreement this check exists to catch. That margin is
+  # 1.138e-04 / 5.0e-9 = 2.28e4, which is 4.4 orders of magnitude, not the
+  # five it is tempting to round it to.
   cvar_agreement_abs: 5.0e-9
   # How far the Rockafellar-Uryasev scalar `a` may sit outside the optimal
-  # VaR interval. Worst over the same fourteen draws: 1.88e-11, at 600
-  # scenarios. 2.0e-10 / 1.88e-11 = 10.6 times it.
+  # VaR interval. Worst over the same 13 draws: 1.88e-11, at 600
+  # scenarios and seed 20260930. 2.0e-10 / 1.88e-11 = 10.6 times it.
   var_recovery_abs: 2.0e-10
   # Relative disagreement allowed between the three algorithms on one
-  # sample at the headline target. Worst over twelve draws: 2.00e-08, at
-  # 10,000 scenarios; the shipped seed measures 3.00e-10 at that size and
-  # 1.54e-10 at 600, so one draw in twelve is nearly two orders worse than
-  # the shipped one and that is the number to calibrate against.
-  # 2.0e-7 / 2.00e-08 = 10.0 times it.
+  # sample at the headline target. Worst over the same 13 draws: 2.00e-08,
+  # at 10,000 scenarios and seed 20261101; the shipped seed measures
+  # 3.00e-10 at that size and 1.54e-10 at 600, so one draw in 13 is nearly
+  # two orders worse than the shipped one and that is the number to
+  # calibrate against. 2.0e-7 / 2.00e-08 = 10.0 times it.
   # `algorithms.objective_relative_tolerance` above is the same kind of
   # number for the ladder rather than for this single solve.
   solver_agreement_rel: 2.0e-7
   # `max_i min(l_i, s_i)`: how far the signed split may lapse before the
   # verifier refuses the book. The shipped run measures exactly 0 at
   # 10,000 scenarios, so the binding measurement is not the headline but
-  # the worst exact case anywhere in the lab -- 2.86e-09, on a 600-scenario
-  # draw two seeds from the shipped one, against 2.04e-09 for the tightest
-  # isolation arm in `model_desk_test.py`. 5.0e-8 / 2.86e-09 = 17.5 times
+  # the worst exact case anywhere in the lab -- 2.86e-09, at 600 scenarios
+  # and seed 7, against 2.04e-09 for the tightest isolation arm in
+  # `model_desk_test.py`. 5.0e-8 / 2.86e-09 = 17.5 times
   # it, rather than the ten the other three get, because an interior-point
   # residual on a nearly degenerate face is the least stable quantity in
-  # this lab and this check only has to separate 3e-09 from the 1.1e-02 a
-  # genuinely lapsed split produces -- seven orders of room either way.
+  # this lab and this check only has to separate 2.86e-09 from the 1.142e-02
+  # a genuinely lapsed split produces. That whole span is
+  # log10(1.142e-02 / 2.86e-09) = 6.6 orders, and the ceiling does not sit
+  # in the middle of it: 5.0e-8 is 1.2 orders above the worst exact case
+  # and 5.4 orders below the mildest lapsed one. The room is real and it is
+  # lopsided, which is the right way round -- the expensive mistake is
+  # calling a lapsed split exact.
   relaxation_abs: 5.0e-8
   # Relative agreement between a reported shadow price and the central
   # difference of two nudged re-solves. Worst at the shipped defaults and

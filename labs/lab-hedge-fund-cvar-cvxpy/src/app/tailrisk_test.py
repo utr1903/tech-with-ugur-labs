@@ -65,10 +65,17 @@ def test_a_whole_number_tail_share_survives_binary_floating_point() -> None:
     `1 - 0.95` is `0.05000000000000004` in binary, so the naive ceiling of
     the product overshoots by one whole scenario. The lab's model-versus-
     empirical agreement check is asserted to `tolerances.cvar_agreement_abs`,
-    5.0e-9 as shipped, and one extra scenario in a 500-long tail moves that
-    average by about 1e-04 — five orders past the ceiling. So the slip would
-    fail the check, and would read as a solver problem rather than as the
-    arithmetic one it is.
+    5.0e-9 as shipped, and one extra scenario is far more than that.
+
+    Measured on the shipped book, because the size of the slip depends on
+    how long the tail is and it is easy to quote the wrong sample's figure
+    here. At 10,000 scenarios the 500-scenario tail averages 0.021459198
+    and a 501-scenario tail averages 0.021442843, a shift of 1.64e-05 —
+    1.64e-05 / 5.0e-9 = 3.3e3, which is 3.5 orders past the ceiling. At 500
+    scenarios, where the tail is only 25 long, one extra scenario is worth
+    far more: 0.015659530 against 0.015414014, a shift of 2.46e-04, or 4.7
+    orders. Either way the slip fails the check — and would read as a
+    solver problem rather than as the arithmetic one it is.
     """
     assert (1.0 - 0.95) * 10_000 > 500.0
 

@@ -3,6 +3,12 @@
 Nothing here decides anything about portfolios. It configures logging once,
 parses four arguments, dispatches the one command, and turns each named
 failure into the exit code the README documents.
+
+It runs past the ~50-line target the lab holds an entry point to: 99 lines,
+of which about 67 are executable and most of those are the four
+`add_argument` calls and their help strings. The alternative is a separate
+parser module, which would put the flags a reader looks up in a different
+file from the exit codes they look up beside them.
 """
 
 from __future__ import annotations

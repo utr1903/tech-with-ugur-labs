@@ -295,7 +295,8 @@ def desk_block(scenario: Scenario, returns: FloatArray) -> DeskBlock:
         # left at their shipped values and all three slack, and
         # `turnover_max` widened 0.50 -> 8.00 so the budget has 7.10 of
         # room at 600 scenarios and 7.43 at 10,000. At a binding 0.006
-        # target — the return constraint's slack is 3.3e-14 — the worst
+        # target — the return constraint's slack there is 3.3e-14 at 600
+        # scenarios and -5.6e-15 at 10,000, so it binds at both — the worst
         # name's `t` sits 1.3e-10 above its own trade at 600 scenarios and
         # 4.7e-12 at 10,000. At a slack -0.02 target, where the return
         # constraint has 1.70e-02 of room at 600 and 1.72e-02 at 10,000, it
