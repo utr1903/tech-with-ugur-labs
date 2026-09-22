@@ -22,6 +22,8 @@ import numpy as np
 import pytest
 import yaml
 
+from app.algorithms import run_algorithm_ladder
+from app.bundle import RunBundle, file_digest, resolve_versions
 from app.contracts import (
     DeskLimits,
     FloatArray,
@@ -32,10 +34,17 @@ from app.contracts import (
     frozen_float_array,
     frozen_int_array,
 )
+from app.duals import build_dual_table
+from app.frontier import sweep_frontier
 from app.logging_setup import Logger, get_logger
 from app.market import generate_scenarios
+from app.model import build_atom_oracle_problem, build_cvar_problem
 from app.scenario import load_scenario
+from app.solver import solve_problem
+from app.studies import run_elliptical_study
+from app.studies_optimism import run_optimism_study
 from app.tailrisk import array_digest
+from app.verification import verify_solution
 
 LAB_ROOT = Path(__file__).resolve().parents[2]
 
@@ -323,4 +332,107 @@ def tiny_market() -> MarketScenarios:
     )
     return MarketScenarios(
         returns=returns, mode="hand_written", seed=0, digest=array_digest(returns)
+    )
+
+
+@pytest.fixture(scope="session")
+def bundle_scenario(small_scenario: Scenario) -> Scenario:
+    """Return the shipped mandate cut down to a size the suite can afford.
+
+    The sweep, the ladder and the two studies are all sized in the scenario
+    file for a run a reader watches once. A test needs the shapes rather
+    than the precision, so the grid is four targets instead of
+    twenty-five, the ladder is two rungs instead of three, and the studies
+    average two seeds of 600 scenarios instead of five of 25,000. Every
+    count here is a multiple of twenty so that `(1 - 0.95) * S` stays a
+    whole number, which is the condition under which the linear program,
+    the `sum_largest` oracle and `cvxpy.cvar` are exactly equal.
+    """
+    return replace(
+        small_scenario,
+        frontier=replace(small_scenario.frontier, points=4, max_target_monthly=0.006),
+        algorithms=replace(
+            small_scenario.algorithms, scenario_ladder=(400, SMALL_SAMPLE)
+        ),
+        studies=replace(small_scenario.studies, seeds=2, scenarios=SMALL_SAMPLE),
+    )
+
+
+@pytest.fixture(scope="session")
+def bundle(
+    bundle_scenario: Scenario,
+    small_market: MarketScenarios,
+    small_out_of_sample: MarketScenarios,
+    scenario_path: Path,
+    log: Logger,
+) -> RunBundle:
+    """Run everything once, at test size, and gather it the way a run does.
+
+    Session-scoped because it is the most expensive fixture in the suite:
+    it solves the headline twice, prices five limits with two re-solves
+    each, sweeps four targets under two models, climbs two ladder rungs
+    under three algorithms and runs both studies over two seeds.
+    """
+    target = bundle_scenario.headline_target_monthly
+    built = build_cvar_problem(bundle_scenario, small_market, log=log)
+    headline = solve_problem(built, algorithm="CLARABEL", target=target, log=log)
+    oracle = solve_problem(
+        build_atom_oracle_problem(bundle_scenario, small_market, log=log),
+        algorithm="CLARABEL",
+        target=target,
+        log=log,
+    )
+    assert oracle.solution is not None
+    return RunBundle(
+        scenario=bundle_scenario,
+        scenario_digest=file_digest(scenario_path),
+        market=small_market,
+        out_of_sample=small_out_of_sample,
+        headline=headline,
+        verification=verify_solution(
+            bundle_scenario,
+            small_market,
+            small_out_of_sample,
+            headline,
+            oracle.solution.objective,
+            target=target,
+            log=log,
+        ),
+        frontier=sweep_frontier(bundle_scenario, small_market, log=log),
+        ladder=run_algorithm_ladder(bundle_scenario, log=log),
+        duals=build_dual_table(bundle_scenario, small_market, built, headline, log=log),
+        elliptical=run_elliptical_study(bundle_scenario, log=log),
+        optimism=run_optimism_study(bundle_scenario, log=log),
+        versions=resolve_versions(),
+    )
+
+
+@pytest.fixture
+def inaccurate_bundle(bundle: RunBundle) -> RunBundle:
+    """Return the same run with the solver's status one notch short.
+
+    `optimal_inaccurate` means the method stopped before reaching its own
+    tolerance. The book is still there and still worth looking at, which is
+    why the lab reports it rather than discarding it — and why it is
+    reported under that name and never as `optimal`.
+    """
+    return replace(
+        bundle, headline=replace(bundle.headline, status="optimal_inaccurate")
+    )
+
+
+@pytest.fixture
+def infeasible_bundle(bundle: RunBundle) -> RunBundle:
+    """Return a run whose headline target the mandate could not reach.
+
+    No weights, so nothing to verify and no constraints to price. Both
+    fields are empty rather than stale, because a report carrying the
+    previous solve's numbers under an `infeasible` status would be the
+    worst available answer.
+    """
+    return replace(
+        bundle,
+        headline=replace(bundle.headline, status="infeasible", solution=None, duals={}),
+        verification=None,
+        duals=(),
     )

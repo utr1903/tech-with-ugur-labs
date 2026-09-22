@@ -54,11 +54,6 @@ strict = true
 files = ["src"]
 
 [[tool.mypy.overrides]]
-# matplotlib ships no py.typed marker and no maintained stub package.
-module = ["matplotlib.*"]
-ignore_missing_imports = true
-
-[[tool.mypy.overrides]]
 # cvxpy 1.9.3 ships a py.typed marker but re-exports its public API via
 # bare `from cvxpy.atoms import *` in cvxpy/__init__.py with no __all__.
 # mypy's --no-implicit-reexport (part of --strict) then reports "Module
