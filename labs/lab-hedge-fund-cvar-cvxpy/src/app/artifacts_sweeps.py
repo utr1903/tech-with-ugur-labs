@@ -18,8 +18,8 @@ from __future__ import annotations
 import numpy as np
 
 from app.artifacts_csv import table
-from app.console_prices import check_verdict
 from app.contracts import DualRow, FrontierPoint, LadderRow
+from app.lib.dual_verdicts import check_verdict
 from app.limits import written_on
 
 FRONTIER_COLUMNS = (

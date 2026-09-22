@@ -15,6 +15,19 @@ reach — which is not the same as the list this lab knows how to name.
 headline records its status and a null weight vector rather than an empty
 one, so nothing downstream can mistake "no book" for "the zero book".
 
+**Read the `verification` block as portfolio quantities, not as
+constraint rows.** Its field names are the frozen `VerificationReport`
+contract and several of them — `gross_leverage`, `name_gross_max`,
+`sector_gross`, `turnover` — match the label of a limit the model writes
+on `l + s` or on `t` rather than on `w`. Every number under
+`verification` is rebuilt from the weight vector alone, so it is the
+book's own quantity and bounds the constraint's left-hand side from
+below; it is not that left-hand side. The rows the model actually
+constrains are in `duals[]`, each carrying its own `written_on`, and in
+`weights.csv` (`name_gross_used`) and `sectors.csv`
+(`model_gross_row`). The names are the contract and are not renamed here;
+this paragraph is the annotation.
+
 This file runs past the ~200-line target the lab holds its modules to,
 and deliberately: it is one flat mapping from result types to JSON, with
 no branching to follow, and every function is a dictionary literal.
@@ -40,6 +53,7 @@ from app.contracts import (
     VerificationReport,
 )
 from app.cvxpy_api import installed_solvers
+from app.lib.dual_verdicts import check_verdict
 from app.limits import written_on
 from app.studies import EllipticalResult
 from app.studies_optimism import OptimismResult
@@ -145,7 +159,13 @@ def _ladder_row(entry: LadderRow) -> Document:
 
 
 def _dual_row(entry: DualRow) -> Document:
-    """Record one shadow price, and which expression it is a price on."""
+    """Record one shadow price, what it prices, and how its check went.
+
+    `agrees` is the contract's own field and `check` says which of its
+    three false meanings applies. Both are written, and `duals.csv`
+    carries the same pair, so the two artifacts of one run can never
+    disagree about what was recorded.
+    """
     return {
         "label": entry.label,
         "written_on": written_on(entry.label),
@@ -153,6 +173,7 @@ def _dual_row(entry: DualRow) -> Document:
         "dual_value": entry.dual_value,
         "finite_difference": entry.finite_difference,
         "agrees": entry.agrees,
+        "check": check_verdict(entry),
     }
 
 

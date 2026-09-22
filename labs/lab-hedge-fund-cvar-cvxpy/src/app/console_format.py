@@ -41,11 +41,6 @@ def basis_points(value: float) -> str:
     return f"{value / BASIS_POINT:.{DECIMALS}f}"
 
 
-def optional_nav_percent(value: float | None) -> str:
-    """Write a fraction of NAV, or `ABSENT` where there is none."""
-    return ABSENT if value is None else nav_percent(value)
-
-
 def optional_count(value: int | None) -> str:
     """Write a count, or `ABSENT` where the solver reported none."""
     return ABSENT if value is None else str(value)

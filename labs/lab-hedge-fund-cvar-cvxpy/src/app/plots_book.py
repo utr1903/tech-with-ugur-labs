@@ -12,6 +12,12 @@ model enforces on `Msec @ (l + s)`. Those two coincide only where the
 signed split is exact, so a bar approaching that line is not the test of
 whether the cap binds — `sectors.csv` carries the row the model actually
 constrains, and the console's limit table decides activity on it.
+
+This file runs a little past the ~200-line target the lab holds its
+modules to: about 135 lines are executable, and most of the rest is the
+derivation of the two axis-padding factors, which is written beside them
+so the next person to move a legend can check the arithmetic instead of
+guessing at a magic number.
 """
 
 from __future__ import annotations
@@ -35,6 +41,24 @@ from app.plots_theme import (
     style_axes,
     style_legend,
 )
+
+# How far above the gross-cap line the top of the axis sits, as a multiple
+# of that cap. The legend goes in the band this opens up, so the band has
+# to be taller than the legend: two rows of 9-point text is about 25 pt,
+# which at the figure's 150 dpi is 25 * 150 / 72 = 52 px against an axes
+# height near 600 px, so the legend needs about 0.09 of the height. On the
+# shipped mandate 1.32 opens a band of (1.32 - 1.00) * 0.35 = 0.112 of NAV
+# above a 0.35 cap, which is 0.18 of the plotted range — twice what the
+# legend occupies. Raising it wastes white space; lowering it past about
+# 1.15 puts the legend on the cap line.
+LEGEND_HEADROOM = 1.32
+
+# The matching margin under the deepest downside line, as a multiple of
+# it, so the lower sector-net cap is not drawn on the axis floor. On the
+# shipped mandate 1.45 leaves 0.08 of the plotted range below that line,
+# which is a clear gap at this figure size without doubling the empty
+# space beneath the bars.
+FLOOR_MARGIN = 1.45
 
 
 def build_loss_distribution(bundle: RunBundle) -> Figure:
@@ -141,13 +165,11 @@ def build_exposures(bundle: RunBundle) -> Figure:
         zorder=3,
     )
     _mark_sector_caps(axes, limits.sector_net_cap, limits.sector_gross_cap)
-    # Leave a clear band above the gross cap and below the net one, so the
-    # legend and the two cap labels never sit on top of a bar.
     axes.set_ylim(
         bottom=min(float(report.sector_net.min()), -limits.sector_net_cap)
         / BASIS_POINT
-        * 1.45,
-        top=limits.sector_gross_cap / BASIS_POINT * 1.32,
+        * FLOOR_MARGIN,
+        top=limits.sector_gross_cap / BASIS_POINT * LEGEND_HEADROOM,
     )
     axes.set_xticks(positions)
     axes.set_xticklabels(universe.sectors, fontsize=9)

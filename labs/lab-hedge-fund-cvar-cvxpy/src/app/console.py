@@ -18,7 +18,7 @@ and the CSVs beside it are for recomputing, so nothing rounded here is
 lost — `console_format.py` owns both that rule and the units.
 
 This file runs a little past the ~200-line target the lab holds its
-modules to, on prose rather than code: about 165 lines are executable.
+modules to, on prose rather than code: about 170 lines are executable.
 The tables it does not own have already been lifted into
 `console_tables.py`, `console_prices.py` and `console_compare.py`; what
 is left is the header, the status and the one table that needs the
@@ -30,7 +30,6 @@ from __future__ import annotations
 from app.bundle import RunBundle
 from app.console_compare import print_algorithms, print_frontier, print_models
 from app.console_format import (
-    ABSENT,
     basis_points,
     nav_percent,
     optional_count,
@@ -74,7 +73,14 @@ def print_report(bundle: RunBundle) -> None:
         _print_book(bundle.scenario.universe, solution)
         print_exposures(bundle.scenario, solution)
         print_ledger(report, target=bundle.scenario.headline_target_monthly)
-        print_tails(report, beta=bundle.scenario.cvar_beta, optimism=bundle.optimism)
+        print_tails(
+            report,
+            beta=bundle.scenario.cvar_beta,
+            in_sample_scenarios=int(bundle.market.returns.shape[0]),
+            out_of_sample_scenarios=int(bundle.out_of_sample.returns.shape[0]),
+            optimism=bundle.optimism,
+            study_scenarios=bundle.scenario.studies.scenarios,
+        )
         print_duals(bundle.duals, report, bundle.scenario.limits)
     print_models(
         bundle.elliptical,
@@ -226,8 +232,3 @@ def _print_book(universe: Universe, solution: PortfolioSolution) -> None:
     )
     write_line("  the last two rows are signed sums, so each column adds up.")
     write_line()
-
-
-def print_absent(label: str) -> None:
-    """Print a labelled line for a figure this run did not produce."""
-    write_line(f"  {label}: {ABSENT}")

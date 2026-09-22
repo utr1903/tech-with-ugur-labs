@@ -13,19 +13,11 @@ sentences underneath spell the same number out.
 
 **Two different things print as an unconfirmed price, and they are not the
 same finding.** `DualRow.agrees` is False both when the row was never
-checked and when the check came back unusable, so this module never prints
-that field on its own:
-
-* a row that is not active carries no price at all, so no re-solve was
-  attempted — the table says so and nothing is wrong;
-* an active row whose nudged programs came back infeasible or merely
-  `optimal_inaccurate` has a price that *could not be* confirmed, which is
-  a different sentence again;
-* and an active row whose finite difference genuinely disagrees is the
-  one finding worth alarm.
-
-Printing one label for the first two would show a reader an unverifiable
-price as a wrong one.
+checked and when the check came back unusable, so nothing here prints that
+field on its own: the `check` column holds
+`lib.dual_verdicts.check_verdict`, which separates the four situations,
+and the argument for the separation is written out there beside the
+vocabulary the artifacts use too.
 
 **A row's remaining room is not its worth.** The header above the table
 prints the book's own `sum |w|` next to the gross cap, and says in so many
@@ -47,17 +39,10 @@ from dataclasses import dataclass
 
 from app.console_format import BASIS_POINT, nav_percent, row, rule, yes_no
 from app.contracts import DeskLimits, DualRow, VerificationReport
+from app.lib.dual_verdicts import check_verdict
 from app.output import write_line
 
 _DUAL_WIDTHS = (18, 9, 11, 20, 30)
-
-# What the table says in its `check` column. The middle two are the two
-# meanings of a `DualRow` whose `agrees` field is False; see the module
-# docstring for why they are never printed as one.
-NOT_PRICED = "not binding, so not checked"
-UNCONFIRMED = "active, re-solve unusable"
-DISAGREES = "re-solve DISAGREES with price"
-CONFIRMED = "confirmed by a re-solve"
 
 
 @dataclass(frozen=True)
@@ -131,19 +116,6 @@ def price_in_basis_points(entry: DualRow) -> float:
     return entry.dual_value * reading.unit_size / BASIS_POINT
 
 
-def check_verdict(entry: DualRow) -> str:
-    """Say what happened to this row's finite-difference check.
-
-    Four outcomes, three of which would collapse into "agrees=False" if
-    the field were printed on its own. See the module docstring.
-    """
-    if not entry.active:
-        return NOT_PRICED
-    if entry.finite_difference is None:
-        return UNCONFIRMED
-    return CONFIRMED if entry.agrees else DISAGREES
-
-
 def _dual_line(entry: DualRow) -> str:
     """Lay out one priced limit."""
     reading = READINGS.get(entry.label, UNQUOTED)
@@ -173,14 +145,23 @@ def _print_header(report: VerificationReport, limits: DeskLimits) -> None:
     )
     write_line("  small one.")
     write_line(
-        f"  The book holds {nav_percent(report.gross_leverage)}% of NAV gross "
-        f"(its own sum |w|) against a "
-        f"{nav_percent(limits.gross_leverage_max)}% cap."
+        f"  The book itself holds {nav_percent(report.gross_leverage)}% of NAV "
+        f"gross, which is its own sum |w|."
     )
     write_line(
-        "  What says whether balance sheet is scarce is the gross_leverage price below,"
+        f"  The gross cap is {nav_percent(limits.gross_leverage_max)}%, and the "
+        f"model writes it on sum(l + s) --"
     )
-    write_line("  not the room left in any row.")
+    write_line(
+        "  a different expression, never below sum |w|. Do not subtract the two:"
+    )
+    write_line(
+        "  the difference is not balance sheet the book could use, and neither is"
+    )
+    write_line(
+        "  the room left in the row. The gross_leverage price below is what says"
+    )
+    write_line("  whether balance sheet is scarce.")
 
 
 def print_duals(

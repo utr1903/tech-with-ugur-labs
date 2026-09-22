@@ -17,16 +17,9 @@ import pytest
 from app.bundle import RunBundle
 from app.console import DISPLAY_THRESHOLD, print_report
 from app.console_format import basis_points, nav_percent
-from app.console_prices import (
-    CONFIRMED,
-    DISAGREES,
-    NOT_PRICED,
-    READINGS,
-    UNCONFIRMED,
-    check_verdict,
-    price_in_basis_points,
-)
+from app.console_prices import READINGS, price_in_basis_points
 from app.contracts import DualRow
+from app.lib.dual_verdicts import CONFIRMED, NOT_PRICED
 from app.model_desk import DUAL_BEARING_LABELS
 
 
@@ -130,7 +123,13 @@ def test_the_shadow_prices_are_introduced_with_the_books_own_gross(
     out = _report(bundle, capsys)
     report = bundle.verification
     assert report is not None
-    assert f"The book holds {nav_percent(report.gross_leverage)}% of NAV gross" in out
+    assert (
+        f"The book itself holds {nav_percent(report.gross_leverage)}% of NAV gross"
+        in out
+    )
+    cap = nav_percent(bundle.scenario.limits.gross_leverage_max)
+    assert f"The gross cap is {cap}%, and the model writes it on sum(l + s)" in out
+    assert "Do not subtract the two" in out
     assert "gross_leverage price below" in out
 
 
@@ -152,24 +151,24 @@ def _dual(
     )
 
 
-def test_the_two_meanings_of_an_unconfirmed_price_read_differently() -> None:
-    """`agrees` is false in three distinct situations, and they are not one.
+def test_the_table_prints_a_verdict_for_every_row(
+    capsys: pytest.CaptureFixture[str], bundle: RunBundle
+) -> None:
+    """Each row's `check` column reports what happened to that row's check.
 
-    A row that is not active was never checked, because there is no price
-    to check. An active row whose nudged re-solves came back unusable has
-    a price nobody could confirm. Printing one label for both would show a
-    reader an unverifiable number as a wrong one.
+    `lib/dual_verdicts_test.py` pins the four verdicts themselves; this
+    pins that the console renders the right one per row, so an inactive
+    limit is never shown as a failed check.
     """
-    unchecked = _dual("gross_leverage", active=False, difference=None, agrees=False)
-    unconfirmed = _dual("gross_leverage", active=True, difference=None, agrees=False)
-    wrong = _dual("gross_leverage", active=True, difference=9.0, agrees=False)
-    confirmed = _dual("gross_leverage", active=True, difference=-0.5, agrees=True)
-
-    assert check_verdict(unchecked) == NOT_PRICED
-    assert check_verdict(unconfirmed) == UNCONFIRMED
-    assert check_verdict(wrong) == DISAGREES
-    assert check_verdict(confirmed) == CONFIRMED
-    assert len({NOT_PRICED, UNCONFIRMED, DISAGREES, CONFIRMED}) == 4
+    out = _report(bundle, capsys)
+    for entry in bundle.duals:
+        expected = CONFIRMED if entry.active else NOT_PRICED
+        line = next(
+            candidate
+            for candidate in out.splitlines()
+            if candidate.strip().startswith(entry.label)
+        )
+        assert expected in line, entry.label
 
 
 def test_each_price_is_quoted_per_the_amount_its_sentence_names() -> None:

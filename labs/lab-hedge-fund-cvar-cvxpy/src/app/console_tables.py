@@ -15,8 +15,9 @@ left in a relaxed row is not balance sheet anyone can use, and the shadow
 price a few tables further down is what says whether a limit is scarce.
 
 This file runs a little past the ~200-line target the lab holds its
-modules to, on prose rather than code: about 155 lines are executable and
-the rest is the warning above, which belongs next to the table it is
+modules to: about 185 lines are executable, and the rest is the warning
+above plus the two headings that say which estimator each `out - in`
+column belongs to — both of which belong beside the tables they are
 about.
 """
 
@@ -127,7 +128,7 @@ def print_ledger(report: VerificationReport, *, target: float) -> None:
 
 
 def _tail_line(label: str, in_sample: float, scored: float) -> str:
-    """Lay out one tail figure in sample, out of sample and as a gap."""
+    """Lay out one tail figure in sample, out of sample, and out minus in."""
     return row(
         [
             label,
@@ -158,24 +159,51 @@ def _print_agreement(report: VerificationReport) -> None:
 
 
 def print_tails(
-    report: VerificationReport, *, beta: float, optimism: OptimismResult
+    report: VerificationReport,
+    *,
+    beta: float,
+    in_sample_scenarios: int,
+    out_of_sample_scenarios: int,
+    optimism: OptimismResult,
+    study_scenarios: int,
 ) -> None:
-    """Print the in-sample and out-of-sample tail side by side.
+    """Print the headline book's tail, then the seed-averaged ladder.
 
-    The gap column is out of sample minus in sample. A positive gap means
-    the number the book was chosen to minimize is better than the one it
-    delivers on scenarios it never saw, which is what the optimism ladder
-    below the table measures across sample sizes.
+    Two different estimators of the same effect, printed ten lines apart,
+    so each says in its own heading which it is. The first is **one draw**
+    — this run's in-sample matrix against this run's out-of-sample matrix,
+    for the one book the report is about. The second **averages seeds**,
+    redrawing the in-sample matrix at every rung and scoring against a
+    single larger ruler. Both use the same sign convention, named in the
+    column heading rather than left to a docstring: `out - in`, so a
+    positive number is an optimistic in-sample tail.
+
+    A single draw's gap carries the seed-to-seed noise of both tail
+    estimates and can land either side of zero while the averaged ladder
+    is firmly positive. That is the two estimators behaving correctly, not
+    a contradiction, which is why the heading says which is which and the
+    reader is pointed at the averaged one for the size of the effect.
     """
     in_sample: TailStatistics = report.in_sample
     scored: TailStatistics = report.out_of_sample
     write_line(f"Tail risk at {beta * 100:.0f}% confidence (bp of NAV per month)")
     write_line(
-        row(
-            ["", "in sample", "out of sample", "gap"],
-            _TAIL_WIDTHS,
-        )
+        f"  One draw: this run's {in_sample_scenarios} in-sample scenarios, scored "
+        f"against this"
     )
+    write_line(
+        f"  run's {out_of_sample_scenarios} out-of-sample scenarios, for the one "
+        f"book above. `out - in`"
+    )
+    write_line(
+        "  is out of sample minus in sample, so a positive number means the reported"
+    )
+    write_line(
+        "  tail was optimistic. One draw of it carries the sampling noise of both"
+    )
+    write_line("  estimates and can fall either side of zero; the seed-averaged ladder")
+    write_line("  below is where the size of the effect lives.")
+    write_line(row(["", "in sample", "out of sample", "out - in"], _TAIL_WIDTHS))
     write_line(rule(_TAIL_WIDTHS))
     write_line(_tail_line("VaR", in_sample.var, scored.var))
     write_line(_tail_line("CVaR", in_sample.cvar, scored.cvar))
@@ -193,17 +221,29 @@ def print_tails(
     write_line()
     _print_agreement(report)
     write_line()
-    _print_optimism(optimism)
+    _print_optimism(optimism, study_scenarios=study_scenarios)
 
 
-def _print_optimism(optimism: OptimismResult) -> None:
+def _print_optimism(optimism: OptimismResult, *, study_scenarios: int) -> None:
     """Print how much of the in-sample tail is sampling luck, by sample size."""
     write_line(
         f"  How optimistic the in-sample tail is, averaged over "
         f"{optimism.seeds} seeds (bp of NAV)"
     )
     write_line(
-        row(["  scenarios", "in sample", "out of sample", "gap"], _OPTIMISM_WIDTHS)
+        "  A different estimator from the table above, and the one to read for the"
+    )
+    write_line(
+        "  size of the effect: every row redraws an in-sample matrix of that size for"
+    )
+    write_line(
+        f"  each seed, scores the book on one fixed {study_scenarios}-scenario "
+        f"ruler, and"
+    )
+    write_line("  averages. Same sign convention, so a positive `out - in` is again an")
+    write_line("  optimistic in-sample tail.")
+    write_line(
+        row(["  scenarios", "in sample", "out of sample", "out - in"], _OPTIMISM_WIDTHS)
     )
     write_line(rule(_OPTIMISM_WIDTHS))
     for entry in optimism.rows:
