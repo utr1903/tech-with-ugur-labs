@@ -25,11 +25,17 @@ never took.
 **One ruler.** Every CVaR either study reports is the empirical tail
 average from `tailrisk`, recomputed from the weights and a return matrix.
 It is never a model objective. The variance program's objective is a
-variance and is not on the same axis at all, and `verification.py` — which
-does check an objective against the tail — is specific to the
-Rockafellar-Uryasev program and would correctly refuse a mean-variance
-book. Putting both books on the same ruler is the only thing that makes
-the difference between them mean anything.
+variance and is not on the same axis at all, and `verification.py` is not
+a way round that. It is specific to the Rockafellar-Uryasev program, and
+handing it a mean-variance solve fails at the *first* check rather than at
+the interesting one: the variance model has no auxiliary scalar, the
+solver reports NaN for it, and `weights_finite` refuses the outcome long
+before anything compares an objective with a tail. Measured on the shipped
+mandate at 600 scenarios, the message is `weights_finite failed: 0
+non-finite of 30 weights, auxiliary scalar nan`. So the refusal is real
+but it says nothing about tails, and putting both books on the same
+empirical ruler here is the only thing that makes the difference between
+them mean anything.
 
 **Out of sample means a different seed, not a different slice.**
 `out_of_sample_seed` moves the draw `OUT_OF_SAMPLE_SEED_OFFSET` seeds away

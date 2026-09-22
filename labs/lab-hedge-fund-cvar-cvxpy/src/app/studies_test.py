@@ -9,22 +9,36 @@ calibrated at 25,000 scenarios and asserted at 3,000 would be a test of
 the sample size rather than of the effect.
 
 **And why the elliptical fixture moves the generator.** It raises
-`jump_probability` from the shipped 0.002 to 0.02 and changes nothing else.
-The reason is measured rather than convenient. The divergence between the
-two models is carried by the rare one-sided jumps and essentially only by
-them, and at a 0.2% monthly rate a 3,000-scenario sample has a 150-row
-tail holding a handful of jump scenarios. Three seeds at 3,000 scenarios
-on the shipped generator measure a divergence ratio of **1.314** and a
-fat-tailed out-of-sample CVaR gap of **-1.57e-04** — the wrong sign
-outright. Half of 1.314 is 0.66, and a divergence-ratio floor below 1.0
-asserts nothing at all, since a ratio of 1.0 is "the two books are as far
-apart in the control as they are in the real market". Turning that one
-channel up to 0.02 at the same three seeds and the same 3,000 scenarios
-measures a ratio of **2.750** and a gap of **+1.69e-03**, so the floor and
-the tolerance below are halves and doubles of numbers that mean something.
+`jump_probability` from the shipped 0.002 to 0.02. That is the only field
+it changes, and the reason is measured rather than convenient. The
+divergence between the two models is carried by the rare one-sided jumps
+and essentially only by them, and at a 0.2% monthly rate a 3,000-scenario
+sample has a 150-row tail holding a handful of jump scenarios. Three seeds
+at 3,000 scenarios on the shipped generator measure a divergence ratio of
+**1.314** and a fat-tailed out-of-sample CVaR gap of **-1.57e-04** — the
+wrong sign outright. Half of 1.314 is 0.66, and a divergence-ratio floor
+below 1.0 asserts nothing at all, since a ratio of 1.0 is "the two books
+are as far apart in the control as they are in the real market". Turning
+that one channel up to 0.02 at the same three seeds and the same 3,000
+scenarios measures a ratio of **2.750** and a gap of **+1.69e-03**, so the
+floor and the tolerance below are halves and doubles of numbers that mean
+something.
 
-The shipped generator's own figures, at five seeds and 25,000 scenarios,
-are in `scenario.yaml` beside the two thresholds they calibrate.
+One field is not one effect, though, and the ratio's improvement comes
+from both ends. The `gaussian` mode is moment-matched, so it inherits the
+bigger jumps' variance through `market_moments.jump_moments` and the
+control arm moves too. At those same three seeds and 3,000 scenarios the
+fat-tailed distance goes 0.1517 to 0.2420, a factor of 1.59, while the
+control goes 0.1154 to 0.0880, a factor of 0.76 — so roughly two fifths
+of the ratio's gain is the denominator shrinking rather than the numerator
+growing. Why the control shrinks is not isolated here and nothing below
+depends on it; what the fixture needs is that both arms are declared and
+both numbers are on the page.
+
+None of this is a claim about the shipped market. The shipped generator's
+own figures, at five seeds and 25,000 scenarios, are in `scenario.yaml`
+beside the two thresholds they calibrate, and no test in this suite
+asserts against those two thresholds.
 
 **The stand-ins below capture the real functions at import.** Both patch a
 name inside `studies_seeds`, so calling that name again from inside the
@@ -34,7 +48,9 @@ directly instead, which `monkeypatch.setattr` never touches.
 
 from __future__ import annotations
 
+import re
 from dataclasses import replace
+from statistics import fmean
 
 import pytest
 
@@ -49,17 +65,19 @@ from app.contracts import (
 from app.errors import SolveError
 from app.logging_setup import Logger
 from app.market import FAT_TAILED_MODE, GAUSSIAN_MODE, generate_scenarios
-from app.model import BuiltProblem
+from app.model import BuiltProblem, build_cvar_problem
 from app.solver import solve_problem
 from app.studies import EllipticalResult, run_elliptical_study
 from app.studies_optimism import OptimismResult, run_optimism_study
 from app.studies_seeds import (
     OUT_OF_SAMPLE_SEED_OFFSET,
+    STUDY_ALGORITHM,
     draw,
     empirical_cvar,
     out_of_sample_seed,
+    require_survivors,
+    study_seeds,
 )
-from app.tailrisk import portfolio_losses, tail_statistics
 
 # Three seeds and 3,000 scenarios for the elliptical fixture, and the two
 # thresholds measured there: the Gaussian control distance came back at
@@ -88,6 +106,15 @@ OPTIMISM_OUT_OF_SAMPLE = 6_000
 # A sample far too small to say anything about either effect, used by the
 # tests that are about the seed bookkeeping rather than about the market.
 BOOKKEEPING_SCENARIOS = 600
+
+# A scenario count whose tail share is deliberately not a whole number:
+# (1 - 0.95) * 610 is 30.5, so the tail is 31 scenarios and the linear
+# program's optimum parts company with the average of those 31 losses.
+# The separation floor is an order of magnitude below the 1.14e-04
+# measured there and twelve orders above the 6.6e-14 the two agree to at
+# 600 scenarios, where the share is a whole number.
+FRACTIONAL_TAIL_RUNG = 610
+FRACTIONAL_TAIL_SEPARATION = 1.0e-05
 
 
 @pytest.fixture(scope="session")
@@ -369,7 +396,11 @@ def test_the_out_of_sample_size_is_fixed_across_the_ladder(
     scored = [count for _, seed, count in recorder.draws if seed >= boundary]
     trained = [count for _, seed, count in recorder.draws if seed < boundary]
     assert scored == [optimism_scenario.studies.scenarios] * STUDY_SEEDS
-    assert sorted(set(trained)) == sorted(OPTIMISM_LADDER)
+    # Exact, with multiplicity and in order: a set comparison would pass an
+    # implementation that drew one seed's rung twice and another's not at
+    # all, which is the same hole the `scored` assertion above is closed
+    # against.
+    assert trained == list(OPTIMISM_LADDER) * STUDY_SEEDS
 
 
 def test_a_seed_that_does_not_solve_is_skipped_and_never_averaged_in_as_zero(
@@ -454,34 +485,77 @@ def test_every_rung_is_averaged_over_the_same_seeds(
     assert skipped.rows[0].gap == pytest.approx(survivors_only.rows[0].gap)
 
 
-def test_the_studies_score_every_book_on_the_same_empirical_ruler(
-    bookkeeping_scenario: Scenario, log: Logger
+def test_the_in_sample_cvar_is_the_empirical_tail_and_not_the_model_objective(
+    optimism_scenario: Scenario, log: Logger
 ) -> None:
-    """Both books' tails come from `tailrisk`, never from a model objective.
+    """The in-sample column is scored, not read off the program that made it.
 
-    The variance program's objective is a variance and is not on this axis
-    at all, and `verification.py` — which does check an objective against
-    the tail — is specific to the Rockafellar-Uryasev program. Scoring the
-    two books the same way is the only thing that makes their difference
-    mean anything, so the scorer is checked against the arithmetic it
-    claims to be.
+    This is the one place in either study where a shortcut exists: the
+    CVaR program's objective *is* a tail average, so a `_score` that
+    reported `solution.objective` would be right almost everywhere and
+    would put a model objective in a column the lab promises is an
+    independent measurement.
+
+    Almost everywhere is the problem, and it is why this test runs at 610
+    scenarios rather than at a shipped rung. Where `(1 - beta) * S` is a
+    whole number the two quantities are the same number to solver
+    precision — measured at 600 scenarios they differ by 6.6e-14 — so a
+    test taken there cannot tell them apart. At 610 the tail share is 30.5,
+    the tail is 31 scenarios, and the linear program's optimum stops being
+    the average of those 31 losses: measured at the shipped mandate and the
+    0.008 headline target, the objective is 0.0182201 against an empirical
+    tail of 0.0181063, 1.14e-04 apart.
     """
-    market = draw(
-        bookkeeping_scenario,
-        seed=bookkeeping_scenario.market.seed,
-        count=BOOKKEEPING_SCENARIOS,
-        mode=FAT_TAILED_MODE,
-        log=log,
+    scenario = replace(
+        optimism_scenario,
+        algorithms=replace(
+            optimism_scenario.algorithms, scenario_ladder=(FRACTIONAL_TAIL_RUNG,)
+        ),
+        studies=replace(optimism_scenario.studies, seeds=2),
     )
-    weights = bookkeeping_scenario.universe.start_book
-    beta = bookkeeping_scenario.cvar_beta
-    losses = portfolio_losses(market.returns, weights)
-    assert empirical_cvar(market.returns, weights, beta) == pytest.approx(
-        tail_statistics(losses, beta).cvar
+    objectives: list[float] = []
+    empirical: list[float] = []
+    for seed in study_seeds(scenario):
+        market = draw(
+            scenario,
+            seed=seed,
+            count=FRACTIONAL_TAIL_RUNG,
+            mode=scenario.market.mode,
+            log=log,
+        )
+        outcome = solve_problem(
+            build_cvar_problem(scenario, market, log=log),
+            algorithm=STUDY_ALGORITHM,
+            target=scenario.headline_target_monthly,
+            log=log,
+        )
+        assert outcome.solution is not None
+        objectives.append(outcome.solution.objective)
+        empirical.append(
+            empirical_cvar(market.returns, outcome.solution.weights, scenario.cvar_beta)
+        )
+
+    # The premise, asserted rather than assumed: this is a state where the
+    # two candidates genuinely disagree.
+    assert all(
+        abs(objective - tail) > FRACTIONAL_TAIL_SEPARATION
+        for objective, tail in zip(objectives, empirical, strict=True)
     )
 
+    row = run_optimism_study(scenario, log=log).rows[0]
+    assert row.in_sample_cvar == pytest.approx(fmean(empirical))
+    assert row.in_sample_cvar != pytest.approx(fmean(objectives))
 
-def test_the_two_studies_name_themselves_distinctly() -> None:
-    """The survivor error has to say which study ran out of seeds."""
+
+def test_the_survivor_floor_names_the_study_that_ran_out_of_seeds() -> None:
+    """Two seeds pass, one does not, and the message says which study asked.
+
+    The behaviour is asserted rather than the constant: pinning
+    `MINIMUM_SURVIVING_SEEDS == 2` restates the implementation, and a
+    change to it would move the test in lockstep.
+    """
+    require_survivors(2, attempted=5, study=studies.STUDY_NAME)
     assert studies.STUDY_NAME != studies_optimism.STUDY_NAME
-    assert studies_seeds.MINIMUM_SURVIVING_SEEDS == 2
+    for name in (studies.STUDY_NAME, studies_optimism.STUDY_NAME):
+        with pytest.raises(SolveError, match=re.escape(name)):
+            require_survivors(1, attempted=5, study=name)

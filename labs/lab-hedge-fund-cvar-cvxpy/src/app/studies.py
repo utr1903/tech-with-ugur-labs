@@ -105,8 +105,17 @@ STUDY_NAME = "elliptical"
 
 # The floor under the control distance when the ratio is formed, so a
 # control that came back at machine zero produces a large ratio rather
-# than a division by zero. It is never reached at any sample size this lab
-# runs: the measured control distance is of the order of 1e-02.
+# than a division by zero. That is all it is for: at 1e-12 it sits ten
+# orders of magnitude below every control distance this lab has measured,
+# and it is not a scale to reason about.
+#
+# Do not read a magnitude off it, because the control distance does not
+# have one magnitude — it shrinks like 1 / sqrt(scenarios), and on the
+# shipped generator it measures 0.0386 at five seeds and 25,000
+# scenarios, 0.0659 at three seeds and 8,000, and 0.1667 at three seeds
+# and 600. The number worth reasoning about is
+# `studies.elliptical_weight_tolerance` in `scenario.yaml`, which names
+# the sample count it was calibrated at.
 DIVERGENCE_FLOOR = 1e-12
 
 
