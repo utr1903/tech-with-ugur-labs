@@ -1,5 +1,7 @@
 # Event-driven Cloud Run: publish a number, process it, store it
 
+[Read the companion post](https://techwithugur.dev/posts/cloud-run-pubsub-number-processor/).
+
 This lab builds a small asynchronous Google Cloud pipeline. A public Hono
 service accepts a finite JSON number and publishes it to Pub/Sub. Pub/Sub
 sends an authenticated push request to a private Python processor. Values
