@@ -1,0 +1,20 @@
+FROM python:3.12.12-slim-bookworm AS build
+
+ENV UV_COMPILE_BYTECODE=1
+WORKDIR /app
+RUN pip install --no-cache-dir uv==0.9.16
+COPY processor/pyproject.toml processor/uv.lock ./
+COPY processor/src ./src
+RUN uv sync --locked --no-dev --no-editable
+
+FROM python:3.12.12-slim-bookworm
+
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+WORKDIR /app
+RUN useradd --create-home --uid 10001 appuser
+COPY --from=build --chown=appuser:appuser /app/.venv ./.venv
+
+USER appuser
+CMD ["python", "-m", "app"]
