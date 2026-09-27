@@ -23,6 +23,9 @@ services:
       AWS_REGION: ${AWS_REGION:-us-east-1}
       LOG_LEVEL: ${LOG_LEVEL:-info}
       PORT: 3000
+      # The AWS SDK looks for the sign-in files under the home directory; this
+      # keeps that path the same when the service is run as another user.
+      HOME: /home/node
     volumes:
       # Read-only: the app only needs to know which login session to use.
       - type: bind
