@@ -6,7 +6,7 @@ import type { ModelEntry } from "./models.js";
 import { summarizeToolCalls, type ToolCallSummary } from "./tool-calls.js";
 
 /** The result of one question. */
-export type Answer = { answer: string; toolCalls: ToolCallSummary[] };
+type Answer = { answer: string; toolCalls: ToolCallSummary[] };
 
 /** Answers one question on one model. The server depends on this type only. */
 export type AnswerQuestion = (input: {
