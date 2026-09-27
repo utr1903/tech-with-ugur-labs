@@ -29,33 +29,13 @@ const MAX_ID = 2147483647;
 const DIGITS_ONLY = /^\d+$/;
 
 /**
- * A digit string longer than this can never convert to a safe integer (the
- * largest safe integer, `Number.MAX_SAFE_INTEGER`, has 16 digits), so it is
- * rejected up front instead of calling `Number()` on an arbitrarily long
- * string.
- */
-const MAX_DIGIT_STRING_LENGTH = 15;
-
-/**
- * Converts a value sent as a string of digits into a number, because at
- * least one Bedrock model sends numeric tool arguments as text (`"20"`
- * instead of `20`). A number is returned unchanged. A string is returned
- * unchanged, instead of being converted, when it is not purely digits, is
- * too long to be a safe integer, or would convert to a number that is not
- * a safe integer (`Number.isSafeInteger`) — for example
- * `"9007199254740993"` would silently become a different number
- * (`9007199254740992`) if converted, so it is left as text and the schema
- * piped after this rejects it as a string, the same clear message it
- * would give for any other wrong type.
+ * Some models send numbers as text (`"20"`), so plain digits become a number.
+ * A value that is too large is rejected by the bounds of the field's schema.
  */
 function digitsToNumber(value: number | string): number | string {
   if (typeof value === "number") return value;
   const trimmed = value.trim();
-  if (!DIGITS_ONLY.test(trimmed) || trimmed.length > MAX_DIGIT_STRING_LENGTH) {
-    return value;
-  }
-  const asNumber = Number(trimmed);
-  return Number.isSafeInteger(asNumber) ? asNumber : value;
+  return DIGITS_ONLY.test(trimmed) ? Number(trimmed) : value;
 }
 
 /**

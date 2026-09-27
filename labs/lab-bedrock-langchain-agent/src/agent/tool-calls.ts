@@ -12,8 +12,14 @@ export type ToolCallSummary = {
   total: number | null;
 };
 
-/** Reads `ok` and `total` from a tool result; anything unreadable is a failure. */
-function readOutcome(content: unknown): { ok: boolean; total: number | null } {
+/** Whether one tool call succeeded, and how many rows matched. */
+type Outcome = { ok: boolean; total: number | null };
+
+/**
+ * Reads `ok` and `total` from a tool result; anything unreadable is a
+ * failure. Used for the API response and for the tool-call log line.
+ */
+export function readOutcome(content: unknown): Outcome {
   try {
     const parsed = JSON.parse(String(content)) as {
       ok?: unknown;
@@ -33,7 +39,7 @@ function readOutcome(content: unknown): { ok: boolean; total: number | null } {
  * them from the messages keeps the server free of per-request shared state.
  */
 export function summarizeToolCalls(messages: BaseMessage[]): ToolCallSummary[] {
-  const outcomes = new Map<string, { ok: boolean; total: number | null }>();
+  const outcomes = new Map<string, Outcome>();
   for (const message of messages) {
     if (ToolMessage.isInstance(message)) {
       outcomes.set(message.tool_call_id, readOutcome(message.content));

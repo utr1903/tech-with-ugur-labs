@@ -1,14 +1,14 @@
 import { ToolMessage } from "@langchain/core/messages";
-import { ToolInputParsingException } from "@langchain/core/tools";
 import {
   createMiddleware,
-  ToolInvocationError,
+  type ToolCallRequest,
   type WrapModelCallHook,
   type WrapToolCallHook,
 } from "langchain";
 import type { Logger } from "../logger.js";
 import { describeError } from "./describe-error.js";
 import { describeInvalidArguments } from "./invalid-arguments.js";
+import { readOutcome } from "./tool-calls.js";
 
 const TOOL_CALL_FAILED = JSON.stringify({
   ok: false,
@@ -19,17 +19,6 @@ const TOOL_CALL_FAILED = JSON.stringify({
   },
 });
 
-/** Reads the row total from a tool result for the success log line. */
-function readTotal(result: unknown): number | null {
-  try {
-    const content = ToolMessage.isInstance(result) ? result.content : result;
-    const total = (JSON.parse(String(content)) as { total?: unknown }).total;
-    return typeof total === "number" ? total : null;
-  } catch {
-    return null;
-  }
-}
-
 /** True for an abort or a timeout, which must end the request, not become a tool result. */
 function isAbortOrTimeout(err: unknown): boolean {
   return (
@@ -39,21 +28,39 @@ function isAbortOrTimeout(err: unknown): boolean {
 }
 
 /**
- * The agent runtime (`ToolNode`) catches a rejected call itself, before
- * `wrapToolCall` ever sees it, and re-throws it as a `ToolInvocationError`
- * whose `toolError` is the original exception. This unwraps it back to the
- * `ToolInputParsingException` when that is what happened, so its message
- * (the per-field zod issues) can be read; every other tool error is left
- * as-is and keeps the generic `TOOL_CALL_FAILED` result.
+ * Checks the failed call's arguments against the schema of the tool being
+ * called. Returns the per-field message when they do not fit, and `null`
+ * when they fit, when the tool is unknown, or when the check itself fails:
+ * this runs inside error handling and must never throw.
  */
-function invalidArgumentsError(err: unknown): ToolInputParsingException | null {
-  if (
-    err instanceof ToolInvocationError &&
-    err.toolError instanceof ToolInputParsingException
-  ) {
-    return err.toolError;
+function invalidArgumentsMessage(request: ToolCallRequest): string | null {
+  try {
+    const schema = request.tool?.schema;
+    return describeInvalidArguments(schema, request.toolCall.args);
+  } catch {
+    return null;
   }
-  return null;
+}
+
+/**
+ * The tool result the model gets for a failed call: the per-field message
+ * when the arguments did not fit the schema, the generic one otherwise.
+ */
+function failedToolMessage(
+  request: ToolCallRequest,
+  invalidArguments: string | null,
+): ToolMessage {
+  const content = invalidArguments
+    ? JSON.stringify({
+        ok: false,
+        error: { code: "INVALID_ARGUMENTS", message: invalidArguments },
+      })
+    : TOOL_CALL_FAILED;
+  return new ToolMessage({
+    tool_call_id: request.toolCall.id ?? "",
+    name: request.toolCall.name,
+    content,
+  });
 }
 
 /**
@@ -111,16 +118,28 @@ function createWrapToolCall(logger: Logger): WrapToolCallHook {
     try {
       const result = await handler(request);
       logger.info(
-        { tool, total: readTotal(result), durationMs: Date.now() - startedAt },
+        {
+          tool,
+          total: readOutcome(
+            ToolMessage.isInstance(result) ? result.content : result,
+          ).total,
+          durationMs: Date.now() - startedAt,
+        },
         "Tool call succeeded.",
       );
       return result;
     } catch (err) {
+      // An abort or a timeout must still end the request: it is not a bad
+      // argument the model can recover from, so it is re-thrown below
+      // instead of being turned into a tool result.
+      const abortOrTimeout = isAbortOrTimeout(err);
       // Arguments that do not fit the tool's schema get their own code and
       // a message naming the offending fields, so the model can correct
       // itself instead of repeating the same call. Every other failure
       // (a database error, a bug in a tool) keeps the generic message.
-      const invalidArguments = invalidArgumentsError(err);
+      const invalidArguments = abortOrTimeout
+        ? null
+        : invalidArgumentsMessage(request);
       const code = invalidArguments ? "INVALID_ARGUMENTS" : "TOOL_CALL_FAILED";
       logger.error(
         {
@@ -131,29 +150,13 @@ function createWrapToolCall(logger: Logger): WrapToolCallHook {
         },
         "Tool call failed.",
       );
-      // An abort or a timeout must still end the request: it is not a bad
-      // argument the model can recover from, so it is re-thrown instead of
-      // being turned into a tool result.
-      if (isAbortOrTimeout(err)) {
+      if (abortOrTimeout) {
         throw err;
       }
       // Deliberately not re-thrown otherwise: a failed tool call becomes a
       // result the model can react to, so one bad argument does not end
       // the request.
-      const content = invalidArguments
-        ? JSON.stringify({
-            ok: false,
-            error: {
-              code,
-              message: describeInvalidArguments(invalidArguments),
-            },
-          })
-        : TOOL_CALL_FAILED;
-      return new ToolMessage({
-        tool_call_id: request.toolCall.id ?? "",
-        name: tool,
-        content,
-      });
+      return failedToolMessage(request, invalidArguments);
     }
   };
 }

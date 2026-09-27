@@ -28,6 +28,11 @@ const BEDROCK: HttpError = {
   code: "BEDROCK_ERROR",
   message: "Bedrock could not serve the request. Try again in a moment.",
 };
+const TIMEOUT: HttpError = {
+  status: 504,
+  code: "REQUEST_TIMEOUT",
+  message: "The request took too long and was stopped.",
+};
 
 /** Error names, as set by the AWS SDK and LangGraph, and what they mean here. */
 const BY_NAME: Record<string, HttpError> = {
@@ -52,16 +57,8 @@ const BY_NAME: Record<string, HttpError> = {
     code: "AGENT_LIMIT_REACHED",
     message: "The agent did not reach an answer within its step limit.",
   },
-  TimeoutError: {
-    status: 504,
-    code: "REQUEST_TIMEOUT",
-    message: "The request took too long and was stopped.",
-  },
-  AbortError: {
-    status: 504,
-    code: "REQUEST_TIMEOUT",
-    message: "The request took too long and was stopped.",
-  },
+  TimeoutError: TIMEOUT,
+  AbortError: TIMEOUT,
 };
 
 /**

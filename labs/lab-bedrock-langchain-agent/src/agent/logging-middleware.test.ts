@@ -1,3 +1,4 @@
+import { ToolMessage } from "@langchain/core/messages";
 import { DynamicStructuredTool } from "@langchain/core/tools";
 import { createAgent, FakeToolCallingModel } from "langchain";
 import pino from "pino";
@@ -19,9 +20,6 @@ function probeTool(behaviour: "ok" | "throw" | "abort") {
     name: "probe",
     description: "probe",
     schema: z.object({ id: z.number().int() }),
-    // Matches the real tools: the exception thrown for a rejected call
-    // must carry the per-field zod issues for the middleware to read.
-    verboseParsingErrors: true,
     func: async () => {
       if (behaviour === "throw") throw new Error("secret /home/node/.aws path");
       if (behaviour === "abort") {
@@ -38,7 +36,6 @@ function enumProbeTool() {
     name: "probe",
     description: "probe",
     schema: z.object({ status: z.enum(["pending", "shipped"]) }),
-    verboseParsingErrors: true,
     func: async () =>
       JSON.stringify({ ok: true, rows: [], total: 0, truncated: false }),
   });
@@ -138,7 +135,7 @@ describe("step logging middleware: arguments that do not fit the schema", () => 
     };
     expect(content.ok).toBe(false);
     expect(content.error.code).toBe("INVALID_ARGUMENTS");
-    expect(content.error.message).toContain("id");
+    expect(content.error.message).toContain("id: ");
     expect(content.error.message.length).toBeLessThanOrEqual(500);
     expect(result.messages.at(-1)?.getType()).toBe("ai");
   });
@@ -152,5 +149,28 @@ describe("step logging middleware: arguments that do not fit the schema", () => 
       error: { message: string };
     };
     expect(content.error.message).toContain("status");
+  });
+});
+
+describe("step logging middleware: a call whose tool cannot be found", () => {
+  it("returns the generic failure instead of throwing", async () => {
+    const { logger, lines } = captureLogs();
+    const middleware = createStepLoggingMiddleware({ logger });
+    const request = {
+      toolCall: { id: "1", name: "missing", args: { id: "one" } },
+      tool: undefined,
+    };
+    const result = await middleware.wrapToolCall?.(request as never, () => {
+      throw new Error("tool not found");
+    });
+    expect(ToolMessage.isInstance(result)).toBe(true);
+    expect(JSON.parse(String((result as ToolMessage).content))).toMatchObject({
+      ok: false,
+      error: { code: "TOOL_CALL_FAILED" },
+    });
+    expect(lines.at(-1)).toMatchObject({
+      msg: "Tool call failed.",
+      code: "TOOL_CALL_FAILED",
+    });
   });
 });

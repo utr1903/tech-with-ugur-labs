@@ -50,10 +50,6 @@ export function createQueryOrdersTool({ db, logger }: ToolDeps) {
     description:
       "Looks up orders of the shop. Use for: finding what a customer ordered, how many units, the order status, or which orders contain a product. Rows contain customer_id and product_id, not names. Do NOT use for: looking up names, emails or prices; use query_customers and query_products with the ids. All filters are optional and are combined with AND.",
     schema,
-    // Puts the per-field zod issues into the thrown exception's message, so
-    // a rejected call can be turned into an error the model can act on
-    // instead of a generic "check your arguments" message.
-    verboseParsingErrors: true,
     func: async (filters) => {
       const condition = toCondition(filters);
       return readRows({

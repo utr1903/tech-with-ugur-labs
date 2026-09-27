@@ -72,10 +72,6 @@ export function createQueryCustomersTool({ db, logger }: ToolDeps) {
     description:
       'Looks up customers of the shop. Use for: finding a customer\'s id, email, city or country, or counting customers that match a filter (read the "total" field). Do NOT use for: products, prices, stock, or what a customer ordered. All filters are optional and are combined with AND.',
     schema,
-    // Puts the per-field zod issues into the thrown exception's message, so
-    // a rejected call can be turned into an error the model can act on
-    // instead of a generic "check your arguments" message.
-    verboseParsingErrors: true,
     func: async (filters) => {
       const condition = toCondition(filters);
       return readRows({

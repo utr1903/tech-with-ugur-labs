@@ -13,6 +13,7 @@ export const SEED = 20260927;
 const REFERENCE_DATE = new Date("2026-09-01T00:00:00.000Z");
 const YEAR_START = new Date("2026-01-01T00:00:00.000Z");
 
+/** The five cities customers live in, each with its one country. */
 export const CITIES = [
   { city: "Munich", country: "Germany" },
   { city: "Vienna", country: "Austria" },
@@ -21,6 +22,7 @@ export const CITIES = [
   { city: "Ghent", country: "Belgium" },
 ] as const;
 
+/** The four product categories, assigned to products in turn. */
 export const CATEGORIES = ["Audio", "Kitchen", "Outdoor", "Office"] as const;
 
 const CUSTOMER_COUNT = 20;
