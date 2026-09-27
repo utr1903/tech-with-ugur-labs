@@ -22,12 +22,48 @@ export const READ_ONLY = { accessMode: "read only" } as const;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 
+/** Matches a whole, non-negative number written as plain digits, no sign, no decimal point, no exponent. */
+const DIGITS_ONLY = /^\d+$/;
+
+/**
+ * Converts a value sent as a string of digits into a number, because at
+ * least one Bedrock model sends numeric tool arguments as text (`"20"`
+ * instead of `20`). A number is returned unchanged; a string that is not
+ * purely digits (after trimming whitespace) is also returned unchanged, so
+ * the schema piped after this rejects it as a string, the same clear
+ * message it would give for any other wrong type.
+ */
+function digitsToNumber(value: number | string): number | string {
+  if (typeof value === "number") return value;
+  const trimmed = value.trim();
+  return DIGITS_ONLY.test(trimmed) ? Number(trimmed) : value;
+}
+
+/**
+ * Wraps a number schema so it also accepts a whole number sent as text.
+ * The conversion happens once here and is reused by every numeric tool
+ * field, instead of being repeated in each tool file.
+ */
+function numericField<T extends z.ZodNumber>(finalSchema: T) {
+  return z
+    .union([z.number(), z.string()])
+    .transform(digitsToNumber)
+    .pipe(finalSchema);
+}
+
+/**
+ * The zod field shared by every id filter (`id`, `customer_id`,
+ * `product_id`): a positive whole number, or that same number sent as
+ * text. `null` and omission both mean "not set".
+ */
+export function positiveIntegerField(description: string) {
+  return numericField(z.number().int().positive())
+    .nullish()
+    .describe(description);
+}
+
 /** The `limit` field shared by the three tool schemas. */
-export const limitField = z
-  .number()
-  .int()
-  .min(1)
-  .max(MAX_LIMIT)
+export const limitField = numericField(z.number().int().min(1).max(MAX_LIMIT))
   .nullish()
   .transform((value) => value ?? DEFAULT_LIMIT)
   .describe(

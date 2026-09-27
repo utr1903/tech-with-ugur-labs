@@ -3,10 +3,15 @@ import { and, eq, ilike, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { products } from "../../db/schema.js";
 import { escapeLike } from "./like.js";
-import { limitField, readRows, type ToolDeps } from "./result.js";
+import {
+  limitField,
+  positiveIntegerField,
+  readRows,
+  type ToolDeps,
+} from "./result.js";
 
 const schema = z.object({
-  id: z.number().int().positive().nullish().describe("Exact product id."),
+  id: positiveIntegerField("Exact product id."),
   name: z
     .string()
     .min(1)
@@ -49,6 +54,10 @@ export function createQueryProductsTool({ db, logger }: ToolDeps) {
     description:
       'Looks up products of the shop. Use for: finding a product\'s id, name, category, price or stock, or listing the products of a category. "price" is in US dollars, "price_cents" is the same amount in cents. Do NOT use for: customers, or who ordered a product. All filters are optional and are combined with AND.',
     schema,
+    // Puts the per-field zod issues into the thrown exception's message, so
+    // a rejected call can be turned into an error the model can act on
+    // instead of a generic "check your arguments" message.
+    verboseParsingErrors: true,
     func: async (filters) => {
       const condition = toCondition(filters);
       return readRows({

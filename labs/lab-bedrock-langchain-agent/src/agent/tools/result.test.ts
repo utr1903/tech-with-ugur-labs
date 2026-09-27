@@ -2,7 +2,12 @@ import pino from "pino";
 import { afterAll, describe, expect, it } from "vitest";
 import { createDatabase } from "../../db/client.js";
 import { products } from "../../db/schema.js";
-import { limitField, READ_ONLY, readRows } from "./result.js";
+import {
+  limitField,
+  positiveIntegerField,
+  READ_ONLY,
+  readRows,
+} from "./result.js";
 
 const { db, pool } = createDatabase(process.env.DATABASE_URL ?? "");
 const logger = pino({ level: "silent" });
@@ -74,5 +79,34 @@ describe("limitField", () => {
 
   it("accepts the maximum of 100", () => {
     expect(limitField.parse(100)).toBe(100);
+  });
+
+  it("parses a whole number sent as text, trimming surrounding whitespace", () => {
+    expect(limitField.parse("50")).toBe(50);
+    expect(limitField.parse(" 7 ")).toBe(7);
+  });
+
+  it.each(["0", "101", "1.5", "abc", "", "1e2", "-5", true])(
+    "rejects %s sent as text or as the wrong type",
+    (value) => {
+      expect(limitField.safeParse(value).success).toBe(false);
+    },
+  );
+});
+
+describe("positiveIntegerField", () => {
+  const idField = positiveIntegerField("An id.");
+
+  it("parses a whole number sent as text", () => {
+    expect(idField.parse("20")).toBe(20);
+  });
+
+  it.each(["0", "-1", "1.5", "abc", "", true])("rejects %s", (value) => {
+    expect(idField.safeParse(value).success).toBe(false);
+  });
+
+  it("treats null and undefined as not set", () => {
+    expect(idField.parse(null)).toBeNull();
+    expect(idField.parse(undefined)).toBeUndefined();
   });
 });

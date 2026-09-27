@@ -81,3 +81,11 @@ describe("query_products", () => {
     expect((await call({ name: "%" })).total).toBe(0);
   });
 });
+
+describe("query_products filters sent as text", () => {
+  it("finds the same product whether id is a number or that number as text", async () => {
+    const byNumber = await call({ id: first.id });
+    const byText = await call({ id: String(first.id) });
+    expect(byText).toEqual(byNumber);
+  });
+});

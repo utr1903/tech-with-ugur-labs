@@ -19,6 +19,9 @@ function probeTool(behaviour: "ok" | "throw" | "abort") {
     name: "probe",
     description: "probe",
     schema: z.object({ id: z.number().int() }),
+    // Matches the real tools: the exception thrown for a rejected call
+    // must carry the per-field zod issues for the middleware to read.
+    verboseParsingErrors: true,
     func: async () => {
       if (behaviour === "throw") throw new Error("secret /home/node/.aws path");
       if (behaviour === "abort") {
@@ -29,8 +32,21 @@ function probeTool(behaviour: "ok" | "throw" | "abort") {
   });
 }
 
-async function run(
-  behaviour: "ok" | "throw" | "abort",
+/** A probe tool with an enum field, to check the message for that kind of rejection. */
+function enumProbeTool() {
+  return new DynamicStructuredTool({
+    name: "probe",
+    description: "probe",
+    schema: z.object({ status: z.enum(["pending", "shipped"]) }),
+    verboseParsingErrors: true,
+    func: async () =>
+      JSON.stringify({ ok: true, rows: [], total: 0, truncated: false }),
+  });
+}
+
+/** Runs one probe tool call through the middleware and captures its log lines. */
+async function runWithTool(
+  tool: DynamicStructuredTool,
   args: Record<string, unknown>,
 ) {
   const { logger, lines } = captureLogs();
@@ -38,13 +54,20 @@ async function run(
     model: new FakeToolCallingModel({
       toolCalls: [[{ id: "1", name: "probe", args }], []],
     }),
-    tools: [probeTool(behaviour)],
+    tools: [tool],
     middleware: [createStepLoggingMiddleware({ logger })],
   });
   const result = await agent.invoke({
     messages: [{ role: "user", content: "go" }],
   });
   return { lines, result };
+}
+
+async function run(
+  behaviour: "ok" | "throw" | "abort",
+  args: Record<string, unknown>,
+) {
+  return runWithTool(probeTool(behaviour), args);
 }
 
 describe("step logging middleware", () => {
@@ -67,7 +90,11 @@ describe("step logging middleware", () => {
   it("returns a structured error to the model when a tool fails", async () => {
     const { lines, result } = await run("throw", { id: 1 });
     const failure = lines.find((line) => line.msg === "Tool call failed.");
-    expect(failure).toMatchObject({ tool: "probe", errorName: "Error" });
+    expect(failure).toMatchObject({
+      tool: "probe",
+      errorName: "Error",
+      code: "TOOL_CALL_FAILED",
+    });
     expect(JSON.stringify(lines)).not.toContain(".aws");
     const toolMessage = result.messages.find(
       (message) => message.getType() === "tool",
@@ -82,12 +109,6 @@ describe("step logging middleware", () => {
     });
   });
 
-  it("returns a structured error when the arguments do not fit the schema", async () => {
-    const { lines, result } = await run("ok", { id: "one" });
-    expect(lines.some((line) => line.msg === "Tool call failed.")).toBe(true);
-    expect(result.messages.at(-1)?.getType()).toBe("ai");
-  });
-
   it("re-throws instead of swallowing an aborted or timed-out tool call", async () => {
     const { logger } = captureLogs();
     const agent = createAgent({
@@ -100,5 +121,36 @@ describe("step logging middleware", () => {
     await expect(
       agent.invoke({ messages: [{ role: "user", content: "go" }] }),
     ).rejects.toThrow();
+  });
+});
+
+describe("step logging middleware: arguments that do not fit the schema", () => {
+  it("names the offending field and continues to a final answer", async () => {
+    const { lines, result } = await run("ok", { id: "one" });
+    const failure = lines.find((line) => line.msg === "Tool call failed.");
+    expect(failure).toMatchObject({ tool: "probe", code: "INVALID_ARGUMENTS" });
+    const toolMessage = result.messages.find(
+      (message) => message.getType() === "tool",
+    );
+    const content = JSON.parse(String(toolMessage?.content)) as {
+      ok: boolean;
+      error: { code: string; message: string };
+    };
+    expect(content.ok).toBe(false);
+    expect(content.error.code).toBe("INVALID_ARGUMENTS");
+    expect(content.error.message).toContain("id");
+    expect(content.error.message.length).toBeLessThanOrEqual(500);
+    expect(result.messages.at(-1)?.getType()).toBe("ai");
+  });
+
+  it("names the offending field when an enum value is rejected", async () => {
+    const { result } = await runWithTool(enumProbeTool(), { status: "lost" });
+    const toolMessage = result.messages.find(
+      (message) => message.getType() === "tool",
+    );
+    const content = JSON.parse(String(toolMessage?.content)) as {
+      error: { message: string };
+    };
+    expect(content.error.message).toContain("status");
   });
 });

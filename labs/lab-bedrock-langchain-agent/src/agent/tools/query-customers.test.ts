@@ -107,3 +107,16 @@ describe("query_customers filters", () => {
     await expect(tool.invoke({ id: "one" } as never)).rejects.toThrow();
   });
 });
+
+describe("query_customers filters sent as text", () => {
+  it("finds the same customer whether id is a number or that number as text", async () => {
+    const byNumber = await call({ id: first.id });
+    const byText = await call({ id: String(first.id) });
+    expect(byText).toEqual(byNumber);
+  });
+
+  it("returns one row when limit is sent as text", async () => {
+    const result = await call({ name: first.name, limit: "1" });
+    expect(result.rows).toHaveLength(1);
+  });
+});

@@ -2,24 +2,21 @@ import { DynamicStructuredTool } from "@langchain/core/tools";
 import { and, eq, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { ORDER_STATUSES, orders } from "../../db/schema.js";
-import { limitField, readRows, type ToolDeps } from "./result.js";
+import {
+  limitField,
+  positiveIntegerField,
+  readRows,
+  type ToolDeps,
+} from "./result.js";
 
 const schema = z.object({
-  id: z.number().int().positive().nullish().describe("Exact order id."),
-  customer_id: z
-    .number()
-    .int()
-    .positive()
-    .nullish()
-    .describe(
-      "Id of the customer who placed the order. Get it from query_customers.",
-    ),
-  product_id: z
-    .number()
-    .int()
-    .positive()
-    .nullish()
-    .describe("Id of the ordered product. Get it from query_products."),
+  id: positiveIntegerField("Exact order id."),
+  customer_id: positiveIntegerField(
+    "Id of the customer who placed the order. Get it from query_customers.",
+  ),
+  product_id: positiveIntegerField(
+    "Id of the ordered product. Get it from query_products.",
+  ),
   status: z
     .enum(ORDER_STATUSES)
     .nullish()
@@ -53,6 +50,10 @@ export function createQueryOrdersTool({ db, logger }: ToolDeps) {
     description:
       "Looks up orders of the shop. Use for: finding what a customer ordered, how many units, the order status, or which orders contain a product. Rows contain customer_id and product_id, not names. Do NOT use for: looking up names, emails or prices; use query_customers and query_products with the ids. All filters are optional and are combined with AND.",
     schema,
+    // Puts the per-field zod issues into the thrown exception's message, so
+    // a rejected call can be turned into an error the model can act on
+    // instead of a generic "check your arguments" message.
+    verboseParsingErrors: true,
     func: async (filters) => {
       const condition = toCondition(filters);
       return readRows({

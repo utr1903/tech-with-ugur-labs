@@ -3,10 +3,15 @@ import { and, eq, ilike, type SQL } from "drizzle-orm";
 import { z } from "zod";
 import { customers } from "../../db/schema.js";
 import { escapeLike } from "./like.js";
-import { limitField, readRows, type ToolDeps } from "./result.js";
+import {
+  limitField,
+  positiveIntegerField,
+  readRows,
+  type ToolDeps,
+} from "./result.js";
 
 const schema = z.object({
-  id: z.number().int().positive().nullish().describe("Exact customer id."),
+  id: positiveIntegerField("Exact customer id."),
   name: z
     .string()
     .min(1)
@@ -67,6 +72,10 @@ export function createQueryCustomersTool({ db, logger }: ToolDeps) {
     description:
       'Looks up customers of the shop. Use for: finding a customer\'s id, email, city or country, or counting customers that match a filter (read the "total" field). Do NOT use for: products, prices, stock, or what a customer ordered. All filters are optional and are combined with AND.',
     schema,
+    // Puts the per-field zod issues into the thrown exception's message, so
+    // a rejected call can be turned into an error the model can act on
+    // instead of a generic "check your arguments" message.
+    verboseParsingErrors: true,
     func: async (filters) => {
       const condition = toCondition(filters);
       return readRows({

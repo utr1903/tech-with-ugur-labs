@@ -4,6 +4,7 @@ import type { Logger } from "../logger.js";
 import { buildAgent } from "./agent.js";
 import type { ModelEntry } from "./models.js";
 import { summarizeToolCalls, type ToolCallSummary } from "./tool-calls.js";
+import { trimAnswer } from "./trim-answer.js";
 
 /** The result of one question. */
 type Answer = { answer: string; toolCalls: ToolCallSummary[] };
@@ -43,7 +44,7 @@ export function createAnswerQuestion({
       },
     );
     return {
-      answer: result.messages.at(-1)?.text ?? "",
+      answer: trimAnswer(result.messages.at(-1)?.text ?? ""),
       toolCalls: summarizeToolCalls(result.messages),
     };
   };

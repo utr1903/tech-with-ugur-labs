@@ -66,3 +66,23 @@ describe("query_orders", () => {
     expect(result.total).toBe(60);
   });
 });
+
+describe("query_orders filters sent as text", () => {
+  it("finds the same order whether customer_id is a number or that number as text", async () => {
+    const byNumber = await call({ customer_id: 20 });
+    const byText = await call({ customer_id: "20" });
+    expect(byText).toEqual(byNumber);
+  });
+
+  it("returns all 60 orders when the limit is sent as text", async () => {
+    const result = await call({ limit: "100" });
+    expect(result.rows).toHaveLength(60);
+    expect(result.total).toBe(60);
+  });
+
+  it("finds the same orders whether product_id is a number or that number as text", async () => {
+    const byNumber = await call({ product_id: 1, limit: 100 });
+    const byText = await call({ product_id: "1", limit: 100 });
+    expect(byText).toEqual(byNumber);
+  });
+});
