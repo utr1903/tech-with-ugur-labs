@@ -64,7 +64,12 @@ const BY_NAME: Record<string, HttpError> = {
   },
 };
 
-const INTERNAL: HttpError = {
+/**
+ * The generic 500 response: used here for any error that maps to nothing
+ * more specific, and reused by `app.ts` for its last-resort error handler,
+ * so the two never drift apart.
+ */
+export const INTERNAL_ERROR: HttpError = {
   status: 500,
   code: "INTERNAL_ERROR",
   message: "The request failed unexpectedly. See `make logs`.",
@@ -84,9 +89,9 @@ export function toHttpError(err: unknown): HttpError {
       break;
     }
     if (Object.hasOwn(BY_NAME, current.name)) {
-      return BY_NAME[current.name] ?? INTERNAL;
+      return BY_NAME[current.name] ?? INTERNAL_ERROR;
     }
     current = current.cause;
   }
-  return INTERNAL;
+  return INTERNAL_ERROR;
 }

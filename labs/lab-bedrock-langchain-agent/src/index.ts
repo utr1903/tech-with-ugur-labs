@@ -1,5 +1,6 @@
 import { serve } from "@hono/node-server";
 import { createAnswerQuestion } from "./agent/answer.js";
+import { MODEL_KEYS } from "./agent/models.js";
 import { createTools } from "./agent/tools/index.js";
 import { parseConfig } from "./config.js";
 import { createDatabase } from "./db/client.js";
@@ -32,6 +33,7 @@ const server = serve({ fetch: app.fetch, port: config.port }, () => {
       port: config.port,
       region: config.awsRegion,
       tools: tools.map((tool) => tool.name),
+      models: MODEL_KEYS,
     },
     "Listening.",
   );
