@@ -19,6 +19,7 @@
   },
   "dependencies": {
     "@faker-js/faker": "10.6.0",
+    "@langchain/core": "1.2.13",
     "drizzle-orm": "0.45.3",
     "pg": "8.23.0",
     "pino": "10.3.1",

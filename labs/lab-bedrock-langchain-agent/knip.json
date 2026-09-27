@@ -1,4 +1,4 @@
 {
-  "entry": ["src/index.ts", "src/**/*.test.ts", "src/db/test-setup.ts"],
+  "entry": ["src/**/*.test.ts"],
   "project": ["src/**/*.ts", "e2e/**/*.ts"]
 }
