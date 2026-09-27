@@ -27,6 +27,10 @@ describe("query_products", () => {
     expect(tool.description).toContain("Do NOT use for");
   });
 
+  it("tells the model that id is a whole number", () => {
+    expect(tool.schema.shape.id.description).toContain("whole number");
+  });
+
   it("returns cents and a formatted price", async () => {
     const result = await call({ id: first.id });
     expect(result.rows).toEqual([

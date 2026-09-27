@@ -27,6 +27,10 @@ describe("query_customers", () => {
     expect(tool.description).toContain("Do NOT use for");
   });
 
+  it("tells the model that id is a whole number", () => {
+    expect(tool.schema.shape.id.description).toContain("whole number");
+  });
+
   it("returns the first 20 customers when no filter is given", async () => {
     const result = await call({});
     expect(result).toMatchObject({ ok: true, total: 20, truncated: false });

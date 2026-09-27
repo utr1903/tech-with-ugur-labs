@@ -8,6 +8,7 @@ import {
   describeInvalidArguments,
   INVALID_ARGUMENTS_GENERIC,
 } from "./invalid-arguments.js";
+import { positiveIntegerField } from "./tools/result.js";
 
 /**
  * Every real tool schema is created with `verboseParsingErrors: true`, so
@@ -79,5 +80,15 @@ describe("describeInvalidArguments", () => {
       "{}",
     );
     expect(describeInvalidArguments(err)).toBe(INVALID_ARGUMENTS_GENERIC);
+  });
+
+  it("names the field and says a whole number was expected when the value is the wrong kind entirely", async () => {
+    const err = await invalidArgumentsFor(
+      z.object({ id: positiveIntegerField("Exact id.") }),
+      { id: true },
+    );
+    const message = describeInvalidArguments(err);
+    expect(message).toContain("id");
+    expect(message).toContain("whole number");
   });
 });

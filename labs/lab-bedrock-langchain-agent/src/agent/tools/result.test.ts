@@ -92,6 +92,18 @@ describe("limitField", () => {
       expect(limitField.safeParse(value).success).toBe(false);
     },
   );
+
+  it("says a whole number is expected in the description, for consistency with the id fields", () => {
+    expect(limitField.description).toContain("whole number");
+  });
+
+  it("rejects a digit string that would silently become a different, smaller number", () => {
+    expect(limitField.safeParse("9007199254740993").success).toBe(false);
+  });
+
+  it("rejects a very long digit string instead of converting it", () => {
+    expect(limitField.safeParse("9".repeat(400)).success).toBe(false);
+  });
 });
 
 describe("positiveIntegerField", () => {
@@ -108,5 +120,32 @@ describe("positiveIntegerField", () => {
   it("treats null and undefined as not set", () => {
     expect(idField.parse(null)).toBeNull();
     expect(idField.parse(undefined)).toBeUndefined();
+  });
+
+  it("accepts the largest id the database can store, as a number or as text", () => {
+    expect(idField.parse(2147483647)).toBe(2147483647);
+    expect(idField.parse("2147483647")).toBe(2147483647);
+  });
+
+  it.each([2147483648, "2147483648"])(
+    "rejects %s, one past the largest id the database can store",
+    (value) => {
+      expect(idField.safeParse(value).success).toBe(false);
+    },
+  );
+
+  it.each(["9007199254740993", "99999999999999999999", "9".repeat(400)])(
+    "rejects %s instead of converting it to a different or unsafe number",
+    (value) => {
+      expect(idField.safeParse(value).success).toBe(false);
+    },
+  );
+
+  it("says a whole number was expected when the value is the wrong kind entirely", () => {
+    const result = idField.safeParse(true);
+    expect(result.success).toBe(false);
+    expect(result.success ? "" : result.error.issues[0]?.message).toContain(
+      "whole number",
+    );
   });
 });

@@ -10,12 +10,12 @@ import {
 } from "./result.js";
 
 const schema = z.object({
-  id: positiveIntegerField("Exact order id."),
+  id: positiveIntegerField("Exact order id, a whole number such as 12."),
   customer_id: positiveIntegerField(
-    "Id of the customer who placed the order. Get it from query_customers.",
+    "Id of the customer who placed the order, a whole number. Get it from query_customers.",
   ),
   product_id: positiveIntegerField(
-    "Id of the ordered product. Get it from query_products.",
+    "Id of the ordered product, a whole number. Get it from query_products.",
   ),
   status: z
     .enum(ORDER_STATUSES)

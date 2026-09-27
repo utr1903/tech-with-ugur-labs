@@ -11,7 +11,7 @@ import {
 } from "./result.js";
 
 const schema = z.object({
-  id: positiveIntegerField("Exact customer id."),
+  id: positiveIntegerField("Exact customer id, a whole number such as 12."),
   name: z
     .string()
     .min(1)

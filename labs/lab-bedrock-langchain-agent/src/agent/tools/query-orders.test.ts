@@ -24,6 +24,13 @@ describe("query_orders", () => {
     expect(tool.description).toContain("Do NOT use for");
   });
 
+  it.each(["id", "customer_id", "product_id"] as const)(
+    "tells the model that %s is a whole number",
+    (field) => {
+      expect(tool.schema.shape[field].description).toContain("whole number");
+    },
+  );
+
   it("returns ids, not names", async () => {
     const result = await call({ customer_id: 20 });
     expect(result.total).toBe(1);
@@ -64,6 +71,14 @@ describe("query_orders", () => {
   it("treats null filters as not set", async () => {
     const result = await call({ id: null, customer_id: null, status: null });
     expect(result.total).toBe(60);
+  });
+});
+
+describe("query_orders rejects numbers too large to be a real id", () => {
+  it("rejects a digit string far beyond a safe integer before it ever reaches the database", async () => {
+    await expect(
+      tool.invoke({ customer_id: "99999999999999999999" } as never),
+    ).rejects.toThrow();
   });
 });
 

@@ -22,42 +22,65 @@ export const READ_ONLY = { accessMode: "read only" } as const;
 const DEFAULT_LIMIT = 20;
 const MAX_LIMIT = 100;
 
+/** The largest value a Postgres `integer` id column can hold (see `db/schema.ts`). */
+const MAX_ID = 2147483647;
+
 /** Matches a whole, non-negative number written as plain digits, no sign, no decimal point, no exponent. */
 const DIGITS_ONLY = /^\d+$/;
 
 /**
+ * A digit string longer than this can never convert to a safe integer (the
+ * largest safe integer, `Number.MAX_SAFE_INTEGER`, has 16 digits), so it is
+ * rejected up front instead of calling `Number()` on an arbitrarily long
+ * string.
+ */
+const MAX_DIGIT_STRING_LENGTH = 15;
+
+/**
  * Converts a value sent as a string of digits into a number, because at
  * least one Bedrock model sends numeric tool arguments as text (`"20"`
- * instead of `20`). A number is returned unchanged; a string that is not
- * purely digits (after trimming whitespace) is also returned unchanged, so
- * the schema piped after this rejects it as a string, the same clear
- * message it would give for any other wrong type.
+ * instead of `20`). A number is returned unchanged. A string is returned
+ * unchanged, instead of being converted, when it is not purely digits, is
+ * too long to be a safe integer, or would convert to a number that is not
+ * a safe integer (`Number.isSafeInteger`) — for example
+ * `"9007199254740993"` would silently become a different number
+ * (`9007199254740992`) if converted, so it is left as text and the schema
+ * piped after this rejects it as a string, the same clear message it
+ * would give for any other wrong type.
  */
 function digitsToNumber(value: number | string): number | string {
   if (typeof value === "number") return value;
   const trimmed = value.trim();
-  return DIGITS_ONLY.test(trimmed) ? Number(trimmed) : value;
+  if (!DIGITS_ONLY.test(trimmed) || trimmed.length > MAX_DIGIT_STRING_LENGTH) {
+    return value;
+  }
+  const asNumber = Number(trimmed);
+  return Number.isSafeInteger(asNumber) ? asNumber : value;
 }
 
 /**
  * Wraps a number schema so it also accepts a whole number sent as text.
  * The conversion happens once here and is reused by every numeric tool
- * field, instead of being repeated in each tool file.
+ * field, instead of being repeated in each tool file. The custom error
+ * message covers the case where the value is not a number or a string at
+ * all (`true`, `[]`, `{}`), so the model learns what was expected instead
+ * of a generic "Invalid input".
  */
 function numericField<T extends z.ZodNumber>(finalSchema: T) {
   return z
-    .union([z.number(), z.string()])
+    .union([z.number(), z.string()], { error: "expected a whole number" })
     .transform(digitsToNumber)
     .pipe(finalSchema);
 }
 
 /**
  * The zod field shared by every id filter (`id`, `customer_id`,
- * `product_id`): a positive whole number, or that same number sent as
- * text. `null` and omission both mean "not set".
+ * `product_id`): a positive whole number up to the largest id the
+ * database can store, or that same number sent as text. `null` and
+ * omission both mean "not set".
  */
 export function positiveIntegerField(description: string) {
-  return numericField(z.number().int().positive())
+  return numericField(z.number().int().positive().max(MAX_ID))
     .nullish()
     .describe(description);
 }
@@ -67,7 +90,7 @@ export const limitField = numericField(z.number().int().min(1).max(MAX_LIMIT))
   .nullish()
   .transform((value) => value ?? DEFAULT_LIMIT)
   .describe(
-    `Maximum number of rows to return, 1 to ${MAX_LIMIT}. Defaults to ${DEFAULT_LIMIT}. The result field "total" always counts all matching rows.`,
+    `Maximum whole number of rows to return, 1 to ${MAX_LIMIT}. Defaults to ${DEFAULT_LIMIT}. The result field "total" always counts all matching rows.`,
   );
 
 /**
