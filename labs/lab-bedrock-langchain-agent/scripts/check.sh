@@ -3,8 +3,12 @@
 # reach AWS before any container is started. Prints one line per check.
 set -u
 
-PROFILE="${AWS_PROFILE:-default}"
-REGION="${AWS_REGION:-us-east-1}"
+. "$(dirname "$0")/settings.sh"
+
+PROFILE="$(setting AWS_PROFILE)"
+PROFILE="${PROFILE:-default}"
+REGION="$(setting AWS_REGION)"
+REGION="${REGION:-us-east-1}"
 CACHE_DIR="${HOME}/.aws/login/cache"
 CONFIG_FILE="${HOME}/.aws/config"
 MIN_CLI="2.32.0"
@@ -26,6 +30,20 @@ fail() { printf '  FAIL  %s\n        %s\n' "$1" "$2"; failures=$((failures + 1))
 version_at_least() {
   [ "$(printf '%s\n%s\n' "$2" "$1" | sort -V | head -n 1)" = "$2" ]
 }
+
+# True when $1 only has characters a profile or Region name can contain, so
+# an odd value from .env never reaches the aws command line.
+is_valid_name() {
+  case "$1" in *[!A-Za-z0-9._@+=,-]*) return 1 ;; esac
+}
+
+ALLOWED="Use only letters, digits and - _ . @ + = ,"
+is_valid_name "$PROFILE" || fail "AWS_PROFILE in .env is not a valid value" "$ALLOWED"
+is_valid_name "$REGION" || fail "AWS_REGION in .env is not a valid value" "$ALLOWED"
+if [ "$failures" -gt 0 ]; then
+  printf '\n%s check(s) failed.\n' "$failures"
+  exit 1
+fi
 
 printf 'Checking profile "%s" in Region "%s"\n' "$PROFILE" "$REGION"
 

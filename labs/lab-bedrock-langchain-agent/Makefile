@@ -1,12 +1,10 @@
 # Reader entrypoint. Every target runs in containers; the host needs only
 # Docker, Make and the AWS CLI.
 
-# Settings in .env apply to every target, the same way Compose reads them.
--include .env
-export
-
 MODEL ?= kimi-k3
 Q ?=
+export MODEL
+export Q
 
 .DEFAULT_GOAL := help
 .PHONY: help login check up down ask test e2e logs
@@ -15,7 +13,7 @@ help: ## Show the available targets
 	@grep -E '^[a-z0-9]+:.*## ' $(firstword $(MAKEFILE_LIST)) | awk -F ':.*## ' '{printf "  %-8s %s\n", $$1, $$2}'
 
 login: ## Sign in to AWS with your browser (no access keys)
-	aws login
+	./scripts/login.sh
 
 check: ## Verify sign-in, Region and access to all four models
 	./scripts/check.sh

@@ -46,8 +46,8 @@ make down
 
 ## What you should see
 
-**`make login`** runs `aws login`, which signs you in with the same
-credentials you use for the AWS console and may ask for a Region on first
+**`make login`** runs `aws login` for the profile the app will use
+(`AWS_PROFILE`, see Settings). It signs you in with the same credentials you use for the AWS console and may ask for a Region on first
 use. It opens a browser tab; once you approve there, the terminal returns and
 the session is stored in `~/.aws/login/cache` on your host.
 
@@ -136,18 +136,17 @@ Every setting has a working default. The variables in `.env.example`:
 
 | Variable | What it does | Default |
 | --- | --- | --- |
-| `AWS_PROFILE` | the AWS profile the preflight and the app use | `default` |
+| `AWS_PROFILE` | the AWS profile for `make login`, the preflight and the app | `default` |
 | `AWS_REGION` | the Region for the preflight and every Bedrock call | `us-east-1` |
 | `APP_PORT` | the host port the app is published on, on `127.0.0.1` | `3000` |
 | `LOG_LEVEL` | the app's pino log level | `info` |
 | `POSTGRES_PASSWORD` | the database password; for local use only, the database is not published to the host | `shop-local-only` |
 
-Set them in a `.env` file (copy `.env.example`; one `KEY=value` per line,
-without quotes) or on the `make` command line, for example
-`make up AWS_REGION=eu-west-2`. Both `make` and Compose read `.env`. A value
-on the `make` command line wins over `.env`; a shell variable such as
-`AWS_REGION=eu-west-2 make up` works only when `.env` does not set the same
-variable, because `make` gives its own files priority over the environment.
+Set them in a `.env` file (copy `.env.example`) or in the shell, for example
+`AWS_REGION=eu-west-2 make up`. A value in the shell or on the `make` command
+line wins over `.env`, which wins over the default. Compose reads `.env` for
+the app; `make check` and `make login` read `AWS_PROFILE` and `AWS_REGION`
+from it through `scripts/settings.sh`, which treats the file as plain text.
 
 ## How it works
 
@@ -388,6 +387,8 @@ e2e/
   grid.ts                  renders the pass/fail grid
 scripts/
   check.sh                 the script behind `make check`
+  login.sh                 the script behind `make login`
+  settings.sh              reads AWS_PROFILE and AWS_REGION from the environment or .env
 ```
 
 ## Troubleshooting
@@ -398,7 +399,7 @@ scripts/
 | `502 MODEL_ACCESS_DENIED` | Your AWS identity isn't allowed to call that model | `make check`, then see Model access under Prerequisites |
 | `502 MODEL_UNAVAILABLE` | The model ID or profile isn't valid in the configured Region | `make check`, or switch to one of the verified Regions |
 | `502 BEDROCK_ERROR` | Bedrock is throttling, overloaded, or had an internal error | Wait a few seconds and try again |
-| `make up` fails because port 3000 is in use | Another program already listens on port 3000 | `make up APP_PORT=3001` (or set it in `.env`). `make ask` and `make e2e` are unaffected; `curl` then uses port 3001 |
+| `make up` fails because port 3000 is in use | Another program already listens on port 3000 | `APP_PORT=3001 make up` (or set it in `.env`). `make ask` and `make e2e` are unaffected; `curl` then uses port 3001 |
 
 For a failing `make check`, the line under the failed check says what to do.
 
