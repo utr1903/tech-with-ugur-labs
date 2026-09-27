@@ -9,7 +9,7 @@ const LOGIN: HttpError = {
   status: 502,
   code: "AWS_LOGIN_REQUIRED",
   message:
-    "AWS did not accept the credentials. Run `make login` on the host, then `make up`, and try again.",
+    "AWS did not accept the credentials. Run `make login` on the host and try again.",
 };
 const ACCESS: HttpError = {
   status: 502,
