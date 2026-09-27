@@ -92,3 +92,56 @@ describe("answerContains", () => {
     expect(answerContains("Product AAA", "a+")).toBe(false);
   });
 });
+
+describe("answerContains: a number must stand alone as a token", () => {
+  it("does not find a number attached to letters or an underscore", () => {
+    for (const answer of [
+      "Customer ID7 has placed several orders.",
+      "This was the 7th order.",
+      "order7",
+      "7x",
+      "item_7",
+      "v7.1",
+    ]) {
+      expect(answerContains(answer, "7")).toBe(false);
+    }
+    for (const answer of ["3rd", "Bespoke Gold Car3", "x3"]) {
+      expect(answerContains(answer, "3")).toBe(false);
+    }
+  });
+
+  it("still finds a number standing alone amid whitespace, punctuation or brackets", () => {
+    for (const answer of [
+      "7",
+      "7 customers",
+      "There are 7.",
+      "Count: 7, all in Munich",
+      "(7)",
+      "**7**",
+      "7!",
+      "Munich has 7 customers",
+      "The answer is 7\n",
+    ]) {
+      expect(answerContains(answer, "7")).toBe(true);
+    }
+    for (const answer of [
+      "Bespoke Gold Car, 3 units",
+      "Bespoke Gold Car x 3",
+      "quantity: 3.",
+    ]) {
+      expect(answerContains(answer, "3")).toBe(true);
+    }
+  });
+
+  it("still finds a decimal price standing alone however it is formatted", () => {
+    for (const answer of ["$43.82", "43.82 USD", "The price is 43.82."]) {
+      expect(answerContains(answer, "43.82")).toBe(true);
+    }
+  });
+
+  it("does not find a decimal price that is part of a longer number", () => {
+    for (const answer of ["143.82", "43.825", "43.82a"]) {
+      expect(answerContains(answer, "43.82")).toBe(false);
+    }
+  });
+});

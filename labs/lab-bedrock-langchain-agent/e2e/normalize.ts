@@ -22,8 +22,12 @@ function escapeRegExp(text: string): string {
 }
 
 /**
- * True when the answer contains the expected value. A number must stand on
- * its own: expecting 4 does not accept 14, 4.50 or 2024.
+ * True when the answer contains the expected value. A number must stand
+ * alone as a token: it must not be directly attached to a letter, digit or
+ * underscore on either side, must not be preceded by a digit plus "." or
+ * ",", and must not be followed by "." plus a digit. Expecting 7 does not
+ * accept ID7, 7th, order7, 7x, item_7 or v7.1, but does accept 7 surrounded
+ * by whitespace, punctuation, brackets, or the start or end of the text.
  */
 export function answerContains(answer: string, expected: string): boolean {
   const haystack = normalize(answer);
@@ -35,7 +39,7 @@ export function answerContains(answer: string, expected: string): boolean {
     return haystack.includes(needle);
   }
   const standsAlone = new RegExp(
-    `(?<![\\d.])(?<!\\d[.,])${escapeRegExp(needle)}(?![\\d])(?!\\.\\d)`,
+    `(?<![a-z0-9_])(?<!\\d[.,])${escapeRegExp(needle)}(?![a-z0-9_])(?!\\.\\d)`,
   );
   return standsAlone.test(haystack);
 }
