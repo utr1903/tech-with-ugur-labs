@@ -18,6 +18,9 @@
     "db:generate": "drizzle-kit generate"
   },
   "dependencies": {
+    "@faker-js/faker": "10.6.0",
+    "drizzle-orm": "0.45.3",
+    "pg": "8.23.0",
     "pino": "10.3.1",
     "tsx": "4.23.12",
     "zod": "4.6.5"
@@ -25,6 +28,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.5.9",
     "@types/node": "24.19.0",
+    "@types/pg": "8.23.1",
     "drizzle-kit": "0.31.11",
     "knip": "6.32.2",
     "typescript": "5.9.3",
