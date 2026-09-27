@@ -9,6 +9,12 @@ const AGENT_MAX_MODEL_TURNS = 10;
  */
 export const AGENT_RECURSION_LIMIT = AGENT_MAX_MODEL_TURNS * 2 + 1;
 
+/** A request that takes longer than this is answered with 504. */
+export const REQUEST_TIMEOUT_MS = 60_000;
+
+/** Upper bound for one model reply; answers in this lab are short. */
+export const MAX_OUTPUT_TOKENS = 2048;
+
 const envSchema = z.object({
   DATABASE_URL: z.string().min(1),
   AWS_REGION: z.string().min(1),
