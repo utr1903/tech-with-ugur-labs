@@ -11,3 +11,6 @@ crash.log
 .ssh/
 results/
 node_modules/
+# Sample-task fixture logs are real, tracked test data, not run output
+# the repo-wide *.log ignore would otherwise swallow them silently.
+!tasks/**/*.log
