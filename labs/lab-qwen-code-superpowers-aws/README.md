@@ -271,7 +271,11 @@ interactive Qwen Code session in a `tmux` window on the VM, you at the
 keyboard, answering its questions yourself as they come up. There's no
 autonomy contract and no resume driver in that path — it's the same
 image and the same model, just without the part of this lab that makes
-a session finish itself.
+a session finish itself. Quitting Qwen ends the container; if you instead
+kill the tmux session itself (rather than the process inside it), the
+container can be left running behind it — the next `make shell` detects
+that no tmux session is attached to it and cleans the leftover container
+up before starting a fresh one.
 
 Once a run has finished, `make replay [RUN=<id>] [DELAY_MS=15]` re-renders
 its saved transcript on the VM, paced by `DELAY_MS` per line so it reads at
@@ -610,7 +614,7 @@ write happens to work.
 
 ## 11. What happened when I ran it
 
-Three real runs of the sample `log-summary` task, in order:
+Six real runs of the sample `log-summary` task, in order:
 
 **Single-shot, no driver.** The earliest trial mentioned above: 3 turns,
 7 seconds, exit 0 — and nothing built. The agent classified the task,
@@ -644,11 +648,32 @@ before. Loading a skill isn't the same as the model actually following it
 turn by turn — that's the whole reason this measured section exists
 separately from the pass/fail verdict.
 
+**Fresh clone.** I then followed this README start to finish from a fresh
+clone, the way a reader would: `make cloud-up` was ready in 13 minutes,
+and three more driven runs of `log-summary` followed, all verifier `PASS`
+6/6:
+
+- 161 seconds, 68 turns. Skills loaded: `brainstorming`. Test before code:
+  no.
+- 176 seconds, 73 turns. Skills loaded: `brainstorming`, `writing-plans`,
+  `subagent-driven-development`, `executing-plans`. Test before code: yes.
+- 110 seconds, 52 turns. No Superpowers skill loaded at all. Test before
+  code: no.
+
+Each of the three finished in a single round with no scripted owner reply
+needed, and none of them handed work off to a subagent.
+
+**Across all five driven runs.** Counting the two runs above and these
+three: 5 out of 5 passed the hidden tests. The scripted owner reply was
+needed exactly once (driven run 1). Test-before-code actually happened
+exactly once (the second fresh-clone run). And one run reached
+`ALL TASKS COMPLETE` without loading a single Superpowers skill.
+
 **Timing.** `make cloud-up` to a model that answers took about 13 minutes
-on a fresh apply. The runs themselves were fast: 102 seconds and 242
-seconds. How often a run reaches `PASS` over more attempts than these
-three is the kind of number that needs a real sample size to mean
-anything — see the post for that.
+on both applies. The driven runs themselves ranged from 102 to 242
+seconds. Across all five driven runs, the verifier's verdict was `PASS`
+every time — a small sample, but a real, fully reported one, not one
+deferred to a bigger write-up elsewhere.
 
 ## 12. Superpowers under Qwen Code
 
