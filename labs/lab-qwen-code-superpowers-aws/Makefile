@@ -7,12 +7,13 @@ export TF_VAR_region := $(REGION)
 
 TASK ?=
 RUN ?= latest
-TURNS ?= 150
-WALL_TIME ?= 45m
+TURNS ?= 200
+WALL_TIME ?= 90m
+ROUNDS ?= 8
 DELAY_MS ?= 15
 # Exported so scripts/check_vars.sh reads the values from its environment,
 # not from Make's own text substitution into a recipe line.
-export TASK RUN TURNS WALL_TIME DELAY_MS
+export TASK RUN TURNS WALL_TIME ROUNDS DELAY_MS
 VM := ./scripts/vm_ssh.sh
 
 .DEFAULT_GOAL := help
@@ -55,9 +56,9 @@ model-check: ## Check the model: served, tool calls parsed, speed and GPU memory
 	$(VM) ssh /srv/lab/vm/bin/model-check.sh
 
 run: ## Start a task and watch it live: make run TASK=log-summary
-	@./scripts/check_vars.sh TASK TURNS WALL_TIME
+	@./scripts/check_vars.sh TASK TURNS WALL_TIME ROUNDS
 	$(VM) rsync-up tasks/ /srv/lab/tasks/
-	$(VM) ssh -t "run_id=\$$(/srv/lab/vm/bin/start-run.sh $(TASK) $(TURNS) $(WALL_TIME)) && /srv/lab/vm/bin/watch.sh \$$run_id"
+	$(VM) ssh -t "run_id=\$$(/srv/lab/vm/bin/start-run.sh $(TASK) $(TURNS) $(WALL_TIME) $(ROUNDS)) && /srv/lab/vm/bin/watch.sh \$$run_id"
 
 watch: ## Reattach the live view: make watch [RUN=<id>]
 	@./scripts/check_vars.sh RUN

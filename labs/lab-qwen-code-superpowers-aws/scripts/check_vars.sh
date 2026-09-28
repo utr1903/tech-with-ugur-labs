@@ -35,6 +35,11 @@ for name in "$@"; do
       pattern='^[0-9]+(\.[0-9]+)?[smh]?$'
       label="a number with an optional s/m/h suffix, e.g. 45m"
       ;;
+    ROUNDS)
+      value="${ROUNDS:-8}"
+      pattern='^[0-9]+$'
+      label="a positive integer"
+      ;;
     DELAY_MS)
       value="${DELAY_MS:-15}"
       pattern='^[0-9]+$'

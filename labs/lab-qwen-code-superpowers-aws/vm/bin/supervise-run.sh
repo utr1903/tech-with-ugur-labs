@@ -18,6 +18,7 @@ run_id="$1"
 # $2 is the task name, already recorded in run.json by start-run.sh.
 max_turns="$3"
 max_wall_time="$4"
+max_rounds="$5"
 run_dir="/srv/lab/runs/$run_id"
 
 write_run_json() {
@@ -43,7 +44,8 @@ started_epoch="$(date -u -d "$started_at" +%s)"
 
 docker compose -f /srv/lab/vm/compose.yaml run --rm -T --name "run-$run_id" \
   -v "$run_dir/workspace:/workspace" \
-  -e MAX_TURNS="$max_turns" -e MAX_WALL_TIME="$max_wall_time" -e TODAY="$(date -u +%F)" \
+  -e MAX_TURNS="$max_turns" -e MAX_WALL_TIME="$max_wall_time" -e MAX_ROUNDS="$max_rounds" \
+  -e TODAY="$(date -u +%F)" \
   coder >"$run_dir/transcript.jsonl" 2>"$run_dir/agent.log"
 exit_code=$?
 

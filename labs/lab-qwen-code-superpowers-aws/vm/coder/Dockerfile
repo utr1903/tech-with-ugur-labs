@@ -10,8 +10,9 @@ COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 ENV PATH=/opt/qwen-code/node_modules/.bin:$PATH
 
-COPY run-agent.sh interactive.sh containment-check.sh check-extension.sh /usr/local/bin/
-RUN install -d -o node -g node /opt/qwen-seed /opt/superpowers /workspace
+COPY drive-agent.sh interactive.sh containment-check.sh check-extension.sh /usr/local/bin/
+RUN install -d -o node -g node /opt/qwen-seed /opt/superpowers /opt/coder /workspace
+COPY --chown=node:node contract.md /opt/coder/contract.md
 
 USER node
 # Superpowers from the pinned tag. Installing from a local clone records
@@ -37,4 +38,4 @@ ENV QWEN_HOME=/run/qwen/home \
 RUN QWEN_HOME=/opt/qwen-seed check-extension.sh
 
 WORKDIR /workspace
-ENTRYPOINT ["run-agent.sh"]
+ENTRYPOINT ["drive-agent.sh"]
