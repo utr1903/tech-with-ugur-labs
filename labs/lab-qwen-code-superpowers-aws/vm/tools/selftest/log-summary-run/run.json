@@ -8,5 +8,5 @@
   "durationSeconds": 183,
   "maxTurns": 150,
   "maxWallTime": "45m",
-  "model": "reference-solution"
+  "model": "qwen3-coder-next"
 }

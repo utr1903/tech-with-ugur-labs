@@ -71,6 +71,32 @@ describe("analyzeTranscript", () => {
     expect(m.checkedAfterLastChange).toBe("unknown");
   });
 
+  it("measures a trimmed excerpt of a real driven run", async () => {
+    const m = analyzeTranscript(
+      await readTranscript(fixture("real-session.jsonl")),
+      "summarize",
+    );
+    expect(m).toEqual({
+      turns: 5,
+      toolCalls: { run_shell_command: 2, skill: 1, write_file: 3 },
+      skillsLoaded: ["superpowers:brainstorming"],
+      skillCallsFailed: 0,
+      firstSkillTurn: 2,
+      testBeforeCode: "no",
+      ranTests: true,
+      ranProgram: false,
+      checkedAfterLastChange: "no",
+      flow: {
+        rounds: 2,
+        replies: { spec: 1 },
+        specWritten: true,
+        planWritten: false,
+        subagentCalls: 0,
+        finishReason: "complete",
+      },
+    });
+  });
+
   it("does not count config files or type declarations as source", () => {
     const call = (id: string, path: string) => ({
       kind: "assistant" as const,

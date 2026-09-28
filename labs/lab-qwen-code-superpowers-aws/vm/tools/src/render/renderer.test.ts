@@ -111,4 +111,25 @@ describe("renderer", () => {
       "stopped by the wall-time or tool-call budget (exit 55)",
     );
   });
+
+  it("renders a trimmed excerpt of a real driven run", async () => {
+    const out = await render("real-session.jsonl", finishedRun(0));
+    expect(out).toContain("Qwen Code 0.24.6 · qwen3-coder-next · /workspace");
+    expect(out).toContain("28 tools available");
+    expect(out).toContain("★ Skill(superpowers:brainstorming)");
+    expect(out).toContain("● Write(src/parser.ts)");
+    expect(out).toContain("● Write(src/cli.test.ts)");
+    expect(out).toContain("● Shell(npm test)");
+    expect(out).toContain(
+      "▶ owner (scripted, round 2, spec): No human is available. Accept your recommended option for every open question and approach, write the spec now under docs/superpowers/specs/, then continue with the plan.",
+    );
+    expect(out).toContain("── session resumed ──");
+    expect(out).toContain(
+      "● Write(docs/superpowers/specs/2026-09-28-access-log-cli-design.md)",
+    );
+    expect(out).toContain("⏺ ALL TASKS COMPLETE");
+    expect(out).toContain("driver: complete after 2 rounds");
+    expect(out).toContain("✔ Finished: 6 turns, 6 tool calls, 0m15s");
+    expect(out).toContain("Agent exited 0");
+  });
 });
