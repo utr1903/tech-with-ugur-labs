@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Runs one agent container and records the outcome. The host writes the
 # transcript from the container's stdout, so the agent cannot edit it.
+# set -u (not -e): the container's own exit code must still be captured
+# and recorded in run.json, so a nonzero exit here must not abort the
+# script before the final write_run_json runs.
 set -uo pipefail
 
 run_id="$1"; task="$2"; max_turns="$3"; max_wall_time="$4"
