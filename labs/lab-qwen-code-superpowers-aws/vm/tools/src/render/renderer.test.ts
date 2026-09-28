@@ -99,4 +99,16 @@ describe("renderer", () => {
     expect(out).toContain("✔ Finished: 3 turns, 2 tool calls, 2m00s");
     expect(out.split("✔ Finished:").length - 1).toBe(1);
   });
+
+  it("does not carry an earlier round's result into a later round cut short by a budget stop", async () => {
+    const out = await render(
+      "driven-session-budget-cutoff.jsonl",
+      finishedRun(55),
+    );
+    expect(out).not.toContain("✔ Finished:");
+    expect(out).toContain("The transcript has no result line");
+    expect(out).toContain(
+      "stopped by the wall-time or tool-call budget (exit 55)",
+    );
+  });
 });

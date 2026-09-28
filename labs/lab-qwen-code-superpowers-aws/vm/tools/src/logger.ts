@@ -2,8 +2,7 @@
  * Structured JSON logger shared by the viewer and the verifier.
  *
  * Logs go to stderr, not stdout: stdout carries the rendered live view
- * (Task 7) or the verification summary (Tasks 8-9), so log lines must
- * never mix into either.
+ * or the verification summary, so log lines must never mix into either.
  */
 import pino from "pino";
 

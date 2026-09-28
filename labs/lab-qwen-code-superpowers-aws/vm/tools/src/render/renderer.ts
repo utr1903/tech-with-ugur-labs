@@ -6,6 +6,14 @@
  * events arrive. Both watch (live) and replay (from disk) drive the
  * same renderer. A class, rather than one big closure, keeps each
  * event's handling in its own short method.
+ *
+ * The remembered result is scoped to the current round: a driven
+ * session's resume driver can restart the agent several times, each
+ * restart marked by a `driver-reply` event and a repeated `init` event,
+ * and each round has its own `result` line (or none, if that round was
+ * cut short). Carrying an earlier round's result into a later round's
+ * finish line would misreport the run's actual outcome, so both events
+ * that start a new round clear it.
  */
 import type { RunInfo } from "../run/run-info.js";
 import type { ContentBlock, TranscriptEvent } from "../transcript/events.js";
@@ -77,6 +85,12 @@ class RendererImpl implements Renderer {
       this.write(`${l}\n`);
   }
 
+  /** Forgets the previous round's remembered result; called whenever a new round starts. */
+  private resetRoundResult(): void {
+    this.sawResult = false;
+    this.resultLine = null;
+  }
+
   private handleBlock(block: ContentBlock, subagent: boolean): void {
     if (block.type === "tool_use") {
       this.toolCalls += 1;
@@ -104,6 +118,7 @@ class RendererImpl implements Renderer {
       case "init":
         this.closeStream();
         if (this.sawInit) {
+          this.resetRoundResult();
           this.write(formatResumedLine(this.style));
         } else {
           this.sawInit = true;
@@ -148,6 +163,7 @@ class RendererImpl implements Renderer {
         return;
       case "driver-reply":
         this.closeStream();
+        this.resetRoundResult();
         this.write(formatDriverReplyLine(event, this.style));
         return;
       case "driver-finished":

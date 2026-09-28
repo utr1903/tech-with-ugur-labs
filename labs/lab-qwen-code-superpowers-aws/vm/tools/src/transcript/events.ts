@@ -1,11 +1,11 @@
 /**
  * The normalized shape `parseLine` turns Qwen Code's stream-json lines into.
- * Both the live viewer (Task 7) and the verifier (Tasks 8-9) consume these
- * events instead of the raw wire format, so a change to Qwen Code's output
- * only has to be absorbed here. `driver-reply` and `driver-finished` are not
- * Qwen Code's own output: the resume driver (Task 15) interleaves its own
- * `type: "driver"` lines into the same transcript to record the scripted
- * owner replies it injects between rounds.
+ * Both the live viewer and the verifier consume these events instead of
+ * the raw wire format, so a change to Qwen Code's output only has to be
+ * absorbed here. `driver-reply` and `driver-finished` are not Qwen
+ * Code's own output: the resume driver running in the agent container
+ * interleaves its own `type: "driver"` lines into the same transcript to
+ * record the scripted owner replies it injects between rounds.
  */
 
 export type ContentBlock =
