@@ -6,7 +6,7 @@ export REGION
 export TF_VAR_region := $(REGION)
 
 .DEFAULT_GOAL := help
-.PHONY: help doctor cloud-plan cloud-up destroy ssh tf-test lint-scripts
+.PHONY: help doctor cloud-plan cloud-up destroy ssh tf-test lint-scripts test selftest
 
 help: ## Show the available targets
 	@grep -E '^[a-z0-9-]+:.*## ' $(firstword $(MAKEFILE_LIST)) | awk -F ':.*## ' '{printf "  %-14s %s\n", $$1, $$2}'
@@ -33,3 +33,9 @@ tf-test: ## Plan-only security tests of the Terraform code (no AWS calls)
 
 lint-scripts: ## shellcheck every script
 	shellcheck scripts/*.sh vm/host/*.sh $(wildcard vm/bin/*.sh) $(wildcard vm/coder/*.sh)
+
+test: ## Run the tools app's tests and lint in Docker (laptop, no cloud)
+	docker build --target test vm/tools
+
+selftest: ## Verify the reference solution with the real verifier (laptop, no cloud)
+	./scripts/selftest.sh

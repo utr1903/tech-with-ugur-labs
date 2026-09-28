@@ -1,28 +1,28 @@
 /**
  * CLI entrypoint: creates the shared logger and style, parses the
- * command and its flags, and dispatches to the watch or replay
- * command. Business logic lives in src/commands/*; this file only
- * wires it up.
+ * command and its flags (src/commands/args.ts), and dispatches to
+ * watch, replay, or verify. Business logic lives in src/commands/*;
+ * this file only wires it up.
  */
-import { parseArgs } from "node:util";
+import { tmpdir } from "node:os";
+import { parseCliArgs } from "./commands/args.js";
 import { replayRun } from "./commands/replay.js";
+import { verifyRun } from "./commands/verify.js";
 import { watchRun } from "./commands/watch.js";
 import { createLogger, installGlobalErrorHandlers } from "./logger.js";
 import { createStyle } from "./render/style.js";
+import { runStep } from "./verify/process.js";
 
-const USAGE = "Usage: tools <watch|replay> <runDir> [--delay-ms N]";
+const USAGE =
+  "Usage: tools <watch|replay|verify> <runDir> [outFile] [--delay-ms N] [--acceptance dir]";
 
 async function main(): Promise<void> {
   const logger = createLogger({ appName: "lab-tools" });
   installGlobalErrorHandlers(logger);
 
-  const { positionals, values } = parseArgs({
-    args: process.argv.slice(2),
-    allowPositionals: true,
-    options: { "delay-ms": { type: "string", default: "0" } },
-  });
-  const [command, runDir] = positionals;
-
+  const { command, runDir, outFile, delayMs, acceptanceDir } = parseCliArgs(
+    process.argv.slice(2),
+  );
   const style = createStyle(
     Boolean(process.stdout.isTTY) && !process.env.NO_COLOR,
   );
@@ -35,12 +35,19 @@ async function main(): Promise<void> {
     return;
   }
   if (command === "replay" && runDir) {
-    await replayRun(runDir, {
-      logger,
-      write,
-      style,
-      delayMs: Number(values["delay-ms"]),
-    });
+    await replayRun(runDir, { logger, write, style, delayMs });
+    return;
+  }
+  if (command === "verify" && runDir && outFile) {
+    await verifyRun(
+      {
+        runDir,
+        outFile,
+        acceptanceDir,
+        scratchDir: process.env.SCRATCH_DIR ?? tmpdir(),
+      },
+      { logger, write, style, runStep },
+    );
     return;
   }
   process.stderr.write(`${USAGE}\n`);

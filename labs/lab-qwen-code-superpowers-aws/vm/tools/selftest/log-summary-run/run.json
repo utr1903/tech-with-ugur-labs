@@ -1,0 +1,12 @@
+{
+  "runId": "log-summary-selftest",
+  "task": "log-summary",
+  "status": "finished",
+  "startedAt": "2026-09-28T10:00:00Z",
+  "finishedAt": "2026-09-28T10:03:03Z",
+  "exitCode": 0,
+  "durationSeconds": 183,
+  "maxTurns": 150,
+  "maxWallTime": "45m",
+  "model": "reference-solution"
+}

@@ -58,6 +58,40 @@ services:
     networks: [model, egress]
     # The workspace bind mount is added per run by the host supervisor.
 
+  viewer:
+    build:
+      context: ./tools
+      target: runtime
+    image: qwen-lab/tools
+    profiles: [tools]
+    network_mode: none
+    read_only: true
+    # tsx writes a compile cache under the OS temp dir even in read-only mode.
+    tmpfs: ["/tmp:mode=1777,size=256m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      LOG_LEVEL: warn
+    volumes:
+      - /srv/lab/runs:/runs:ro
+
+  verifier:
+    image: qwen-lab/tools
+    profiles: [tools]
+    read_only: true
+    tmpfs:
+      - /scratch:exec,mode=1777,size=8g
+      - /tmp:exec,mode=1777,size=2g
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 8g
+    pids_limit: 1024
+    environment:
+      SCRATCH_DIR: /scratch
+      npm_config_cache: /tmp/npm-cache
+    networks: [egress]
+    # The run and acceptance mounts are added per call by verify.sh.
+
 networks:
   # The agent reaches the model here. Internal: no route out.
   model:
