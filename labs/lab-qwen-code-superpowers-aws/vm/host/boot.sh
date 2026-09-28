@@ -40,8 +40,37 @@ if [ "${#apt_packages[@]}" -gt 0 ]; then
   DEBIAN_FRONTEND=noninteractive apt-get install -y -q "${apt_packages[@]}"
 fi
 
+echo "Moving containerd's image store to the NVMe..."
+# This AMI's Docker uses the containerd image store (containerd's own
+# "root", not Docker's data-root below), so images land under
+# /var/lib/containerd on the root volume unless we move it first -- and
+# it must happen before the data-root move and before any image exists.
+systemctl stop docker docker.socket containerd
+mkdir -p /opt/dlami/nvme/containerd
+python3 - <<'PY'
+import pathlib
+import re
+
+path = pathlib.Path("/etc/containerd/config.toml")
+text = path.read_text()
+new_root = 'root = "/opt/dlami/nvme/containerd"'
+# Only the top-level root line (column 0, no leading whitespace): a nested
+# "root = ..." inside a proxy_plugins table (e.g. the SOCI snapshotter) is
+# indented and must be left alone, and this also leaves any NVIDIA runtime
+# section elsewhere in the file untouched.
+top_level_root = re.compile(r'(?m)^#?root = "/var/lib/containerd"\s*$')
+if top_level_root.search(text):
+    text = top_level_root.sub(new_root, text, count=1)
+else:
+    text = re.sub(r'(?m)^(disabled_plugins = .*)$', r'\1\n' + new_root, text, count=1)
+path.write_text(text)
+PY
+systemctl start containerd
+containerd_root="$(containerd config dump 2>/dev/null | awk -F"'" '/^root = /{print $2}')"
+[ "$containerd_root" = "/opt/dlami/nvme/containerd" ] ||
+  fail "containerd did not pick up the new root dir after editing /etc/containerd/config.toml"
+
 echo "Moving Docker's data root to the NVMe..."
-systemctl stop docker docker.socket
 mkdir -p /opt/dlami/nvme/docker /opt/dlami/nvme/hf-cache
 python3 - <<'PY'
 import json, pathlib
