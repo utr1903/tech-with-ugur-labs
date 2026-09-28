@@ -22,6 +22,29 @@ describe("analyzeTranscript", () => {
       ranTests: true,
       ranProgram: true,
       checkedAfterLastChange: "yes",
+      flow: {
+        rounds: 1,
+        replies: {},
+        specWritten: false,
+        planWritten: false,
+        subagentCalls: 0,
+        finishReason: null,
+      },
+    });
+  });
+
+  it("measures the driven-session fixture's scripted flow", async () => {
+    const m = analyzeTranscript(
+      await readTranscript(fixture("driven-session.jsonl")),
+      null,
+    );
+    expect(m.flow).toEqual({
+      rounds: 2,
+      replies: { spec: 1 },
+      specWritten: true,
+      planWritten: false,
+      subagentCalls: 1,
+      finishReason: "complete",
     });
   });
 

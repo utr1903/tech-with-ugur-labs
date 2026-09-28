@@ -21,6 +21,29 @@ export function formatInitLines(
   return `${banner}\n${toolCount}\n`;
 }
 
+/** Formats the one-line marker shown in place of the full banner when the driver resumes the session. */
+export function formatResumedLine(style: Style): string {
+  return `${style.paint("dim", "── session resumed ──")}\n`;
+}
+
+/** Formats a scripted owner reply the resume driver injected before a round, as a highlighted block. */
+export function formatDriverReplyLine(
+  event: { round: number; stage: string; message: string },
+  style: Style,
+): string {
+  const line = `▶ owner (scripted, round ${event.round}, ${event.stage}): ${event.message}`;
+  return `${style.paint(["yellow", "bold"], line)}\n`;
+}
+
+/** Formats the driver's own finish record as one dim line. */
+export function formatDriverFinishedLine(
+  event: { reason: string; rounds: number },
+  style: Style,
+): string {
+  const line = `driver: ${event.reason} after ${event.rounds} rounds`;
+  return `${style.paint("dim", line)}\n`;
+}
+
 function pad2(n: number): string {
   return n.toString().padStart(2, "0");
 }
@@ -83,10 +106,10 @@ export function formatResultLine(
   return style.paint("red", `✘ ${event.errorMessage ?? event.subtype}`);
 }
 
-/** Colors the exit-code line: green for a clean exit, yellow for a budget stop, red otherwise. */
+/** Colors the exit-code line: green for a clean exit, yellow for a budget or round-cap stop, red otherwise. */
 function exitColor(exitCode: number): Color {
   if (exitCode === 0) return "green";
-  if (exitCode === 53 || exitCode === 55) return "yellow";
+  if (exitCode === 53 || exitCode === 55 || exitCode === 56) return "yellow";
   return "red";
 }
 

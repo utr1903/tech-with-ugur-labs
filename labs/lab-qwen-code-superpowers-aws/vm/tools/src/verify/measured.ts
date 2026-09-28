@@ -9,6 +9,7 @@
  * walks the transcript once and assembles their results.
  */
 import type { ContentBlock, TranscriptEvent } from "../transcript/events.js";
+import { analyzeFlow, type FlowSignals } from "./flow-signals.js";
 import {
   analyzeFiles,
   analyzeShell,
@@ -28,6 +29,7 @@ export interface Measured {
   ranTests: boolean;
   ranProgram: boolean | null;
   checkedAfterLastChange: "yes" | "no" | "unknown";
+  flow: FlowSignals;
 }
 
 /** Appends the tool_use blocks of one assistant turn to `calls`, returning the order counter after them. */
@@ -123,5 +125,6 @@ export function analyzeTranscript(
       programPattern,
       lastProgramRunOrder,
     ),
+    flow: analyzeFlow(events, calls),
   };
 }

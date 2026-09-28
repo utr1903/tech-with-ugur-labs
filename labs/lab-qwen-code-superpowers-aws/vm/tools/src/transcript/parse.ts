@@ -106,6 +106,27 @@ function parseResult(raw: Json): TranscriptEvent {
   };
 }
 
+/** Parses a driver-injected line: a scripted owner reply or the driver's own finish record. Anything else → "unknown". */
+function parseDriver(raw: Json): TranscriptEvent {
+  if (raw.event === "reply") {
+    return {
+      kind: "driver-reply",
+      round: num(raw.round),
+      stage: str(raw.stage),
+      message: str(raw.message),
+    };
+  }
+  if (raw.event === "finished") {
+    return {
+      kind: "driver-finished",
+      reason: str(raw.reason),
+      rounds: num(raw.rounds),
+      exitCode: num(raw.exitCode),
+    };
+  }
+  return { kind: "unknown", type: "driver" };
+}
+
 export function parseLine(line: string): TranscriptEvent | null {
   if (line.trim() === "") return null;
   let raw: unknown;
@@ -126,6 +147,8 @@ export function parseLine(line: string): TranscriptEvent | null {
       return parseUser(raw);
     case "result":
       return parseResult(raw);
+    case "driver":
+      return parseDriver(raw);
     default:
       return { kind: "unknown", type: str(raw.type) };
   }

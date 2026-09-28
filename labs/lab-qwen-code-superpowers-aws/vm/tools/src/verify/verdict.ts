@@ -84,6 +84,22 @@ function formatMeasuredLines(measured: Measured, style: Style): string[] {
     `  checked after last change: ${measured.checkedAfterLastChange}`,
     `  turns: ${measured.turns}`,
     `  tool calls: ${toolCalls.length > 0 ? toolCalls : "none"}`,
+    ...formatFlowLines(measured.flow),
+  ];
+}
+
+/** Renders the scripted-flow block that follows the process-evidence lines: how far the driven session got. */
+function formatFlowLines(flow: Measured["flow"]): string[] {
+  const replies = Object.entries(flow.replies)
+    .map(([stage, count]) => `${stage}:${count}`)
+    .join(", ");
+  return [
+    `  rounds: ${flow.rounds}`,
+    `  replies: ${replies.length > 0 ? replies : "none"}`,
+    `  spec written: ${flow.specWritten ? "yes" : "no"}`,
+    `  plan written: ${flow.planWritten ? "yes" : "no"}`,
+    `  subagent calls: ${flow.subagentCalls}`,
+    `  finish reason: ${flow.finishReason ?? "none"}`,
   ];
 }
 

@@ -17,6 +17,7 @@ const run = (exitCode: number): RunInfo => ({
   maxTurns: 150,
   maxWallTime: "45m",
   model: "m",
+  maxRounds: null,
 });
 const ok = (stdout = ""): StepResult => ({
   code: 0,

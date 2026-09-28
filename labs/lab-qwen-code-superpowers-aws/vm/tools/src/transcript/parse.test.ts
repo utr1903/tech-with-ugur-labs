@@ -99,6 +99,62 @@ describe("parseLine survives malformed and subagent lines", () => {
   });
 });
 
+describe("parseLine reads driver events", () => {
+  it("reads a driver reply", () => {
+    const line = JSON.stringify({
+      type: "driver",
+      event: "reply",
+      round: 2,
+      stage: "spec",
+      message: "Write the spec now.",
+    });
+    expect(parseLine(line)).toEqual({
+      kind: "driver-reply",
+      round: 2,
+      stage: "spec",
+      message: "Write the spec now.",
+    });
+  });
+
+  it("reads a driver finished event", () => {
+    const line = JSON.stringify({
+      type: "driver",
+      event: "finished",
+      reason: "complete",
+      rounds: 2,
+      exitCode: 0,
+    });
+    expect(parseLine(line)).toEqual({
+      kind: "driver-finished",
+      reason: "complete",
+      rounds: 2,
+      exitCode: 0,
+    });
+  });
+
+  it("turns an unrecognized driver event into unknown instead of crashing", () => {
+    const line = JSON.stringify({ type: "driver", event: "mystery" });
+    expect(parseLine(line)).toEqual({ kind: "unknown", type: "driver" });
+  });
+
+  it("reads the driver events from the driven-session fixture in order", () => {
+    const events = parseAll("driven-session.jsonl");
+    expect(events).toContainEqual({
+      kind: "driver-reply",
+      round: 2,
+      stage: "spec",
+      message:
+        "I accept your recommended option for every open question. Write the spec now, then continue straight to the plan.",
+    });
+    expect(events.at(-1)).toEqual({
+      kind: "driver-finished",
+      reason: "complete",
+      rounds: 2,
+      exitCode: 0,
+    });
+  });
+});
+
 describe("parseLine reads an error result", () => {
   it("reads an error result", () => {
     const line = JSON.stringify({

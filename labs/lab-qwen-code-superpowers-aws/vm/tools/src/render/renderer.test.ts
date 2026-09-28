@@ -17,6 +17,7 @@ const finishedRun = (exitCode: number): RunInfo => ({
   maxTurns: 150,
   maxWallTime: "45m",
   model: "qwen3-coder-next",
+  maxRounds: null,
 });
 
 async function render(
@@ -79,5 +80,23 @@ describe("renderer", () => {
     expect(out).toContain("· control_request event");
     expect(out).toContain('  ✗ Skill "brainstorming" not found.');
     expect(out).toContain("failed (exit 1)");
+  });
+
+  it("shows the scripted owner reply, a resumed session and the driver's finish line", async () => {
+    const out = await render("driven-session.jsonl", finishedRun(0));
+    expect(out).toContain(
+      "▶ owner (scripted, round 2, spec): I accept your recommended option for every open question. Write the spec now, then continue straight to the plan.",
+    );
+    expect(out).toContain("── session resumed ──");
+    expect(out).toContain("driver: complete after 2 rounds");
+    const bannerCount =
+      out.split("Qwen Code 0.24.6 · qwen3-coder-next · /workspace").length - 1;
+    expect(bannerCount).toBe(1);
+  });
+
+  it("remembers the last of several result lines", async () => {
+    const out = await render("driven-session.jsonl", finishedRun(0));
+    expect(out).toContain("✔ Finished: 3 turns, 2 tool calls, 2m00s");
+    expect(out.split("✔ Finished:").length - 1).toBe(1);
   });
 });

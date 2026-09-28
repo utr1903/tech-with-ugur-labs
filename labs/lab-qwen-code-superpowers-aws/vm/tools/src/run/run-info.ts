@@ -19,6 +19,7 @@ export interface RunInfo {
   maxTurns: number;
   maxWallTime: string;
   model: string;
+  maxRounds: number | null;
 }
 
 type Json = Record<string, unknown>;
@@ -70,6 +71,7 @@ export async function readRunInfo(runDir: string): Promise<RunInfo> {
     maxTurns: requireNumber(raw, "maxTurns"),
     maxWallTime: requireString(raw, "maxWallTime"),
     model: requireString(raw, "model"),
+    maxRounds: optionalNumber(raw, "maxRounds"),
   };
 }
 
@@ -80,6 +82,7 @@ export function describeExit(exitCode: number | null): string {
   if (exitCode === 53) return "stopped at the turn limit (exit 53)";
   if (exitCode === 55)
     return "stopped by the wall-time or tool-call budget (exit 55)";
+  if (exitCode === 56) return "stopped at the round cap (exit 56)";
   if (exitCode === 130 || exitCode === 137 || exitCode === 143)
     return `killed (exit ${exitCode})`;
   return `failed (exit ${exitCode})`;

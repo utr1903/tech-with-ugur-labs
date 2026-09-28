@@ -21,6 +21,7 @@ const validRun = {
   maxTurns: 200,
   maxWallTime: "600s",
   model: "qwen3-coder-next",
+  maxRounds: 8,
 };
 
 describe("readRunInfo", () => {
@@ -43,6 +44,7 @@ describe("readRunInfo", () => {
     expect(info.finishedAt).toBeNull();
     expect(info.exitCode).toBeNull();
     expect(info.durationSeconds).toBeNull();
+    expect(info.maxRounds).toBeNull();
   });
 
   it("throws an error naming a missing required field", async () => {
@@ -74,6 +76,10 @@ describe("describeExit", () => {
 
   it("describes the wall-time or tool-call budget exit", () => {
     expect(describeExit(55)).toContain("wall-time or tool-call budget");
+  });
+
+  it("describes the round-cap exit", () => {
+    expect(describeExit(56)).toBe("stopped at the round cap (exit 56)");
   });
 
   it("describes a killed process for common signal exit codes", () => {

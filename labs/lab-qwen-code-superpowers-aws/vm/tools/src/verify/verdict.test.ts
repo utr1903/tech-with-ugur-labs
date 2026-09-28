@@ -16,6 +16,7 @@ const run: RunInfo = {
   maxTurns: 150,
   maxWallTime: "45m",
   model: "m",
+  maxRounds: null,
 };
 
 const measured: Measured = {
@@ -28,6 +29,14 @@ const measured: Measured = {
   ranTests: true,
   ranProgram: true,
   checkedAfterLastChange: "yes",
+  flow: {
+    rounds: 2,
+    replies: { spec: 1 },
+    specWritten: true,
+    planWritten: false,
+    subagentCalls: 1,
+    finishReason: "complete",
+  },
 };
 
 const passingChecks: CheckResult[] = [
@@ -116,6 +125,15 @@ describe("formatSummary", () => {
     expect(summary).toContain(
       "tool calls: edit:1, run_shell_command:3, skill:1, write_file:2",
     );
+    expect(summary).toContain("rounds: 2");
+    expect(summary).toContain("replies: spec:1");
+    expect(summary).toContain("spec written: yes");
+    expect(summary).toContain("plan written: no");
+    expect(summary).toContain("subagent calls: 1");
+    expect(summary).toContain("finish reason: complete");
+    expect(summary.indexOf("tool calls:")).toBeLessThan(
+      summary.indexOf("rounds:"),
+    );
   });
 
   it("shows PASS and 'none' for skills when the agent loaded none", () => {
@@ -127,5 +145,27 @@ describe("formatSummary", () => {
     const summary = formatSummary(verdict, style);
     expect(summary).toContain("VERDICT: PASS");
     expect(summary).toContain("skills loaded: none");
+  });
+
+  it("shows 'none' for replies and finish reason when the driver never ran", () => {
+    const checks: CheckResult[] = [
+      { name: "agent-exit", status: "pass", detail: "Agent exited 0" },
+    ];
+    const noFlow: Measured = {
+      ...measured,
+      flow: {
+        rounds: 1,
+        replies: {},
+        specWritten: false,
+        planWritten: false,
+        subagentCalls: 0,
+        finishReason: null,
+      },
+    };
+    const verdict = buildVerdict(run, checks, noFlow, new Date());
+    const summary = formatSummary(verdict, style);
+    expect(summary).toContain("rounds: 1");
+    expect(summary).toContain("replies: none");
+    expect(summary).toContain("finish reason: none");
   });
 });

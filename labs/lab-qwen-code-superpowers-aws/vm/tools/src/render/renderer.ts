@@ -10,9 +10,12 @@
 import type { RunInfo } from "../run/run-info.js";
 import type { ContentBlock, TranscriptEvent } from "../transcript/events.js";
 import {
+  formatDriverFinishedLine,
+  formatDriverReplyLine,
   formatFinishLines,
   formatInitLines,
   formatResultLine,
+  formatResumedLine,
   formatTurnLine,
 } from "./renderer-format.js";
 import type { Style } from "./style.js";
@@ -50,6 +53,7 @@ class RendererImpl implements Renderer {
   private streaming: StreamKind = "none";
   private sawPartials = false;
   private sawResult = false;
+  private sawInit = false;
   private resultLine: string | null = null;
 
   constructor(
@@ -98,7 +102,13 @@ class RendererImpl implements Renderer {
   handle(event: TranscriptEvent): void {
     switch (event.kind) {
       case "init":
-        this.write(formatInitLines(event, this.style));
+        this.closeStream();
+        if (this.sawInit) {
+          this.write(formatResumedLine(this.style));
+        } else {
+          this.sawInit = true;
+          this.write(formatInitLines(event, this.style));
+        }
         return;
       case "notice":
         this.write(`${this.style.paint("yellow", `! ${event.subtype}`)}\n`);
@@ -135,6 +145,14 @@ class RendererImpl implements Renderer {
       case "result":
         this.sawResult = true;
         this.resultLine = formatResultLine(event, this.toolCalls, this.style);
+        return;
+      case "driver-reply":
+        this.closeStream();
+        this.write(formatDriverReplyLine(event, this.style));
+        return;
+      case "driver-finished":
+        this.closeStream();
+        this.write(formatDriverFinishedLine(event, this.style));
         return;
       case "unknown":
         this.write(`${this.style.paint("dim", `· ${event.type} event`)}\n`);
