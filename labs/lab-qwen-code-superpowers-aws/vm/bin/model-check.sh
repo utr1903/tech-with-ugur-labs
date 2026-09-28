@@ -62,4 +62,4 @@ tokens=$(curl -sf "$base/v1/chat/completions" -H 'Content-Type: application/json
   | python3 -c 'import json,sys; print(json.load(sys.stdin)["usage"]["completion_tokens"])')
 end=$(date +%s.%N)
 python3 -c "import sys; t=float(sys.argv[1]); s=float(sys.argv[3])-float(sys.argv[2]); print(f'  info  {t:.0f} tokens in {s:.1f} s = {t/s:.0f} tokens/s (single request)')" "$tokens" "$start" "$end"
-nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv,noheader | sed 's/^/  info  GPU /'
+nvidia-smi --query-gpu=name,memory.used,memory.total --format=csv,noheader | sed 's/^/  info  GPU /' || true

@@ -8,10 +8,16 @@ mkdir -p /var/lib/lab-boot
 exec > >(tee -a /var/log/lab-boot.log) 2>&1
 
 fail() {
+  # Disarm the ERR trap first: fail's own commands must not recurse into it.
+  trap - ERR
   echo "LAB-BOOT-FAILED: $*"
   echo "$*" >/var/lib/lab-boot/failed
   exit 1
 }
+# Catches any unguarded command that dies under set -e (systemctl, install,
+# usermod, apt-get, the daemon.json edit) so the failed marker always gets
+# written, not just the explicitly-checked commands below.
+trap 'fail "boot step failed (line $LINENO): $BASH_COMMAND"' ERR
 
 echo "Waiting for the instance-store NVMe at /opt/dlami/nvme..."
 for _ in $(seq 1 60); do
@@ -45,7 +51,9 @@ config["data-root"] = "/opt/dlami/nvme/docker"
 path.write_text(json.dumps(config, indent=2))
 PY
 systemctl start docker
-docker info --format '{{json .Runtimes}}' | grep -q nvidia || fail "the NVIDIA container runtime is not registered with Docker"
+runtimes="$(docker info --format '{{json .Runtimes}}')" ||
+  fail "docker did not respond after moving its data root to the NVMe (check that the daemon restarted and /etc/docker/daemon.json is valid)"
+echo "$runtimes" | grep -q nvidia || fail "the NVIDIA container runtime is not registered with Docker"
 
 install -d -o ubuntu -g ubuntu /srv/lab /srv/lab/runs /srv/lab/scratch
 usermod -aG docker ubuntu
