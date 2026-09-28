@@ -1,0 +1,4 @@
+{
+  "runCommand": ["npm", "run", "--silent", "summarize", "--"],
+  "programPattern": "summarize"
+}

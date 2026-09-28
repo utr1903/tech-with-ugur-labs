@@ -1,0 +1,14 @@
+{
+  "totalLines": 11,
+  "validRequests": 9,
+  "malformedLines": 2,
+  "statusClasses": { "1xx": 0, "2xx": 5, "3xx": 1, "4xx": 1, "5xx": 2 },
+  "topPaths": [
+    { "path": "/api/orders", "count": 3 },
+    { "path": "/api/users", "count": 3 },
+    { "path": "/api/users/42", "count": 1 },
+    { "path": "/health", "count": 1 },
+    { "path": "/old-page", "count": 1 }
+  ],
+  "p95LatencyMs": 1200
+}
