@@ -31,6 +31,35 @@ trap 'rm -f "$round_log"' EXIT
 emit() { printf '%s\n' "$1"; }
 json_str() { node -e 'process.stdout.write(JSON.stringify(process.argv[1]))' "$1"; }
 
+# Completion is decided only by the round's own final `result` line, never
+# by grepping the whole transcript for the marker: the agent's own
+# assistant text or a write_file tool call can contain the string without
+# the run actually being done ("When everything is done I will end with
+# ALL TASKS COMPLETE", a todo item, a file whose content happens to include
+# it, ...). A round can in principle carry more than one `result` line, so
+# take the LAST one; require it to have succeeded (`is_error` false) and
+# its `result` text, trimmed, to END with the marker line. No `result`
+# line at all (e.g. the turn cap or wall-time firing mid-round) is not
+# complete either.
+round_is_complete() {
+  node -e '
+    const fs = require("fs");
+    const lines = fs.readFileSync(process.argv[1], "utf8").split("\n");
+    let last = null;
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed) continue;
+      let obj;
+      try { obj = JSON.parse(trimmed); } catch { continue; }
+      if (obj && obj.type === "result") last = obj;
+    }
+    if (!last || last.is_error !== false || typeof last.result !== "string") {
+      process.exit(1);
+    }
+    process.exit(last.result.trim().endsWith("ALL TASKS COMPLETE") ? 0 : 1);
+  ' "$1"
+}
+
 stage_reply() {   # picks the next scripted reply from the workspace state
   if ! compgen -G "/workspace/docs/superpowers/specs/*.md" >/dev/null; then
     echo "spec|No human is available. Accept your recommended option for every open question and approach, write the spec now under docs/superpowers/specs/, then continue with the plan."
@@ -63,13 +92,21 @@ while :; do
     emit "{\"type\":\"driver\",\"event\":\"finished\",\"reason\":\"agent-exit\",\"rounds\":$round,\"exitCode\":$code}"
     exit "$code"
   fi
-  if grep -q 'ALL TASKS COMPLETE' "$round_log"; then
+  if round_is_complete "$round_log"; then
     emit "{\"type\":\"driver\",\"event\":\"finished\",\"reason\":\"complete\",\"rounds\":$round,\"exitCode\":0}"
     exit 0
   fi
   if [ "$round" -ge "$MAX_ROUNDS" ]; then
     emit "{\"type\":\"driver\",\"event\":\"finished\",\"reason\":\"round-cap\",\"rounds\":$round,\"exitCode\":56}"
     exit 56
+  fi
+  # Check the budget again here, before crafting the next reply: a round
+  # that used up the last of the wall-time budget must not be followed by
+  # a reply event for a round that will never actually run.
+  remaining=$(( deadline - $(date +%s) ))
+  if [ "$remaining" -le 0 ]; then
+    emit "{\"type\":\"driver\",\"event\":\"finished\",\"reason\":\"budget\",\"rounds\":$round,\"exitCode\":55}"
+    exit 55
   fi
   round=$(( round + 1 ))
   IFS='|' read -r stage prompt <<<"$(stage_reply)"

@@ -53,8 +53,8 @@ services:
     mem_limit: 16g
     pids_limit: 1024
     environment:
-      MAX_TURNS: ${MAX_TURNS:-150}
-      MAX_WALL_TIME: ${MAX_WALL_TIME:-45m}
+      MAX_TURNS: ${MAX_TURNS:-200}
+      MAX_WALL_TIME: ${MAX_WALL_TIME:-90m}
       MAX_ROUNDS: ${MAX_ROUNDS:-8}
       TODAY: ${TODAY:-}
       # Superpowers commits specs and plans as it works; the agent
