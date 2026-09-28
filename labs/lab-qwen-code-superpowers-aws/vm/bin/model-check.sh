@@ -10,7 +10,7 @@ compose=(docker compose -f /srv/lab/vm/compose.yaml)
 wait_seconds=0
 if [ "${1:-}" = "--wait" ]; then wait_seconds="${2:?--wait needs seconds}"; fi
 
-# Read one value; never source .env (VLLM_EXTRA_ARGS may hold JSON).
+# Read one value; never source .env (SERVE_EXTRA_ARGS may hold JSON).
 served="$(sed -n 's/^SERVED_MODEL_NAME=//p' /srv/lab/vm/.env)"
 
 deadline=$(( $(date +%s) + wait_seconds ))
@@ -18,6 +18,19 @@ until curl -sf "$base/health" >/dev/null; do
   if [ "$("${compose[@]}" ps --status exited -q vllm)" != "" ]; then
     echo "vLLM exited. Last log lines:" >&2
     "${compose[@]}" logs --tail 40 vllm >&2
+    exit 1
+  fi
+  # restart: unless-stopped means a crash never leaves vLLM "exited" (the
+  # check above), it just keeps restarting -- so watch the restart count too.
+  container_id="$("${compose[@]}" ps -q vllm)"
+  if [ -n "$container_id" ] && [ "$(docker inspect -f '{{.RestartCount}}' "$container_id")" -gt 0 ]; then
+    echo "vLLM crashed and was restarted; root cause:" >&2
+    root_cause="$("${compose[@]}" logs --tail 60 vllm 2>/dev/null | grep -E 'Error|ERROR|raise|ValueError|RuntimeError|OutOfMemory' || true)"
+    if [ -n "$root_cause" ]; then
+      printf '%s\n' "$root_cause" >&2
+    else
+      "${compose[@]}" logs --tail 60 vllm >&2
+    fi
     exit 1
   fi
   if [ "$(date +%s)" -ge "$deadline" ]; then

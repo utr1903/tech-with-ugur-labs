@@ -64,6 +64,12 @@ variable "vllm_extra_args" {
   description = "Extra vLLM flags, space separated. The fallback model needs some; see terraform.tfvars.example."
 }
 
+variable "max_num_seqs" {
+  type        = number
+  default     = 16
+  description = "Max sequences vLLM decodes at once. Qwen3-Coder-Next is a hybrid model: its linear-attention layers keep one fixed-size Mamba cache state per in-flight sequence, so this is capped by the state slots vLLM preallocates, not by GPU memory alone. One agent plus a handful of subagents needs far fewer than vLLM's default of 1024."
+}
+
 variable "name_prefix" {
   type        = string
   default     = "qwen-coder"

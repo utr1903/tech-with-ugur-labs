@@ -16,6 +16,7 @@ locals {
     SERVED_MODEL_NAME      = var.served_model_name
     MAX_MODEL_LEN          = tostring(var.max_model_len)
     GPU_MEMORY_UTILIZATION = tostring(var.gpu_memory_utilization)
-    VLLM_EXTRA_ARGS        = var.vllm_extra_args
+    MAX_NUM_SEQS           = tostring(var.max_num_seqs)
+    SERVE_EXTRA_ARGS       = var.vllm_extra_args
   }
 }
