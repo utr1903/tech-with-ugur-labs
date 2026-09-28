@@ -38,6 +38,26 @@ services:
     networks: [model, hf]
     restart: unless-stopped
 
+  coder:
+    build: ./coder
+    image: qwen-lab/coder
+    profiles: [tools]
+    # The container is the sandbox: every tool call is auto-approved.
+    read_only: true
+    tmpfs:
+      - /run/qwen:exec,mode=1777,size=1g
+      - /tmp:exec,mode=1777,size=8g
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 16g
+    pids_limit: 1024
+    environment:
+      MAX_TURNS: ${MAX_TURNS:-150}
+      MAX_WALL_TIME: ${MAX_WALL_TIME:-45m}
+      TODAY: ${TODAY:-}
+    networks: [model, egress]
+    # The workspace bind mount is added per run by the host supervisor.
+
 networks:
   # The agent reaches the model here. Internal: no route out.
   model:

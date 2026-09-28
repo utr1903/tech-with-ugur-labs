@@ -1,0 +1,25 @@
+{
+  "$version": 4,
+  "env": { "VLLM_API_KEY": "not-needed" },
+  "modelProviders": {
+    "openai": [
+      {
+        "id": "qwen3-coder-next",
+        "name": "Qwen3-Coder-Next on vLLM",
+        "envKey": "VLLM_API_KEY",
+        "baseUrl": "http://vllm:8000/v1",
+        "generationConfig": {
+          "timeout": 300000,
+          "maxRetries": 2,
+          "contextWindowSize": 262144,
+          "samplingParams": { "temperature": 1.0, "top_p": 0.95, "max_tokens": 8192 }
+        }
+      }
+    ]
+  },
+  "security": { "auth": { "selectedType": "openai" }, "folderTrust": { "enabled": false } },
+  "model": { "name": "qwen3-coder-next" },
+  "privacy": { "usageStatisticsEnabled": false },
+  "general": { "enableAutoUpdate": false },
+  "memory": { "enableManagedAutoMemory": false, "enableManagedAutoDream": false }
+}
