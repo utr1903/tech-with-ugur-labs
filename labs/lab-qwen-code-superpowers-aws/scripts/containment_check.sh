@@ -5,7 +5,10 @@
 # one reports its own ok/FAIL and `failed` accumulates across all of them.
 set -uo pipefail
 lab_dir="$(cd "$(dirname "$0")/.." && pwd)"
-ip="${LAB_CONTAINMENT_HOST:-$(terraform -chdir="$lab_dir/terraform" output -raw public_ip)}"
+ip="${LAB_CONTAINMENT_HOST:-}"
+if [ -z "$ip" ]; then
+  ip="$(terraform -chdir="$lab_dir/terraform" output -raw public_ip 2>/dev/null)" || ip=""
+fi
 model_port="${LAB_CONTAINMENT_MODEL_PORT:-8000}"
 ssh_port="${LAB_CONTAINMENT_SSH_PORT:-22}"
 failed=0
@@ -22,15 +25,20 @@ port_open() {
   awk -v t="${time_connect:-0}" 'BEGIN{exit !(t>0)}'
 }
 
-if port_open "$ip" "$model_port"; then
-  echo "  FAIL  the model port answers on the public address"; failed=1
+if [ -z "$ip" ]; then
+  echo "  FAIL  could not read the VM's public IP (terraform output -raw public_ip failed or is empty) -- skipping the public port checks"
+  failed=1
 else
-  echo "  ok    the model port is closed on the public address"
-fi
-if port_open "$ip" "$ssh_port"; then
-  echo "  FAIL  SSH answers on the public address"; failed=1
-else
-  echo "  ok    SSH is unreachable on the public address"
+  if port_open "$ip" "$model_port"; then
+    echo "  FAIL  the model port answers on the public address"; failed=1
+  else
+    echo "  ok    the model port is closed on the public address"
+  fi
+  if port_open "$ip" "$ssh_port"; then
+    echo "  FAIL  SSH answers on the public address"; failed=1
+  else
+    echo "  ok    SSH is unreachable on the public address"
+  fi
 fi
 
 echo "Inside the agent container:"
