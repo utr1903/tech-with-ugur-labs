@@ -86,7 +86,7 @@ shell: ## Interactive Qwen Code session in tmux on the VM
 fetch-results: ## Copy a run folder to ./results: make fetch-results [RUN=<id>]
 	@./scripts/check_vars.sh RUN
 	@mkdir -p results
-	$(VM) rsync-down "$$($(VM) ssh /srv/lab/vm/bin/resolve-run.sh $(RUN))" results/
+	dir="$$($(VM) ssh /srv/lab/vm/bin/resolve-run.sh $(RUN))" && $(VM) rsync-down "$$dir" results/
 
 replay-local: ## Replay a fetched run on the laptop (Docker): make replay-local RUN=<id>
 	@./scripts/check_vars.sh RUN DELAY_MS

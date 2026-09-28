@@ -20,7 +20,9 @@ shift
 case "$mode" in
   ssh) ;;
   rsync-up) [ $# -ge 2 ] || usage ;;
-  rsync-down) [ $# -eq 2 ] || usage ;;
+  # A blank remote path (an unresolved run id upstream) must never reach
+  # rsync: rsync-down would then copy the whole home directory it lands in.
+  rsync-down) [ $# -eq 2 ] && [ -n "$1" ] || usage ;;
   *) usage ;;
 esac
 
