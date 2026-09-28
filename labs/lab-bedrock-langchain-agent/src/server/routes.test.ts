@@ -58,10 +58,10 @@ describe("POST /query invalid model", () => {
   it("rejects an unknown model and lists the valid ones", async () => {
     const answerQuestion = vi.fn(answered);
     const app = createApp({ answerQuestion, logger });
-    const response = await post(app, { model: "gpt-4", query: "hi" });
+    const response = await post(app, { model: "not-a-model", query: "hi" });
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({
-      error: { code: "UNKNOWN_MODEL", message: 'Unknown model "gpt-4".' },
+      error: { code: "UNKNOWN_MODEL", message: 'Unknown model "not-a-model".' },
       validModels: [
         "minimax-m2.5",
         "nemotron-super-3",

@@ -1,4 +1,4 @@
-# One agent, four models: Amazon Bedrock with LangChain in TypeScript
+# One agent, four open-weight models: Amazon Bedrock with LangChain in TypeScript
 
 A small Hono service that answers plain-English questions about a seeded shop
 database — customers, products, orders — by calling three typed, read-only
@@ -8,7 +8,7 @@ behind it, with no code change. Every model turn and every tool call is
 logged as it happens, so you can compare how the four models use the same
 tools on the same question.
 
-> Companion post: [One agent, four models: Amazon Bedrock with LangChain in TypeScript](https://techwithugur.dev/posts/bedrock-langchain-agent/)
+> Companion post: [One agent, four open-weight models: Amazon Bedrock with LangChain in TypeScript](https://techwithugur.dev/posts/bedrock-langchain-agent/)
 
 ## Prerequisites
 
@@ -261,14 +261,16 @@ An abort or a timeout still ends the request. All of this happens in
 API**, one request and response shape for all models, which is what lets the
 four share identical code.
 
-| Request key | Bedrock identifier | Kind |
-| --- | --- | --- |
-| `minimax-m2.5` | `minimax.minimax-m2.5` | in-Region model ID |
-| `nemotron-super-3` | `nvidia.nemotron-super-3-120b` | in-Region model ID |
-| `deepseek-v3.2` | `deepseek.v3.2` | in-Region model ID |
-| `kimi-k3` | `global.moonshotai.kimi-k3` | global inference profile |
+| Request key | Model | Bedrock identifier | Kind |
+| --- | --- | --- | --- |
+| `minimax-m2.5` | MiniMax M2.5 | `minimax.minimax-m2.5` | in-Region model ID |
+| `nemotron-super-3` | NVIDIA Nemotron 3 Super 120B | `nvidia.nemotron-super-3-120b` | in-Region model ID |
+| `deepseek-v3.2` | DeepSeek V3.2 | `deepseek.v3.2` | in-Region model ID |
+| `kimi-k3` | Moonshot AI Kimi K3 | `global.moonshotai.kimi-k3` | global inference profile |
 
-All four are open-weight models. Every one is called with `temperature: 0`,
+All four are open-weight models: their weights are published, so you could
+also run them on your own hardware. Here Bedrock hosts them, which is why a
+laptop is enough for this lab. Every one is called with `temperature: 0`,
 except `kimi-k3`, which rejects the field, so it is not sent. To add a model,
 add one entry to `MODELS` in `src/agent/models.ts` and one matching
 `key=bedrockId` line to `MODELS` in `scripts/check.sh`.

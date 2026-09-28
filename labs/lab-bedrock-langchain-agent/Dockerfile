@@ -14,5 +14,7 @@ COPY --chown=node:node package.json package-lock.json tsconfig.json biome.json k
 COPY --chown=node:node drizzle ./drizzle
 COPY --chown=node:node src ./src
 COPY --chown=node:node e2e ./e2e
+# Keeps npm's "new version available" notice out of test and command output.
+ENV NPM_CONFIG_UPDATE_NOTIFIER=false
 EXPOSE 3000
 CMD ["npm", "run", "--silent", "start"]

@@ -34,7 +34,7 @@ describe("model registry", () => {
 
   it("finds a model by key and nothing for other input", () => {
     expect(findModel("kimi-k3")?.bedrockId).toBe("global.moonshotai.kimi-k3");
-    expect(findModel("gpt-4")).toBeUndefined();
+    expect(findModel("not-a-model")).toBeUndefined();
     expect(findModel("toString")).toBeUndefined();
     expect(findModel("")).toBeUndefined();
   });
