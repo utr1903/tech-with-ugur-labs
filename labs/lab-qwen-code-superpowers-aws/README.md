@@ -56,12 +56,12 @@ running a task. **There is no automatic shutdown.** When you're done, run
 `make destroy`.
 
 Cold start — from `make cloud-up` to a model that answers — took about
-16 minutes end to end on the default pair: roughly 3.5 minutes for
-Terraform and the Instance Connect Endpoint, then about 3 minutes to
-download 80 GB of model weights from Hugging Face onto the VM's local NVMe
-and load them into GPU memory. Your first run will vary with capacity and
-network conditions; every run after the first is faster, because the
-weights stay cached on the VM's NVMe until you destroy it.
+13 minutes end to end on the default pair, timed on a live deploy: most of
+that is Terraform, the Instance Connect Endpoint, and downloading 80 GB of
+model weights from Hugging Face onto the VM's local NVMe before vLLM loads
+them into GPU memory. Your first run will vary with capacity and network
+conditions; every run after the first is faster, because the weights stay
+cached on the VM's NVMe until you destroy it.
 
 ## 3. Architecture
 
@@ -182,7 +182,7 @@ live view — see [section 7](#7-watching-the-agent) for what that looks like.
 [section 9](#9-what-the-verifier-checks).
 
 **`make destroy`** tears everything down and confirms nothing was left
-behind — see [section 14](#14-clean-up).
+behind — see [section 15](#15-clean-up).
 
 ## 6. How SSH works here
 
@@ -217,7 +217,9 @@ that SSH session. It doesn't: `make run` starts the agent as a detached,
 `setsid nohup`'d process on the VM and returns a run id immediately, then
 attaches a *separate* SSH session just to watch it. If your connection
 drops — SSH timeout, laptop sleeps, `aws login` expiring — the run keeps
-going on the VM; `make watch` just reattaches.
+going on the VM; `make watch` just reattaches. I tested this by killing
+the SSH connection mid-run: `make status` still reported it running, and
+`make watch` reattached to the live view without losing anything.
 
 ## 7. Watching the agent
 
@@ -243,58 +245,113 @@ your own laptop instead: `make fetch-results [RUN=<id>]` copies the run
 folder down to `./results/`, then `make replay-local RUN=<id>` runs the
 same renderer locally in Docker, no VM connection needed.
 
-This is what that rendering looks like, from a real driven run:
+This is what that rendering looks like — a real excerpt from the first
+driven run of `log-summary` (`make replay-local` with `NO_COLOR=1`; the
+`…` lines mark where turns were cut for length, not part of the render
+itself):
 
-<!-- excerpt: replace with a real run -->
 ```
 Qwen Code 0.24.6 · qwen3-coder-next · /workspace
-5 tools available
+28 tools available
 
-── turn 1/150 ──
-⏺ I'll start with the TDD skill.
-★ Skill(superpowers:test-driven-development)
+── turn 1/200 ──
+⏺ I'll start by reading the TASK.md file to confirm the requirements, then use the brainstorming skill before implementing this CLI tool.
+
+
+● Read(TASK.md)
+
+── turn 2/200 ──
+★ Skill(superpowers:brainstorming)
   ⎿ skill loaded
+…
+── turn 11/200 ──
+⏺ Now let me create the parser module:
 
-── turn 2/150 ──
-● Write(src/summarize.test.ts)
-  + import { expect, test } from "vitest";
-  + import { count } from "./summarize.js";
+
+● Write(src/parser.ts)
+  + import { ParsedLine } from './types.js';
   +
-  + test("counts lines", () => {
-  +   expect(count(["a", "b"])).toBe(2);
-  + });
+  + const LOG_PATTERN =
+  +   /^(\S+)\s+(\S+)\s+(\S+)\s+\[([^\]]*)\]\s+"(\S+)\s+(\S+)\s+(\S+)"\s+(\d{3})\s+(\d+|-)\s+(\d+(?:\.\d+)?)\s*$/;
+  +
+  + export function parseLine(line: string): ParsedLine | null {
+  +   const match = line.match(LOG_PATTERN);
+  +   if (!match) {
+  +     return null;
+  … 36 more lines
 
-── turn 3/150 ──
+── turn 18/200 ──
+
+
+● Write(src/cli.test.ts)
+  + import { describe, it, expect, vi, beforeEach } from 'vitest';
+  + import { readFileSync } from 'fs';
+  +
+  + // Mock fs module
+  + vi.mock('fs', async () => ({
+  +   readFileSync: vi.fn(),
+  + }));
+  +
+  + describe('CLI', () => {
+  +   beforeEach(() => {
+  +     vi.resetAllMocks();
+  +   });
+  +
+  +   it('should handle missing file', async () => {
+  … 1 more lines
+
+…
+
 ● Shell(npm test)
-  │ FAIL src/summarize.test.ts
-  │ Error: Cannot find module './summarize.js'
+  │ > access-log-summary@1.0.0 test
+  │ > vitest run
+  │
+  │
+  │  RUN  v5.0.2 /workspace
+  │
+  │  ✓ src/cli.test.ts (1 test) 3ms
+  │  ✓ src/parser.test.ts (11 tests) 5ms
+  │  ✓ src/summarizer.test.ts (5 tests) 11ms
+  │
+  │  Test Files  3 passed (3)
+  │       Tests  17 passed (17)
 
-── turn 4/150 ──
-● Write(src/summarize.ts)
-  + export function count(values: string[]): number {
-  +   return 0;
-  + }
+…
+▶ owner (scripted, round 2, spec): No human is available. Accept your recommended option for every open question and approach, write the spec now under docs/superpowers/specs/, then continue with the plan.
+── session resumed ──
 
-── turn 5/150 ──
-● Edit(src/summarize.ts)
-  -   return 0;
-  +   return values.length;
+── turn 43/200 ──
+● Write(docs/superpowers/specs/2026-09-28-access-log-cli-design.md)
+  + # Access Log Summary CLI - Design Specification
+  +
+  + ## Project Overview
+  +
+  + A command-line tool that reads web-server access logs and outputs a JSON summary to stdout.
+  +
+  + ## Requirements
+  +
+  … 47 more lines
 
-── turn 6/150 ──
-● Shell(npm test)
-  │ Test Files  1 passed (1)
-  │      Tests  1 passed (1)
+…
+● Shell(npm test && npm run typecheck && echo "ALL TASKS COMPLETE")
+  │ > access-log-summary@1.0.0 test
+  │ > vitest run
+  │
+  │
+  │  RUN  v5.0.2 /workspace
+  │
+  │  ✓ src/cli.test.ts (1 test) 4ms
+  │  ✓ src/parser.test.ts (11 tests) 5ms
+  │  ✓ src/summarizer.test.ts (5 tests) 12ms
+  │
+  │  Test Files  3 passed (3)
+  │       Tests  17 passed (17)
 
-── turn 7/150 ──
-● Shell(npm run --silent summarize -- sample.log)
-  │ {"totalLines":3}
-
-── turn 8/150 ──
-⏺ All tests pass.
-✔ Finished: 8 turns, 7 tool calls, 3m03s
+⏺ ALL TASKS COMPLETE
+driver: complete after 2 rounds
+✔ Finished: 6 turns, 45 tool calls, 0m15s
 Agent exited 0
 ```
-<!-- end excerpt -->
 
 ## 8. Your own tasks
 
@@ -349,7 +406,7 @@ run itself), and prints a verdict.
 
 | Check | What it runs |
 | --- | --- |
-| `agent-exit` | the agent process exited 0 (see the exit codes in [section 11](#11-superpowers-under-qwen-code)) |
+| `agent-exit` | the agent process exited 0 (see the exit codes in [section 12](#12-superpowers-under-qwen-code)) |
 | `install` | `npm ci --no-audit --no-fund` in the clean workspace copy |
 | `typecheck` | the workspace's own `npm run typecheck` |
 | `own-tests` | the workspace's own `npm test` |
@@ -378,9 +435,9 @@ failed.
   rounds, replies per stage, whether a spec and a plan were written, how
   many subagent (`agent` tool) calls happened, and why the driver stopped.
 
-Here's a real verdict, from the same run as above:
+Here's the real verdict for the same run as above (`make verify` with
+`LOG_LEVEL=warn`, so only this summary prints):
 
-<!-- excerpt: replace with a real run -->
 ```
 VERDICT: PASS
 
@@ -392,21 +449,20 @@ VERDICT: PASS
   pass     fixtures
 
 Process evidence (measured, not graded)
-  skills loaded: superpowers:test-driven-development
-  test before code: yes
+  skills loaded: superpowers:brainstorming
+  test before code: no
   ran tests: yes
   ran program: yes
   checked after last change: yes
-  turns: 8
-  tool calls: edit:1, run_shell_command:3, skill:1, write_file:2
-  rounds: 1
-  replies: none
-  spec written: no
-  plan written: no
+  turns: 47
+  tool calls: edit:2, glob:5, list_directory:2, read_file:3, run_shell_command:17, skill:1, write_file:15
+  rounds: 2
+  replies: spec:1
+  spec written: yes
+  plan written: yes
   subagent calls: 0
-  finish reason: none
+  finish reason: complete
 ```
-<!-- end excerpt -->
 
 ## 10. Running the whole Superpowers flow unattended
 
@@ -465,18 +521,29 @@ wall-time budget cut it off mid-stream), that round is not complete either,
 no matter what appeared earlier in the transcript.
 
 Each scripted reply the driver sends is written into the transcript as its
-own `driver` event, so it shows up in the live view exactly like a message
-from a human would — you'll see something like:
+own `driver` event, and the driver's own outcome gets one too, once it
+gives up or the agent completes. Here are both lines, verbatim, from a
+real driven run:
 
 ```
-── driver: reply (round 2, stage "spec") ──
-No human is available. Accept your recommended option for every open
-question and approach, write the spec now under docs/superpowers/specs/,
-then continue with the plan.
+{"type":"driver","event":"reply","round":2,"stage":"spec","message":"No human is available. Accept your recommended option for every open question and approach, write the spec now under docs/superpowers/specs/, then continue with the plan."}
+{"type":"driver","event":"finished","reason":"complete","rounds":2,"exitCode":0}
+```
+
+The viewer and verifier both parse these the same way anything else in the
+transcript is parsed, so the live view renders the reply exactly like a
+message from a human would, followed by the resumed session, and later the
+driver's own summary line:
+
+```
+▶ owner (scripted, round 2, spec): No human is available. Accept your recommended option for every open question and approach, write the spec now under docs/superpowers/specs/, then continue with the plan.
+── session resumed ──
+…
+driver: complete after 2 rounds
 ```
 
 **Budgets and exit codes.** Three env vars control the driver, all
-settable per run (see [section 12](#12-settings-you-can-change)):
+settable per run (see [section 13](#13-settings-you-can-change)):
 
 | Variable | Default | Applies to |
 | --- | --- | --- |
@@ -496,7 +563,48 @@ The driver's own exit code tells you which budget (if any) ran out:
 run that never finishes the workflow is not a pass, even if the code it did
 write happens to work.
 
-## 11. Superpowers under Qwen Code
+## 11. What happened when I ran it
+
+Three real runs of the sample `log-summary` task, in order:
+
+**Single-shot, no driver.** The earliest trial mentioned above: 3 turns,
+7 seconds, exit 0 — and nothing built. The agent classified the task,
+asked clarifying questions, proposed three architectures, and ended its
+message with "Please confirm... before I proceed." With no driver to
+answer it, the session just stopped there. This is exactly the gap the
+driver in [section 10](#10-running-the-whole-superpowers-flow-unattended)
+exists to close.
+
+**Driven run 1.** 2 rounds, one scripted reply (at the spec stage, shown
+above), 47 turns, 102 seconds, exit 0, verifier `PASS` 6/6. Only
+`superpowers:brainstorming` shows up in "skills loaded" — once the driver
+told it the spec was wanted, it wrote the spec and the plan itself without
+separately invoking `writing-plans`.
+
+**Driven run 2.** 1 round, no scripted reply needed at all — the agent
+talked itself past every gate and reached `ALL TASKS COMPLETE`
+unattended. 96 turns, 242 seconds, exit 0, verifier `PASS` 6/6. Skills
+loaded: `brainstorming`, `writing-plans`, `subagent-driven-development`,
+`executing-plans`, `test-driven-development`. The interesting bit is
+`subagent-driven-development`: it tried to hand work off to a background
+subagent and got told "No ordinary background subagents are available in
+this session," so it fell back to `executing-plans` instead — and picked
+up `test-driven-development` on its own along the way.
+
+**Test before code: no, both times.** Even in run 2, with
+`test-driven-development` loaded, the transcript's own measured signal
+says the test files landed after the source files they exercise, not
+before. Loading a skill isn't the same as the model actually following it
+turn by turn — that's the whole reason this measured section exists
+separately from the pass/fail verdict.
+
+**Timing.** `make cloud-up` to a model that answers took about 13 minutes
+on a fresh apply. The runs themselves were fast: 102 seconds and 242
+seconds. How often a run reaches `PASS` over more attempts than these
+three is the kind of number that needs a real sample size to mean
+anything — see the post for that.
+
+## 12. Superpowers under Qwen Code
 
 Two things had to line up for Superpowers to reach the model at all under
 Qwen Code, and they're both worth knowing if you ever poke at the image.
@@ -538,7 +646,7 @@ then fails the build outright if that clone isn't sitting on exactly
 `8ca22dba9a94f28898bbce59f2537ff4d87c747d`, so the pinned version can never
 silently drift.
 
-## 12. Settings you can change
+## 13. Settings you can change
 
 **`terraform/terraform.tfvars`** (copy from `terraform.tfvars.example`,
 which is optional — every variable has a working default):
@@ -589,7 +697,7 @@ Terraform automatically. Switching to the fallback means editing
 `model.name` to `qwen3.5-35b-a3b`, and `generationConfig.contextWindowSize`
 to `65536`, before `make cloud-up` builds the `coder` image.
 
-## 13. Containment
+## 14. Containment
 
 The `coder` container is the sandbox the agent runs in, and it's built to
 hold nothing worth stealing and reach nothing worth reaching:
@@ -620,7 +728,7 @@ public address; from inside the container, that instance metadata is
 unreachable, there are no `AWS_*` variables, no `~/.aws`, no Docker socket,
 the process isn't root, and the root filesystem really is read-only.
 
-## 14. Clean up
+## 15. Clean up
 
 ```bash
 make destroy
@@ -636,7 +744,7 @@ Run folders under `results/` on your laptop (from `make fetch-results`) are
 gitignored and untouched by `make destroy` — they're local files, not AWS
 resources, so delete them yourself if you want them gone.
 
-## 15. Troubleshooting
+## 16. Troubleshooting
 
 | Symptom | What's going on | Fix |
 | --- | --- | --- |
@@ -646,7 +754,7 @@ resources, so delete them yourself if you want them gone.
 | `aws login` session expires mid-run | your laptop's session timed out, but the run itself lives on the VM, not on your laptop's SSH session | run `aws login` again, then `make watch` to reattach — the run kept going the whole time |
 | SSH host-key warning after replacing the VM | a new VM has a new host key, and your lab-local `known_hosts` still has the old one | nothing to do by hand — `scripts/bootstrap_vm.sh` rewrites `.ssh/known_hosts` from the new console output on the next `make cloud-up` |
 
-## 16. Terraform file map
+## 17. Terraform file map
 
 Following the repo-wide `terraform-structure` convention, with two stated
 exceptions:
@@ -654,7 +762,7 @@ exceptions:
 | File | Content |
 | --- | --- |
 | `00_main.tf` | required Terraform and provider versions, default tags |
-| `01_variables.tf` | every variable in [section 12](#12-settings-you-can-change) |
+| `01_variables.tf` | every variable in [section 13](#13-settings-you-can-change) |
 | `02_locals.tf` | tags, and the hash of every file pushed to the VM (so a change to `vm/` or `tasks/` re-triggers bootstrap) |
 | `03_data.tf` | the AMI, looked up by its exact pinned name and owner |
 | `04_network.tf` | VPC, public subnet, internet gateway, route table, both security groups |
@@ -664,7 +772,7 @@ exceptions:
 | `tests/security.tftest.hcl` | plan-only `terraform test` assertions of the security properties this README promises (IMDSv2 required, SSH reachable only through the endpoint, and so on) — runs with a mocked AWS provider, no credentials or cost, via `make tf-test` |
 | `vm/host/boot.sh` | the VM's `user_data` (cloud-init) script — kept under `vm/` rather than `terraform/` and read into Terraform with `file()`, because it's really part of the VM image's own setup (moving Docker and the model cache onto the local NVMe, checking the AMI has what the lab needs), not infrastructure description |
 
-## 17. The tools app
+## 18. The tools app
 
 `vm/tools/` is one small TypeScript app (Node 22, strict types) that serves
 both roles you've seen throughout this README: the `viewer` (live view and
@@ -682,7 +790,7 @@ would mean those two things could get JSON log lines interleaved into
 them; keeping logs strictly on stderr means you can always redirect stdout
 alone and get exactly the rendered view or the summary, nothing else.
 
-## 18. Versions
+## 19. Versions
 
 | Component | Version |
 | --- | --- |
