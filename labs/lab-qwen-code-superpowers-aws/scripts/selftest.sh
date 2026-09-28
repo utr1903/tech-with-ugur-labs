@@ -11,7 +11,7 @@ docker run --rm \
   -v "$lab_dir/vm/tools/selftest/log-summary-run:/run:ro" \
   -v "$lab_dir/tasks/log-summary/acceptance:/acceptance:ro" \
   -v "$out/verdict.json:/out/verdict.json" \
-  --tmpfs /scratch:exec,size=2g,mode=1777 -e SCRATCH_DIR=/scratch \
+  --tmpfs /scratch:exec,size=2g,mode=1777 -e SCRATCH_DIR=/scratch -e LOG_LEVEL=warn \
   qwen-lab/tools verify /run /out/verdict.json --acceptance /acceptance
 grep -q '"verdict": "pass"' "$out/verdict.json" || { echo "Selftest failed: the reference solution did not pass." >&2; exit 1; }
 echo "Selftest passed."
