@@ -1,7 +1,11 @@
 /**
  * Follows a run directory while the agent is still working: waits for
  * run.json to appear, then renders every transcript line as it's
- * appended until the run's status flips to "finished".
+ * appended until the run's status flips to "finished". If run.json
+ * already says "finished" the moment watching starts, there is nothing
+ * left to follow, so this defers to the replay path (no live elapsed
+ * clock, no polling) instead of rendering the whole transcript at once
+ * with every turn line showing "now minus startedAt".
  */
 import { join } from "node:path";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -10,6 +14,7 @@ import { createRenderer } from "../render/renderer.js";
 import type { Style } from "../render/style.js";
 import { type RunInfo, readRunInfo } from "../run/run-info.js";
 import { followTranscript } from "../transcript/reader.js";
+import { replayRun } from "./replay.js";
 
 const RUN_JSON_TIMEOUT_MS = 60_000;
 const POLL_MS = 500;
@@ -40,6 +45,14 @@ export async function watchRun(
   try {
     logger.info({ runDir }, "Watching run...");
     const info = await waitForRunInfo(runDir);
+    if (info.status === "finished") {
+      logger.info(
+        { runDir },
+        "Run already finished; replaying instead of following.",
+      );
+      await replayRun(runDir, { logger, write, style, delayMs: 0 });
+      return;
+    }
     const renderer = createRenderer(write, {
       style,
       maxTurns: info.maxTurns,
