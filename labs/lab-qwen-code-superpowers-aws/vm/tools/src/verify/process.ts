@@ -21,6 +21,11 @@ export type RunStep = (
 
 const MAX_OUTPUT_LENGTH = 1024 * 1024;
 const TRUNCATION_NOTE = "\n[output truncated]";
+// How long to wait, after killing the process group, for `close` to fire
+// before giving up on it and resolving anyway. A grandchild that inherited
+// the stdio pipes (e.g. `sh -c tsc` or `sh -c vitest`) can keep them open
+// past its parent's death, so `close` alone isn't a reliable timeout signal.
+const KILL_GRACE_MS = 2_000;
 
 /** Appends a chunk to a captured stream, capping it at 1 MB with a trailing note. */
 function appendCapped(buffer: string, chunk: string): string {
@@ -30,22 +35,33 @@ function appendCapped(buffer: string, chunk: string): string {
   return `${next.slice(0, MAX_OUTPUT_LENGTH)}${TRUNCATION_NOTE}`;
 }
 
+/** Kills a whole process group so grandchildren die with it, falling back to just the one process. */
+function killGroup(pid: number): void {
+  try {
+    process.kill(-pid, "SIGKILL");
+  } catch {
+    try {
+      process.kill(pid, "SIGKILL");
+    } catch {
+      // already gone
+    }
+  }
+}
+
 /** Runs a command with a timeout, resolving with its outcome instead of throwing. */
 export const runStep: RunStep = (command, args, { cwd, timeoutMs, env }) =>
   new Promise((resolve) => {
+    // `detached: true` makes the child its own process-group leader, so a
+    // grandchild it spawns (which inherits the group) can be killed too.
     const child = spawn(command, args, {
       cwd,
       env: { ...process.env, ...env },
+      detached: true,
     });
     let stdout = "";
     let stderr = "";
     let timedOut = false;
     let settled = false;
-
-    const timer = setTimeout(() => {
-      timedOut = true;
-      child.kill("SIGKILL");
-    }, timeoutMs);
 
     const finish = (result: StepResult): void => {
       if (settled) return;
@@ -53,6 +69,18 @@ export const runStep: RunStep = (command, args, { cwd, timeoutMs, env }) =>
       clearTimeout(timer);
       resolve(result);
     };
+
+    const timer = setTimeout(() => {
+      timedOut = true;
+      if (child.pid !== undefined) killGroup(child.pid);
+      // Belt-and-braces: if something still holds the stdio pipes open,
+      // `close` may never fire. Give it a grace period, then resolve anyway.
+      setTimeout(() => {
+        child.stdout?.destroy();
+        child.stderr?.destroy();
+        finish({ code: null, stdout, stderr, timedOut: true });
+      }, KILL_GRACE_MS);
+    }, timeoutMs);
 
     child.stdout?.on("data", (chunk: Buffer) => {
       stdout = appendCapped(stdout, chunk.toString("utf8"));
