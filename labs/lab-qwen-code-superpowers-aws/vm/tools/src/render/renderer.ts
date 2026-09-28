@@ -7,13 +7,17 @@
  * same renderer. A class, rather than one big closure, keeps each
  * event's handling in its own short method.
  *
- * The remembered result is scoped to the current round: a driven
- * session's resume driver can restart the agent several times, each
- * restart marked by a `driver-reply` event and a repeated `init` event,
- * and each round has its own `result` line (or none, if that round was
- * cut short). Carrying an earlier round's result into a later round's
- * finish line would misreport the run's actual outcome, so both events
- * that start a new round clear it.
+ * Whether the run ended in success or error is scoped to the current
+ * round: a driven session's resume driver can restart the agent several
+ * times, each restart marked by a `driver-reply` event and a repeated
+ * `init` event, and each round has its own `result` line (or none, if
+ * that round was cut short). Carrying an earlier round's outcome into a
+ * later round's finish line would misreport the run's actual outcome,
+ * so both events that start a new round clear it (`resetRoundResult`).
+ * The *counts* in that finish line are not round-scoped, though: turns,
+ * tool calls and elapsed time are whole-run totals, accumulated across
+ * every round regardless of resets, because a multi-round run's finish
+ * line should report what the whole run did, not just its last round.
  */
 import type { RunInfo } from "../run/run-info.js";
 import type { ContentBlock, TranscriptEvent } from "../transcript/events.js";
@@ -63,6 +67,11 @@ class RendererImpl implements Renderer {
   private sawResult = false;
   private sawInit = false;
   private resultLine: string | null = null;
+  // Whole-run totals for the finish line: accumulated across every round's
+  // result line, never reset by resetRoundResult (which only forgets
+  // whether the *current* round has reported success or error yet).
+  private totalDurationMs = 0;
+  private turnsFallbackSum = 0;
 
   constructor(
     private readonly write: (text: string) => void,
@@ -159,7 +168,18 @@ class RendererImpl implements Renderer {
         return;
       case "result":
         this.sawResult = true;
-        this.resultLine = formatResultLine(event, this.toolCalls, this.style);
+        this.totalDurationMs += event.durationMs;
+        this.turnsFallbackSum += event.numTurns;
+        this.resultLine = formatResultLine(
+          event,
+          {
+            turnStarts: this.turn,
+            turnsFallbackSum: this.turnsFallbackSum,
+            toolCalls: this.toolCalls,
+            totalDurationMs: this.totalDurationMs,
+          },
+          this.style,
+        );
         return;
       case "driver-reply":
         this.closeStream();

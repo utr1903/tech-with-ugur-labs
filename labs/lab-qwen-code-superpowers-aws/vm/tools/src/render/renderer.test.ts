@@ -94,9 +94,11 @@ describe("renderer", () => {
     expect(bannerCount).toBe(1);
   });
 
-  it("remembers the last of several result lines", async () => {
+  it("remembers the last of several result lines, with whole-run totals", async () => {
     const out = await render("driven-session.jsonl", finishedRun(0));
-    expect(out).toContain("✔ Finished: 3 turns, 2 tool calls, 2m00s");
+    // 4 turn-starts across both rounds (not round 2's own num_turns of 3),
+    // and 45s + 120s = 165s of summed round durations (not round 2's 120s alone).
+    expect(out).toContain("✔ Finished: 4 turns, 2 tool calls, 2m45s");
     expect(out.split("✔ Finished:").length - 1).toBe(1);
   });
 
@@ -129,7 +131,10 @@ describe("renderer", () => {
     );
     expect(out).toContain("⏺ ALL TASKS COMPLETE");
     expect(out).toContain("driver: complete after 2 rounds");
-    expect(out).toContain("✔ Finished: 6 turns, 6 tool calls, 0m15s");
+    // Whole-run totals: 5 turn-starts across both rounds (not round 2's
+    // own num_turns of 6), and 84393ms + 15043ms = 99436ms of summed
+    // round durations (not round 2's 15043ms alone).
+    expect(out).toContain("✔ Finished: 5 turns, 6 tool calls, 1m39s");
     expect(out).toContain("Agent exited 0");
   });
 });

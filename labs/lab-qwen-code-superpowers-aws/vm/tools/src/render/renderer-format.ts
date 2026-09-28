@@ -90,17 +90,37 @@ interface ResultEvent {
   subtype: string;
 }
 
-/** Formats the remembered result line: success in green, error in red. */
+/** The whole-run totals `formatResultLine` reports on success. */
+export interface ResultTotals {
+  /** `turn-start` events seen across every round so far. */
+  turnStarts: number;
+  /** Sum of every round's own `num_turns`; used only when `turnStarts` is 0. */
+  turnsFallbackSum: number;
+  /** Tool calls across every round so far. */
+  toolCalls: number;
+  /** Sum of every round's own result `duration_ms`. */
+  totalDurationMs: number;
+}
+
+/**
+ * Formats the remembered result line: success in green, error in red.
+ * Success reports `totals` — whole-run counts, not just this round's —
+ * while which branch (success or error) is taken still depends only on
+ * this round's own `event`: the final round decides that, never an
+ * earlier one.
+ */
 export function formatResultLine(
   event: ResultEvent,
-  toolCalls: number,
+  totals: ResultTotals,
   style: Style,
 ): string {
   if (!event.isError) {
-    const duration = formatCompactDuration(event.durationMs);
+    const turns =
+      totals.turnStarts > 0 ? totals.turnStarts : totals.turnsFallbackSum;
+    const duration = formatCompactDuration(totals.totalDurationMs);
     return style.paint(
       "green",
-      `✔ Finished: ${event.numTurns} turns, ${toolCalls} tool calls, ${duration}`,
+      `✔ Finished: ${turns} turns, ${totals.toolCalls} tool calls, ${duration}`,
     );
   }
   return style.paint("red", `✘ ${event.errorMessage ?? event.subtype}`);
