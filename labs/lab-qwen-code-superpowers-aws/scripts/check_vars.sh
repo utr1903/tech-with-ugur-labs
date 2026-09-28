@@ -26,14 +26,14 @@ for name in "$@"; do
       label="a run id or 'latest' (no /)"
       ;;
     TURNS)
-      value="${TURNS:-150}"
+      value="${TURNS:-200}"
       pattern='^[0-9]+$'
       label="a positive integer"
       ;;
     WALL_TIME)
-      value="${WALL_TIME:-45m}"
+      value="${WALL_TIME:-90m}"
       pattern='^[0-9]+(\.[0-9]+)?[smh]?$'
-      label="a number with an optional s/m/h suffix, e.g. 45m"
+      label="a number with an optional s/m/h suffix, e.g. 90m"
       ;;
     ROUNDS)
       value="${ROUNDS:-8}"
