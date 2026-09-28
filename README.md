@@ -37,6 +37,7 @@ the only instruction set you need.
 | [lab-kubernetes-job-isolation](labs/lab-kubernetes-job-isolation/) | cybersecurity, cloud, devops | [post](https://techwithugur.dev/posts/kubernetes-job-isolation/) | This lab deliberately runs the shell command supplied to `POST /execute`. |
 | [lab-ai-code-sandbox-kind](labs/lab-ai-code-sandbox-kind/) | ai, cloud, devops | [post](https://techwithugur.dev/posts/ai-code-sandbox-kind/) | A chat app on a local kind cluster where an LLM agent solves maths word problems by writing a complete Python program and running it in a separate sandbox service, then answers from the program's real output — and it runs without any API key by default, using a deterministic stand-in model. |
 | [lab-cloud-run-pubsub-number-processor](labs/lab-cloud-run-pubsub-number-processor/) | cloud, devops, cybersecurity | [post](https://techwithugur.dev/posts/cloud-run-pubsub-number-processor/) | This lab builds a small asynchronous Google Cloud pipeline. |
+| [lab-bedrock-langchain-agent](labs/lab-bedrock-langchain-agent/) | ai, cloud | [post](https://techwithugur.dev/posts/bedrock-langchain-agent/) | A small Hono service that answers plain-English questions about a seeded shop database by calling three typed, read-only tools instead of writing SQL, with one LangChain agent and a request field that picks which of four open-weight models on Amazon Bedrock sits behind it. |
 <!-- LAB-INDEX:END -->
 
 ## Conventions
