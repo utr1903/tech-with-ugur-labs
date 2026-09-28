@@ -54,11 +54,14 @@ import re
 path = pathlib.Path("/etc/containerd/config.toml")
 text = path.read_text()
 new_root = 'root = "/opt/dlami/nvme/containerd"'
-# Only the top-level root line (column 0, no leading whitespace): a nested
-# "root = ..." inside a proxy_plugins table (e.g. the SOCI snapshotter) is
-# indented and must be left alone, and this also leaves any NVIDIA runtime
-# section elsewhere in the file untouched.
-top_level_root = re.compile(r'(?m)^#?root = "/var/lib/containerd"\s*$')
+# Match the top-level root line however it currently reads -- commented
+# default, already applied by a previous boot, or any other value -- so
+# a second boot replaces it in place instead of adding a second one
+# (containerd rejects a config with the same key twice). Anchored at
+# column 0 so a nested "root = ..." inside a proxy_plugins table (e.g.
+# the SOCI snapshotter), which is indented, is never touched, and any
+# NVIDIA runtime section elsewhere in the file is left alone too.
+top_level_root = re.compile(r'(?m)^#?root\s*=.*$')
 if top_level_root.search(text):
     text = top_level_root.sub(new_root, text, count=1)
 else:
@@ -66,7 +69,9 @@ else:
 path.write_text(text)
 PY
 systemctl start containerd
-containerd_root="$(containerd config dump 2>/dev/null | awk -F"'" '/^root = /{print $2}')"
+# containerd's own TOML encoder quotes strings with ' or " depending on
+# version (seen both across containerd releases), so accept either.
+containerd_root="$(containerd config dump 2>/dev/null | sed -nE "s/^root = [\"']([^\"']*)[\"']\$/\1/p")"
 [ "$containerd_root" = "/opt/dlami/nvme/containerd" ] ||
   fail "containerd did not pick up the new root dir after editing /etc/containerd/config.toml"
 

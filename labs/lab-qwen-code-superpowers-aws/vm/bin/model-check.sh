@@ -22,8 +22,13 @@ until curl -sf "$base/health" >/dev/null; do
   fi
   # restart: unless-stopped means a crash never leaves vLLM "exited" (the
   # check above), it just keeps restarting -- so watch the restart count too.
-  container_id="$("${compose[@]}" ps -q vllm)"
-  if [ -n "$container_id" ] && [ "$(docker inspect -f '{{.RestartCount}}' "$container_id")" -gt 0 ]; then
+  # -a includes a container that is between restart attempts (briefly
+  # stopped, not yet "exited" in compose's eyes); the container can still
+  # vanish out from under `docker inspect` in that window, so that failure
+  # (and a missing/non-numeric count) just falls through as "no restarts yet".
+  container_id="$("${compose[@]}" ps -a -q vllm)"
+  restart_count="$(docker inspect -f '{{.RestartCount}}' "$container_id" 2>/dev/null || echo 0)"
+  if [ -n "$container_id" ] && [ "${restart_count:-0}" -gt 0 ]; then
     echo "vLLM crashed and was restarted; root cause:" >&2
     root_cause="$("${compose[@]}" logs --tail 60 vllm 2>/dev/null | grep -E 'Error|ERROR|raise|ValueError|RuntimeError|OutOfMemory' || true)"
     if [ -n "$root_cause" ]; then
