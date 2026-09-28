@@ -4,6 +4,10 @@
 resource "terraform_data" "bootstrap" {
   triggers_replace = [
     aws_instance.vm.id,
+    # instance_type stops and restarts the VM in place (aws_instance.vm.id
+    # does not change), but stopping empties the instance-store NVMe, so
+    # bootstrap must still re-run and re-download the weights.
+    var.instance_type,
     local.pushed_files_hash,
     jsonencode(local.model_settings),
   ]
