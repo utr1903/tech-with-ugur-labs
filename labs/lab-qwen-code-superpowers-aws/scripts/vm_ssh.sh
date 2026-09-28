@@ -18,7 +18,9 @@ EOF
 mode="$1"
 shift
 case "$mode" in
-  ssh | rsync-up | rsync-down) ;;
+  ssh) ;;
+  rsync-up) [ $# -ge 2 ] || usage ;;
+  rsync-down) [ $# -eq 2 ] || usage ;;
   *) usage ;;
 esac
 
@@ -72,14 +74,12 @@ case "$mode" in
     ssh -F "$work_dir/config" ${tty_flag[@]+"${tty_flag[@]}"} lab "$@" || status=$?
     ;;
   rsync-up)
-    [ $# -ge 2 ] || usage
     dest="${*: -1}"
     # .env on the VM is written by bootstrap, never deleted by a sync.
     rsync -az --delete --exclude node_modules --exclude .DS_Store --exclude .env \
       -e "ssh -F $work_dir/config" "${@:1:$#-1}" "lab:$dest" || status=$?
     ;;
   rsync-down)
-    [ $# -eq 2 ] || usage
     rsync -az -e "ssh -F $work_dir/config" "lab:$1" "$2" || status=$?
     ;;
 esac

@@ -25,7 +25,8 @@ check "volumes" "$(aws ec2 describe-volumes --region "$region" --filters "$tag_f
   --query 'Volumes[].VolumeId' --output text)"
 check "instance connect endpoints" "$(aws ec2 describe-instance-connect-endpoints --region "$region" \
   --filters "$tag_filter" \
-  --query "InstanceConnectEndpoints[?State!='delete-complete'].InstanceConnectEndpointId" --output text)"
+  --query "InstanceConnectEndpoints[?State!='delete-complete'].InstanceConnectEndpointId" \
+  --output text)" # single-quoted JMESPath raw string, not a shell/command-substitution backtick (avoids SC2016)
 check "security groups" "$(aws ec2 describe-security-groups --region "$region" --filters "$tag_filter" \
   --query 'SecurityGroups[].GroupId' --output text)"
 check "VPCs" "$(aws ec2 describe-vpcs --region "$region" --filters "$tag_filter" \
