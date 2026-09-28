@@ -1,6 +1,10 @@
 #!/usr/bin/env bash
 # Creates a run folder and starts the supervisor detached from this SSH
 # session, so a dropped connection never ends a run. Prints the run id.
+#
+# run.json is written here, before the supervisor is even launched, so
+# that a caller chaining straight into resolve-run.sh or watch.sh never
+# races the detached supervisor's own first write.
 set -euo pipefail
 
 task="${1:?usage: start-run.sh <task> <max-turns> <max-wall-time>}"
@@ -15,6 +19,25 @@ mkdir -p "$run_dir/workspace"
 cp "/srv/lab/tasks/$task/task.md" "$run_dir/task.md"
 cp "/srv/lab/tasks/$task/task.md" "$run_dir/workspace/TASK.md"
 ln -sfn "$run_id" /srv/lab/runs/latest
+
+served_model_name="$(sed -n 's/^SERVED_MODEL_NAME=//p' /srv/lab/vm/.env)"
+python3 - "$run_dir/run.json" "$run_id" "$task" "$max_turns" "$max_wall_time" \
+  "$served_model_name" "$(date -u +%FT%TZ)" <<'PY'
+import json, os, sys
+path, run_id, task, max_turns, max_wall_time, model, started_at = sys.argv[1:]
+data = {
+    "runId": run_id,
+    "task": task,
+    "status": "running",
+    "startedAt": started_at,
+    "maxTurns": int(max_turns),
+    "maxWallTime": max_wall_time,
+    "model": model,
+}
+tmp = path + ".tmp"
+json.dump(data, open(tmp, "w"), indent=2)
+os.replace(tmp, path)
+PY
 
 setsid nohup /srv/lab/vm/bin/supervise-run.sh "$run_id" "$task" "$max_turns" "$max_wall_time" \
   >"$run_dir/supervisor.log" 2>&1 < /dev/null &

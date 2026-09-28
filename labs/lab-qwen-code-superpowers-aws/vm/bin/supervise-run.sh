@@ -4,11 +4,21 @@
 # set -u (not -e): the container's own exit code must still be captured
 # and recorded in run.json, so a nonzero exit here must not abort the
 # script before the final write_run_json runs.
+#
+# start-run.sh writes the initial run.json (status "running", startedAt,
+# ...) before launching this script, so callers chaining into
+# resolve-run.sh or watch.sh never race this detached process's first
+# write. This script only merges further keys into that same file, and
+# reads its startedAt back rather than stamping a later one, so
+# durationSeconds below reflects the run's actual start, not this
+# process's own start.
 set -uo pipefail
 
-run_id="$1"; task="$2"; max_turns="$3"; max_wall_time="$4"
+run_id="$1"
+# $2 is the task name, already recorded in run.json by start-run.sh.
+max_turns="$3"
+max_wall_time="$4"
 run_dir="/srv/lab/runs/$run_id"
-SERVED_MODEL_NAME="$(sed -n 's/^SERVED_MODEL_NAME=//p' /srv/lab/vm/.env)"
 
 write_run_json() {
   python3 - "$run_dir/run.json" "$@" <<'PY'
@@ -28,10 +38,8 @@ os.replace(tmp, path)
 PY
 }
 
-started_epoch=$(date +%s)
-write_run_json "runId=str=$run_id" "task=str=$task" "status=str=running" \
-  "startedAt=str=$(date -u +%FT%TZ)" "maxTurns=int=$max_turns" \
-  "maxWallTime=str=$max_wall_time" "model=str=$SERVED_MODEL_NAME"
+started_at="$(python3 -c 'import json, sys; print(json.load(open(sys.argv[1]))["startedAt"])' "$run_dir/run.json")"
+started_epoch="$(date -u -d "$started_at" +%s)"
 
 docker compose -f /srv/lab/vm/compose.yaml run --rm -T --name "run-$run_id" \
   -v "$run_dir/workspace:/workspace" \
