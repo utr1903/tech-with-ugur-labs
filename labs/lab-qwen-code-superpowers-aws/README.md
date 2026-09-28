@@ -12,6 +12,29 @@ No Anthropic, OpenAI or any other hosted model API is involved anywhere. The
 model, the agent runtime and the skills framework are all open source, and
 everything runs on hardware you rent by the hour.
 
+**Contents**
+
+1. [What this lab shows](#1-what-this-lab-shows)
+2. [What it costs](#2-what-it-costs)
+3. [Architecture](#3-architecture)
+4. [Prerequisites](#4-prerequisites)
+5. [Quick start](#5-quick-start)
+6. [How SSH works here](#6-how-ssh-works-here)
+7. [Watching the agent](#7-watching-the-agent)
+8. [Your own tasks](#8-your-own-tasks)
+9. [What the verifier checks](#9-what-the-verifier-checks)
+10. [Running the whole Superpowers flow unattended](#10-running-the-whole-superpowers-flow-unattended)
+11. [What happened when I ran it](#11-what-happened-when-i-ran-it)
+12. [Superpowers under Qwen Code](#12-superpowers-under-qwen-code)
+13. [Settings you can change](#13-settings-you-can-change)
+14. [Containment](#14-containment)
+15. [Clean up](#15-clean-up)
+16. [Troubleshooting](#16-troubleshooting)
+17. Appendix — implementer internals:
+    [Terraform file map](#17-terraform-file-map) ·
+    [The tools app](#18-the-tools-app) ·
+    [Versions](#19-versions)
+
 ## 1. What this lab shows
 
 Superpowers is a skills framework written for Claude Code and frontier
@@ -238,6 +261,15 @@ live view; `make status [RUN=<id>]` gives you the state and exit code
 without attaching anything; `make logs [RUN=<id>]` follows the agent's raw
 stderr if you want the unrendered detail.
 
+All of the above is for *watching* the unattended, driven flow from
+[section 10](#10-running-the-whole-superpowers-flow-unattended) — you
+never type anything into it. `make shell` is the other mode: it opens an
+interactive Qwen Code session in a `tmux` window on the VM, you at the
+keyboard, answering its questions yourself as they come up. There's no
+autonomy contract and no resume driver in that path — it's the same
+image and the same model, just without the part of this lab that makes
+a session finish itself.
+
 Once a run has finished, `make replay [RUN=<id>] [DELAY_MS=15]` re-renders
 its saved transcript on the VM, paced by `DELAY_MS` per line so it reads at
 a followable speed instead of dumping the whole thing at once. To replay on
@@ -347,11 +379,18 @@ Qwen Code 0.24.6 · qwen3-coder-next · /workspace
   │  Test Files  3 passed (3)
   │       Tests  17 passed (17)
 
+── turn 47/200 ──
 ⏺ ALL TASKS COMPLETE
 driver: complete after 2 rounds
-✔ Finished: 6 turns, 45 tool calls, 0m15s
+✔ Finished: 47 turns, 45 tool calls, 1m39s
 Agent exited 0
 ```
+
+The finish line's counts are always for the *whole* run, not just the
+round that happened to finish it: 47 turns matches the same run's
+turn-by-turn tally in [section 11](#11-what-happened-when-i-ran-it), and
+1m39s is round 1's 84s plus round 2's 15s added together, not either one
+alone.
 
 ## 8. Your own tasks
 
@@ -470,8 +509,9 @@ Superpowers is designed around brainstorming with a human: it asks
 clarifying questions, proposes a spec, and waits for you to approve each
 step before moving on. That's a problem for a headless run with no human
 attached — in an early trial run, the agent hit brainstorming's approval
-gate, printed something like "Please confirm before I continue," and the
-session just ended there with nothing built.
+gate and the session just ended there with nothing built. The exact
+question it asked, and the run's numbers, are in
+[section 11](#11-what-happened-when-i-ran-it).
 
 **The contract.** Every agent session gets one extra system-message block,
 on top of today's date, appended via `--append-system-prompt`
@@ -570,10 +610,11 @@ Three real runs of the sample `log-summary` task, in order:
 **Single-shot, no driver.** The earliest trial mentioned above: 3 turns,
 7 seconds, exit 0 — and nothing built. The agent classified the task,
 asked clarifying questions, proposed three architectures, and ended its
-message with "Please confirm... before I proceed." With no driver to
-answer it, the session just stopped there. This is exactly the gap the
-driver in [section 10](#10-running-the-whole-superpowers-flow-unattended)
-exists to close.
+final message with: "Please confirm or suggest an alternative before I
+proceed with the implementation plan." With no driver to answer it, the
+session just stopped there. This is exactly the gap the driver in
+[section 10](#10-running-the-whole-superpowers-flow-unattended) exists to
+close.
 
 **Driven run 1.** 2 rounds, one scripted reply (at the spec stage, shown
 above), 47 turns, 102 seconds, exit 0, verifier `PASS` 6/6. Only
@@ -737,8 +778,9 @@ make destroy
 runs `terraform destroy` and then `scripts/check_leftovers.sh`, which
 searches the Region for anything still tagged with this lab's name —
 instances, EBS volumes, Instance Connect Endpoints, security groups, VPCs,
-elastic IPs — and fails loudly if it finds any. A clean destroy prints
-`Nothing left behind.` for every category.
+elastic IPs — and fails loudly if it finds any. It prints `gone` for each
+category that's clear (or `LEFT` with the surviving IDs if not), and a
+clean destroy ends with one final `Nothing left behind.` line.
 
 Run folders under `results/` on your laptop (from `make fetch-results`) are
 gitignored and untouched by `make destroy` — they're local files, not AWS
@@ -753,6 +795,15 @@ resources, so delete them yourself if you want them gone.
 | vLLM fails to start with a memory error | the model plus KV cache don't fit in the GPU's memory at the current settings | lower `gpu_memory_utilization` or `max_model_len` in `terraform.tfvars` and re-run `make cloud-up` |
 | `aws login` session expires mid-run | your laptop's session timed out, but the run itself lives on the VM, not on your laptop's SSH session | run `aws login` again, then `make watch` to reattach — the run kept going the whole time |
 | SSH host-key warning after replacing the VM | a new VM has a new host key, and your lab-local `known_hosts` still has the old one | nothing to do by hand — `scripts/bootstrap_vm.sh` rewrites `.ssh/known_hosts` from the new console output on the next `make cloud-up` |
+
+---
+
+## Appendix: implementer internals
+
+Everything above is enough to run the lab. What follows is for anyone
+digging into how the lab itself is built — the Terraform layout, the
+tools app's internals, and the pinned versions — not needed to deploy or
+run a task.
 
 ## 17. Terraform file map
 
@@ -770,7 +821,7 @@ exceptions:
 | `06_vm.tf` | the instance itself, hardening (IMDSv2, encrypted root volume), its outputs |
 | `07_bootstrap.tf` | the `local-exec` that runs `scripts/bootstrap_vm.sh` after the VM exists |
 | `tests/security.tftest.hcl` | plan-only `terraform test` assertions of the security properties this README promises (IMDSv2 required, SSH reachable only through the endpoint, and so on) — runs with a mocked AWS provider, no credentials or cost, via `make tf-test` |
-| `vm/host/boot.sh` | the VM's `user_data` (cloud-init) script — kept under `vm/` rather than `terraform/` and read into Terraform with `file()`, because it's really part of the VM image's own setup (moving Docker and the model cache onto the local NVMe, checking the AMI has what the lab needs), not infrastructure description |
+| `vm/host/boot.sh` | the VM's `user_data` (cloud-init) script — kept under `vm/` rather than `terraform/` and read into Terraform with `file()`, because it's really part of the VM image's own setup (moving Docker's data root and the model cache onto the local NVMe, checking the AMI has what the lab needs), not infrastructure description. It also moves containerd's own root: this AMI ships Docker 29, which stores images through containerd rather than Docker's classic graphdriver, so containerd's `/var/lib/containerd` needs the same NVMe move as Docker's data-root, or images still land on the 100 GB root volume. Skipping it is how an earlier version of this lab found the root volume at 84% full — moved before the boot completes, not after. |
 
 ## 18. The tools app
 
