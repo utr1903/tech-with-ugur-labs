@@ -97,6 +97,7 @@ services:
     environment:
       SCRATCH_DIR: /scratch
       npm_config_cache: /tmp/npm-cache
+      LOG_LEVEL: warn
     networks: [egress]
     # The run and acceptance mounts are added per call by verify.sh.
 
