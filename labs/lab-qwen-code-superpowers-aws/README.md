@@ -236,13 +236,16 @@ authenticated tunnel instead of failing outright.
 **The one-hour limit.** An EC2 Instance Connect tunnel lasts at most one
 hour before it's closed. That's fine for `make ssh` (reconnect and you're
 back), but it would kill a long agent run mid-way if the agent ran inside
-that SSH session. It doesn't: `make run` starts the agent as a detached,
-`setsid nohup`'d process on the VM and returns a run id immediately, then
-attaches a *separate* SSH session just to watch it. If your connection
-drops — SSH timeout, laptop sleeps, `aws login` expiring — the run keeps
-going on the VM; `make watch` just reattaches. I tested this by killing
-the SSH connection mid-run: `make status` still reported it running, and
-`make watch` reattached to the live view without losing anything.
+that SSH session. It doesn't: `make run` opens one `ssh -t` session that
+starts the agent as a detached, `setsid nohup`'d process on the VM, then —
+still inside that same session — immediately runs `watch.sh` against the
+run id it got back. The detachment is what matters: the agent process
+itself doesn't live inside the SSH session, only the *watching* of it
+does, so if your connection drops — SSH timeout, laptop sleeps, `aws
+login` expiring — the run keeps going on the VM; `make watch` just opens
+a fresh session and reattaches. I tested this by killing the SSH
+connection mid-run: `make status` still reported it running, and `make
+watch` reattached to the live view without losing anything.
 
 ## 7. Watching the agent
 
@@ -450,7 +453,7 @@ run itself), and prints a verdict.
 | `typecheck` | the workspace's own `npm run typecheck` |
 | `own-tests` | the workspace's own `npm test` |
 | `acceptance` | the task's hidden `*.test.ts` files, via `node --test` |
-| `fixtures` | each `acceptance/fixtures/*` run through the task's `runCommand`, output compared byte-for-byte (as JSON) against `acceptance/expected/*.json` |
+| `fixtures` | each `acceptance/fixtures/*` run through the task's `runCommand`, output parsed as JSON and compared to `acceptance/expected/*.json` top-level key by key (not byte-for-byte) |
 
 A failed `install` skips every check after it — there's no point
 type-checking or testing a project that doesn't install. A task with no
@@ -459,8 +462,10 @@ failed.
 
 **Measured process evidence** — reported for you to read, never graded:
 
-- **Skills loaded**: every `skill(...)` tool call in the transcript, by
-  name.
+- **Skills loaded**: each *successfully* loaded skill, deduplicated, in
+  first-load order. Failed `skill(...)` calls are counted separately
+  (`skillCallsFailed` in the run's `verdict.json`), not included in this
+  list.
 - **Test before code**: whether the transcript's first write to a
   `*.test.*` file has an earlier tool-call order than its first write to a
   non-test source file.
@@ -703,10 +708,17 @@ which is optional — every variable has a working default):
 | `max_num_seqs` | `16` | how many sequences vLLM decodes at once — see the note in `terraform/01_variables.tf`; Qwen3-Coder-Next's linear-attention layers cap this well below vLLM's default of `1024` regardless of GPU memory |
 | `vllm_extra_args` | empty | extra flags passed straight to `vllm serve`; the fallback model needs some (below) |
 
-Changing any of these and re-running `make cloud-up` re-triggers bootstrap
-(rebuild, restart vLLM) without replacing the VM, so the weights you
-already downloaded stay cached — unless the change is to `instance_type`
-or `availability_zone`, which does replace the VM.
+Changing `model_id`, `served_model_name`, `max_model_len`,
+`gpu_memory_utilization`, `max_num_seqs` or `vllm_extra_args` and
+re-running `make cloud-up` re-triggers bootstrap (rebuild, restart vLLM)
+without replacing the VM, so the weights you already downloaded stay
+cached. `availability_zone` is different: a new zone needs a new subnet
+and a new instance, so it replaces the VM outright (as does editing
+`vm/host/boot.sh` — see [section 17](#17-terraform-file-map)).
+`instance_type` is different again: AWS stops and restarts the same
+instance rather than replacing it, but stopping empties the
+instance-store NVMe, so bootstrap still re-runs and re-downloads the
+model weights either way.
 
 **Per-run budgets**, on the `make run` command line:
 
@@ -715,7 +727,7 @@ make run TASK=log-summary TURNS=300 WALL_TIME=2h ROUNDS=12
 ```
 
 See [section 10](#10-running-the-whole-superpowers-flow-unattended) for
-what each one bounds. `make replay` and `make fetch-results` also take
+what each one bounds. `make replay` and `make replay-local` also take
 `DELAY_MS` (default `15`), the per-line pacing of a replayed transcript.
 
 **The fallback pair.** `terraform.tfvars.example` has the L40S pair
@@ -821,7 +833,7 @@ exceptions:
 | `06_vm.tf` | the instance itself, hardening (IMDSv2, encrypted root volume), its outputs |
 | `07_bootstrap.tf` | the `local-exec` that runs `scripts/bootstrap_vm.sh` after the VM exists |
 | `tests/security.tftest.hcl` | plan-only `terraform test` assertions of the security properties this README promises (IMDSv2 required, SSH reachable only through the endpoint, and so on) — runs with a mocked AWS provider, no credentials or cost, via `make tf-test` |
-| `vm/host/boot.sh` | the VM's `user_data` (cloud-init) script — kept under `vm/` rather than `terraform/` and read into Terraform with `file()`, because it's really part of the VM image's own setup (moving Docker's data root and the model cache onto the local NVMe, checking the AMI has what the lab needs), not infrastructure description. It also moves containerd's own root: this AMI ships Docker 29, which stores images through containerd rather than Docker's classic graphdriver, so containerd's `/var/lib/containerd` needs the same NVMe move as Docker's data-root, or images still land on the 100 GB root volume. Skipping it is how an earlier version of this lab found the root volume at 84% full — moved before the boot completes, not after. |
+| `vm/host/boot.sh` | the VM's `user_data` (cloud-init) script — kept under `vm/` rather than `terraform/` and read into Terraform with `file()`, because it's really part of the VM image's own setup (moving Docker's data root and the model cache onto the local NVMe, checking the AMI has what the lab needs), not infrastructure description. It also moves containerd's own root: this AMI ships Docker 29, which stores images through containerd rather than Docker's classic graphdriver, so containerd's `/var/lib/containerd` needs the same NVMe move as Docker's data-root, or images still land on the 100 GB root volume. Skipping it is how an earlier version of this lab found the root volume at 84% full — moved before the boot completes, not after. `06_vm.tf` sets `user_data_replace_on_change = true`, so editing this file replaces the VM outright on the next `make cloud-up`, the same as changing `availability_zone` (see [section 13](#13-settings-you-can-change)). |
 
 ## 18. The tools app
 
