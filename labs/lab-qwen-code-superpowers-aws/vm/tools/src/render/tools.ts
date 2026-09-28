@@ -7,12 +7,15 @@
  * dispatch logic.
  */
 import { formatEditDiff, splitContentLines } from "./diff-lines.js";
+import { stripControlSequences } from "./sanitize.js";
 import type { Style } from "./style.js";
 
 type Json = Record<string, unknown>;
 const isRecord = (v: unknown): v is Json =>
   typeof v === "object" && v !== null && !Array.isArray(v);
-const str = (v: unknown): string => (typeof v === "string" ? v : "");
+/** Reads a string field, stripping any terminal control sequences the agent put in it. */
+const str = (v: unknown): string =>
+  typeof v === "string" ? stripControlSequences(v) : "";
 
 const WORKSPACE_PREFIX = "/workspace/";
 const relativePath = (path: string): string =>
@@ -66,7 +69,9 @@ function formatTodoLines(todos: unknown): string[] {
   const items = Array.isArray(todos) ? todos : [];
   return items
     .filter(isTodoItem)
-    .map((t) => `  ${todoMarker(t.status)} ${t.content}`);
+    .map(
+      (t) => `  ${todoMarker(t.status)} ${stripControlSequences(t.content)}`,
+    );
 }
 
 const NAMED_TOOLS: Record<
@@ -125,7 +130,14 @@ export function formatToolUse(
       actionLine(cyan, named.label, named.isPath ? relativePath(arg) : arg),
     ];
   }
-  return [actionLine(cyan, block.name, cut(JSON.stringify(input), 80))];
+  const name = stripControlSequences(block.name);
+  return [
+    actionLine(
+      cyan,
+      name,
+      cut(stripControlSequences(JSON.stringify(input)), 80),
+    ),
+  ];
 }
 
 /** Formats a tool result the way a terminal view shows it below the call. */
@@ -134,14 +146,15 @@ export function formatToolResult(
   result: { isError: boolean; content: string },
   style: Style,
 ): string[] {
+  const content = stripControlSequences(result.content);
   if (result.isError) {
-    return result.content
+    return content
       .split("\n")
       .slice(0, 5)
       .map((l, i) => style.paint("red", i === 0 ? `  ✗ ${l}` : `    ${l}`));
   }
   if (toolName === "run_shell_command") {
-    const lines = result.content
+    const lines = content
       .split("\n")
       .map((l) => `  ${style.paint("dim", "│")} ${l}`);
     return withFold(style, lines, 20);
@@ -153,6 +166,6 @@ export function formatToolResult(
     toolName === "read_file"
   )
     return [];
-  const first = result.content.split("\n")[0] ?? "";
+  const first = content.split("\n")[0] ?? "";
   return first === "" ? [] : [`  ⎿ ${cut(first, 100)}`];
 }

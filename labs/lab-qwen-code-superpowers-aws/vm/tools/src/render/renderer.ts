@@ -5,19 +5,10 @@
  * belongs to, the remembered outcome) and writes formatted lines as
  * events arrive. Both watch (live) and replay (from disk) drive the
  * same renderer. A class, rather than one big closure, keeps each
- * event's handling in its own short method.
- *
- * Whether the run ended in success or error is scoped to the current
- * round: a driven session's resume driver can restart the agent several
- * times, each restart marked by a `driver-reply` event and a repeated
- * `init` event, and each round has its own `result` line (or none, if
- * that round was cut short). Carrying an earlier round's outcome into a
- * later round's finish line would misreport the run's actual outcome,
- * so both events that start a new round clear it (`resetRoundResult`).
- * The *counts* in that finish line are not round-scoped, though: turns,
- * tool calls and elapsed time are whole-run totals, accumulated across
- * every round regardless of resets, because a multi-round run's finish
- * line should report what the whole run did, not just its last round.
+ * event's handling in its own short method; the streamed-delta and
+ * round-result bookkeeping are their own small classes (`StreamState`,
+ * `RoundResult`) so this dispatch switch can be read on its own — see
+ * their own doc comments for what each one is responsible for.
  */
 import type { RunInfo } from "../run/run-info.js";
 import type { ContentBlock, TranscriptEvent } from "../transcript/events.js";
@@ -26,10 +17,12 @@ import {
   formatDriverReplyLine,
   formatFinishLines,
   formatInitLines,
-  formatResultLine,
   formatResumedLine,
   formatTurnLine,
 } from "./renderer-format.js";
+import { RoundResult } from "./round-result.js";
+import { stripControlSequences } from "./sanitize.js";
+import { StreamState } from "./stream-state.js";
 import type { Style } from "./style.js";
 import { formatToolResult, formatToolUse } from "./tools.js";
 
@@ -46,8 +39,6 @@ export interface Renderer {
   finish(info: RunInfo | null): void;
 }
 
-type StreamKind = "none" | "text" | "thinking";
-
 /** Prefixes every line with a dim "↳" when it came from a subagent. */
 function subagentLines(
   lines: string[],
@@ -62,16 +53,9 @@ class RendererImpl implements Renderer {
   private turn = 0;
   private toolCalls = 0;
   private readonly toolNames = new Map<string, string>();
-  private streaming: StreamKind = "none";
-  private sawPartials = false;
-  private sawResult = false;
+  private readonly stream = new StreamState();
+  private readonly round = new RoundResult();
   private sawInit = false;
-  private resultLine: string | null = null;
-  // Whole-run totals for the finish line: accumulated across every round's
-  // result line, never reset by resetRoundResult (which only forgets
-  // whether the *current* round has reported success or error yet).
-  private totalDurationMs = 0;
-  private turnsFallbackSum = 0;
 
   constructor(
     private readonly write: (text: string) => void,
@@ -83,21 +67,12 @@ class RendererImpl implements Renderer {
   }
 
   private closeStream(): void {
-    if (this.streaming !== "none") {
-      this.write("\n");
-      this.streaming = "none";
-    }
+    this.stream.close(this.write);
   }
 
   private emit(lines: string[], subagent: boolean): void {
     for (const l of subagentLines(lines, subagent, this.style))
       this.write(`${l}\n`);
-  }
-
-  /** Forgets the previous round's remembered result; called whenever a new round starts. */
-  private resetRoundResult(): void {
-    this.sawResult = false;
-    this.resultLine = null;
   }
 
   private handleBlock(block: ContentBlock, subagent: boolean): void {
@@ -107,19 +82,18 @@ class RendererImpl implements Renderer {
       this.emit(formatToolUse(block, this.style), subagent);
       return;
     }
-    if (this.sawPartials) return;
-    if (block.type === "text") this.emit([`⏺ ${block.text}`], subagent);
-    else this.emit([this.style.paint("dim", `✻ ${block.thinking}`)], subagent);
+    if (this.stream.sawPartials) return;
+    if (block.type === "text")
+      this.emit([`⏺ ${stripControlSequences(block.text)}`], subagent);
+    else
+      this.emit(
+        [this.style.paint("dim", `✻ ${stripControlSequences(block.thinking)}`)],
+        subagent,
+      );
   }
 
   private handleDelta(kind: "text" | "thinking", text: string): void {
-    this.sawPartials = true;
-    if (this.streaming !== kind) {
-      this.closeStream();
-      this.write(kind === "text" ? "⏺ " : this.style.paint("dim", "✻ "));
-      this.streaming = kind;
-    }
-    this.write(kind === "text" ? text : this.style.paint("dim", text));
+    this.stream.write(kind, text, this.write, this.style);
   }
 
   handle(event: TranscriptEvent): void {
@@ -127,7 +101,7 @@ class RendererImpl implements Renderer {
       case "init":
         this.closeStream();
         if (this.sawInit) {
-          this.resetRoundResult();
+          this.round.reset();
           this.write(formatResumedLine(this.style));
         } else {
           this.sawInit = true;
@@ -167,23 +141,11 @@ class RendererImpl implements Renderer {
         );
         return;
       case "result":
-        this.sawResult = true;
-        this.totalDurationMs += event.durationMs;
-        this.turnsFallbackSum += event.numTurns;
-        this.resultLine = formatResultLine(
-          event,
-          {
-            turnStarts: this.turn,
-            turnsFallbackSum: this.turnsFallbackSum,
-            toolCalls: this.toolCalls,
-            totalDurationMs: this.totalDurationMs,
-          },
-          this.style,
-        );
+        this.round.record(event, this.turn, this.toolCalls, this.style);
         return;
       case "driver-reply":
         this.closeStream();
-        this.resetRoundResult();
+        this.round.reset();
         this.write(formatDriverReplyLine(event, this.style));
         return;
       case "driver-finished":
@@ -202,7 +164,12 @@ class RendererImpl implements Renderer {
   finish(info: RunInfo | null): void {
     this.closeStream();
     this.write(
-      formatFinishLines(info, this.resultLine, this.sawResult, this.style),
+      formatFinishLines(
+        info,
+        this.round.resultLine,
+        this.round.sawResult,
+        this.style,
+      ),
     );
   }
 }

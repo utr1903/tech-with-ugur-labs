@@ -137,4 +137,44 @@ describe("renderer", () => {
     expect(out).toContain("✔ Finished: 5 turns, 6 tool calls, 1m39s");
     expect(out).toContain("Agent exited 0");
   });
+
+  it("strips terminal control sequences from assistant text and thinking", () => {
+    let out = "";
+    const renderer = createRenderer(
+      (t) => {
+        out += t;
+      },
+      { style: createStyle(false) },
+    );
+    const bell = "\x07";
+    renderer.handle({
+      kind: "assistant",
+      subagent: false,
+      blocks: [
+        { type: "text", text: `hi${bell}there` },
+        { type: "thinking", thinking: `pondering${bell}on` },
+      ],
+    });
+    renderer.finish(null);
+    expect(out).toContain("⏺ hithere\n");
+    expect(out).toContain("✻ ponderingon\n");
+    expect(out).not.toContain("\x07");
+  });
+
+  it("strips terminal control sequences from streamed text deltas", () => {
+    let out = "";
+    const renderer = createRenderer(
+      (t) => {
+        out += t;
+      },
+      { style: createStyle(false) },
+    );
+    const oscTitle = "\x1b]0;pwned\x07";
+    renderer.handle({ kind: "text-delta", text: `hi${oscTitle}there` });
+    renderer.handle({ kind: "block-end" });
+    renderer.finish(null);
+    expect(out).toContain("⏺ hithere\n");
+    expect(out).not.toContain("\x1b");
+    expect(out).not.toContain("\x07");
+  });
 });

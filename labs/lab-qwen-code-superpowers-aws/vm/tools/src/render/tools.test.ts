@@ -90,6 +90,18 @@ describe("formatToolUse", () => {
       ),
     ).toEqual(['● web_fetch({"url":"https://example.com"})']);
   });
+
+  it("strips terminal control sequences from tool input before rendering", () => {
+    const oscTitle = "\x1b]0;pwned\x07";
+    const lines = formatToolUse(
+      {
+        name: "run_shell_command",
+        input: { command: `echo hi${oscTitle}` },
+      },
+      plain,
+    );
+    expect(lines).toEqual(["● Shell(echo hi)"]);
+  });
 });
 
 describe("formatToolResult", () => {
@@ -136,5 +148,15 @@ describe("formatToolResult", () => {
     expect(
       formatToolResult("read_file", { isError: false, content: "" }, plain),
     ).toEqual([]);
+  });
+
+  it("strips terminal control sequences from shell output before rendering", () => {
+    const clearScreen = "\x1b[2J\x1b[H";
+    const lines = formatToolResult(
+      "run_shell_command",
+      { isError: false, content: `before${clearScreen}after` },
+      plain,
+    );
+    expect(lines).toEqual(["  │ beforeafter"]);
   });
 });
