@@ -127,6 +127,7 @@ function parseDriver(raw: Json): TranscriptEvent {
   return { kind: "unknown", type: "driver" };
 }
 
+/** Parses one line of the raw transcript into a TranscriptEvent, dispatching on its `type` field; unreadable JSON becomes `{ kind: "invalid" }` rather than throwing. */
 export function parseLine(line: string): TranscriptEvent | null {
   if (line.trim() === "") return null;
   let raw: unknown;

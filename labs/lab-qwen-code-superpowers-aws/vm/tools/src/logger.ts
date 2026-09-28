@@ -8,6 +8,7 @@ import pino from "pino";
 
 export type Logger = pino.Logger;
 
+/** Creates the app's structured JSON logger; writes to `stderr` (see the module doc for why). */
 export function createLogger({ appName }: { appName: string }): Logger {
   return pino(
     {
