@@ -1,0 +1,12 @@
+# Optional. Copy to terraform.tfvars only to change defaults.
+# The region is set with REGION=... on the make command line.
+
+# availability_zone = "eu-central-1b"
+
+# Cheaper fallback: L40S (44.7 GiB) with a smaller model.
+# instance_type          = "g6e.2xlarge"
+# model_id               = "Qwen/Qwen3.5-35B-A3B-FP8"
+# model_revision         = "9d1823d2dee688a6b25e77009dc727688c44936e"
+# served_model_name      = "qwen3.5-35b-a3b"
+# max_model_len          = 65536
+# vllm_extra_args        = "--language-model-only --reasoning-parser qwen3 --default-chat-template-kwargs {\"enable_thinking\":false}"

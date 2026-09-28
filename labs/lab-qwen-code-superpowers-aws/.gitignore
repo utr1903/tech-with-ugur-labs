@@ -1,0 +1,13 @@
+# Terraform (local state stays on your machine)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+crash.log
+*.tfplan
+# Per-deployment SSH host key and fetched run results
+.ssh/
+results/
+node_modules/
