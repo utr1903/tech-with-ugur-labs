@@ -10,7 +10,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --no-audit --no-fund
 ENV PATH=/opt/qwen-code/node_modules/.bin:$PATH
 
-COPY run-agent.sh interactive.sh containment-check.sh check-hook.sh /usr/local/bin/
+COPY run-agent.sh interactive.sh containment-check.sh check-extension.sh /usr/local/bin/
 RUN install -d -o node -g node /opt/qwen-seed /opt/superpowers /workspace
 
 USER node
@@ -22,15 +22,19 @@ RUN git clone --quiet --depth 1 --branch v6.4.2 https://github.com/obra/superpow
  && qwen extensions install /opt/superpowers:superpowers --consent
 COPY --chown=node:node settings.json /opt/qwen-seed/settings.json
 
-# Qwen substitutes ${CLAUDE_PLUGIN_ROOT} into the hook command but does not
-# export it. Exported, the Superpowers session-start hook prints the format
-# Qwen reads, so the using-superpowers bootstrap reaches the model.
+# The Superpowers bootstrap reaches the model through the extension's own
+# context file: Qwen Code loads GEMINI.md at every session start, and
+# GEMINI.md imports skills/using-superpowers/SKILL.md. The extension's
+# SessionStart hook would inject that same content a second time, but only
+# if ${CLAUDE_PLUGIN_ROOT} is exported for Qwen to substitute into the hook
+# command; Qwen Code itself never exports it, so this image doesn't either.
+# The hook still runs, but its JSON lands in a field Qwen ignores, so the
+# model never sees the duplicate copy.
 ENV QWEN_HOME=/run/qwen/home \
     QWEN_RUNTIME_DIR=/run/qwen/runtime \
-    CLAUDE_PLUGIN_ROOT=/run/qwen/home/extensions/superpowers \
     npm_config_cache=/tmp/npm-cache \
     NPM_CONFIG_UPDATE_NOTIFIER=false
-RUN QWEN_HOME=/opt/qwen-seed CLAUDE_PLUGIN_ROOT=/opt/qwen-seed/extensions/superpowers check-hook.sh
+RUN QWEN_HOME=/opt/qwen-seed check-extension.sh
 
 WORKDIR /workspace
 ENTRYPOINT ["run-agent.sh"]
