@@ -14,7 +14,15 @@ print(f"status:    {data['status']}")
 print(f"started:   {data['startedAt']}")
 exit_code = data.get("exitCode")
 if exit_code is not None:
-    meaning = {0: "ok", 53: "turn limit", 55: "budget"}.get(exit_code, "other")
+    meaning = {
+        0: "ok",
+        53: "turn limit",
+        55: "budget",
+        56: "round cap",
+        130: "killed",
+        137: "killed",
+        143: "killed",
+    }.get(exit_code, "other")
     print(f"exit code: {exit_code} ({meaning})")
 duration = data.get("durationSeconds")
 if duration is not None:
