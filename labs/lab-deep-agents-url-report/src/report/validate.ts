@@ -57,16 +57,25 @@ function containsComparison(
 			.filter((entry) => entry.status === "ok")
 			.map((entry) => entry.requestedUrl),
 	);
-	return draft.split(/\n\s*\n/).some((paragraph) => {
-		if (
-			!/\b(whereas|compared|compare|comparison|contrast|versus|vs\.?|while|however)\b/i.test(
-				paragraph,
+	const comparative =
+		/\b(whereas|compared|compare|comparison|contrast|versus|vs\.?|while|however)\b/i;
+	const citedCount = (text: string) =>
+		[...citedUrls(text)].filter((url) => requested.has(url)).length;
+	if (
+		draft
+			.split(/\n\s*\n/)
+			.some(
+				(paragraph) =>
+					comparative.test(paragraph) && citedCount(paragraph) >= 2,
 			)
-		)
-			return false;
-		const cited = [...citedUrls(paragraph)].filter((url) => requested.has(url));
-		return cited.length >= 2;
-	});
+	)
+		return true;
+	const section = draft.match(
+		/^#{1,6}\s+(?:compar(?:ison|ative analysis)|contrast)\s*\n([\s\S]*?)(?=^#{1,6}\s+|$(?![\s\S]))/im,
+	)?.[1];
+	return Boolean(
+		section && comparative.test(section) && citedCount(draft) >= 2,
+	);
 }
 
 export function validateReport(

@@ -119,6 +119,12 @@ test("comparison prose must cite two distinct requested sources outside the cove
 	);
 });
 
+test("accepts comparison prose with requested citations in a separate Sources section", () => {
+	const report =
+		"# Report\n\n## Comparison\nSource A is faster, whereas source B is cheaper.\n\n## Sources\n[Source A](https://example.com/a) and [Source B](https://example.org/b).";
+	expect(validateReport(report, "Compare the sources.", manifest)).toEqual([]);
+});
+
 test("a requested citation with balanced URL parentheses is recognized", () => {
 	const withParentheses = createCoverage(
 		[{ requestedUrl: "https://example.com/a(b)", status: "ok", text: "A" }],
