@@ -100,7 +100,7 @@ make / terraform / aws cli           public subnet (one zone, variable)
         │                            │  GPU VM (no role, no key pair)         │
         │                            │    SG: ingress 22 from endpoint SG     │
         │                            │    Docker Compose project:             │
-        │                            │      vllm      model + egress nets     │
+        │                            │      vllm      model + hf nets         │
         │                            │      coder     model + egress nets     │
         │                            │      verifier  egress net only         │
         │                            │      viewer    no network              │
@@ -113,7 +113,10 @@ security-group rule from the internet. Your laptop talks to AWS's own API
 VM on your behalf — see [section 6](#6-how-ssh-works-here). Inside the VM,
 one Compose project separates the always-on model server from the
 per-run agent container, the verifier, and the transcript viewer, each on
-only the network it needs.
+only the network it needs. `model` is internal, with no route out: the
+agent reaches vLLM there and nothing else. vLLM downloads its weights over
+its own `hf` network, which nothing else joins, and `egress` is for the
+agent's and the verifier's package installs only.
 
 ## 4. Prerequisites
 
