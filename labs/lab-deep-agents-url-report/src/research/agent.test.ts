@@ -205,4 +205,20 @@ describe("drafting a source report", () => {
 			"## Comparison\nA differs from B.",
 		);
 	});
+	it.each([
+		"Compare sources and summarize the latest findings.",
+		"Compare sources and include latest guidance.",
+	])(
+		"searches for explicit current-context request: %s",
+		async (instruction) => {
+			const h = harness();
+			const result = await draftReport(input(instruction), h.dependencies);
+			expect(h.searches).toEqual([instruction]);
+			expect(result.events).toContainEqual({
+				tool: "web_search_call",
+				input: instruction,
+				status: "ok",
+			});
+		},
+	);
 });

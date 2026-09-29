@@ -31,7 +31,7 @@ function allowsSearch(instruction: string): boolean {
 		)
 	)
 		return false;
-	return /\b(?:latest|current|recent|additional|supplemental|up-to-date)\s+(?:context|information|news|developments|updates|research|sources|evidence)\b/i.test(
+	return /\b(?:latest|current|recent|additional|supplemental|up-to-date)\s+(?:context|information|news|developments|updates|research|sources|evidence|findings|guidance)\b/i.test(
 		text,
 	);
 }
