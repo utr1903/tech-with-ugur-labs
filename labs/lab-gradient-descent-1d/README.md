@@ -8,6 +8,9 @@ nonconvex cost, so every step can be shown and checked.
 
 *Three starts approach different valleys; the left path finishes with the lowest cost. Run the lab to reproduce this figure in `output/gradient-descent.png`.*
 
+Read the [walkthrough](https://techwithugur.dev/posts/gradient-descent-1d/) for
+the update rule, a few table rows, and what the three endings establish.
+
 ## Run
 
 Install Docker with Docker Compose, then run from this directory:
