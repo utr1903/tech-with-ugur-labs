@@ -131,6 +131,9 @@ test("a requested citation with balanced URL parentheses is recognized", () => {
 		[],
 		[],
 	);
-	const report = appendCoverage("# Report\n\nAnalysis.", withParentheses);
+	const report = appendCoverage(
+		"# Report\n\n[Source](https://example.com/a(b)).",
+		withParentheses,
+	);
 	expect(validateReport(report, "Summarize.", withParentheses)).toEqual([]);
 });

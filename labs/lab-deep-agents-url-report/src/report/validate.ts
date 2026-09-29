@@ -94,7 +94,7 @@ export function validateReport(
 		if (!headings.has(heading.toLowerCase()))
 			failures.push(`Missing requested heading: ${heading}`);
 	}
-	const citations = citedUrls(report);
+	const citations = citedUrls(report.split(/^## Source coverage\s*$/m)[0]);
 	for (const entry of manifest.requested) {
 		if (entry.status === "ok" && !citations.has(entry.requestedUrl)) {
 			failures.push(`Missing requested source citation: ${entry.requestedUrl}`);

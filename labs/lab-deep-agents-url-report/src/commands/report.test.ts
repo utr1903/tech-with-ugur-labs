@@ -238,3 +238,46 @@ test("search failure after a failed URL preserves partial artifacts without erro
 		],
 	});
 });
+
+test("coverage links cannot satisfy citations missing from an agent draft", async () => {
+	const directory = await workspace();
+	const url = "https://example.org/source";
+	await expect(
+		runReport(`Summarize ${url}`, {
+			workspaceDir: directory,
+			apiKey: "test-key",
+			logger,
+			draft: async () => ({
+				report: "# Summary\nAn uncited claim.",
+				results: [success(url)],
+				supplemental: [],
+				events: [],
+			}),
+		}),
+	).rejects.toThrow(/Missing requested source citation/);
+	expect(
+		JSON.parse(await readFile(join(directory, "output/coverage.json"), "utf8")),
+	).toMatchObject({ status: "partial", successfulCount: 1 });
+	expect(await readFile(join(directory, "output/report.md"), "utf8")).toContain(
+		url,
+	);
+});
+
+test("accepts agent citations in a separate Sources section before coverage", async () => {
+	const directory = await workspace();
+	const url = "https://example.org/source";
+	await runReport(`Summarize ${url}`, {
+		workspaceDir: directory,
+		apiKey: "test-key",
+		logger,
+		draft: async () => ({
+			report: `# Summary\nA finding.\n\n## Sources\n[source](${url})`,
+			results: [success(url)],
+			supplemental: [],
+			events: [],
+		}),
+	});
+	expect(
+		JSON.parse(await readFile(join(directory, "output/coverage.json"), "utf8")),
+	).toMatchObject({ status: "complete" });
+});
