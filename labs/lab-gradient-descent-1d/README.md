@@ -4,6 +4,10 @@ See how the same update rule reaches three different valleys when only the
 starting point changes. This small experiment uses a scalar parameter and a
 nonconvex cost, so every step can be shown and checked.
 
+![Three gradient descent paths on the cost curve and their costs over 100 updates](images/gradient-descent.png)
+
+*Three starts approach different valleys; the left path finishes with the lowest cost. Run the lab to reproduce this figure in `output/gradient-descent.png`.*
+
 ## Run
 
 Install Docker with Docker Compose, then run from this directory:
