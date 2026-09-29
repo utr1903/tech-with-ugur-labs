@@ -2,7 +2,13 @@
 name = "app"
 version = "0.0.0"
 requires-python = "==3.12.*"
-dependencies = ["structlog==26.1.0"]
+dependencies = [
+    "matplotlib==3.10.8",
+    "structlog==26.1.0",
+]
+
+[project.scripts]
+app = "app.__main__:main"
 
 [dependency-groups]
 dev = [

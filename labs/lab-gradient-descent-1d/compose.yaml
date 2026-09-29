@@ -1,0 +1,7 @@
+services:
+  experiment:
+    build: .
+    environment:
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ./output:/app/output
