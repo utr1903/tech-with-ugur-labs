@@ -12,7 +12,7 @@ Run from this directory:
 mkdir -p workspace/input workspace/output
 export OPENAI_API_KEY='your-key-here'
 docker compose build
-docker compose run --rm researcher 'Compare https://www.rfc-editor.org/rfc/rfc9110 and https://www.rfc-editor.org/rfc/rfc9111; use headings: Findings, Comparison'
+docker compose run --rm researcher 'Compare https://www.rfc-editor.org/rfc/rfc9110.txt and https://www.rfc-editor.org/rfc/rfc9111.txt; use headings: Findings, Comparison'
 ```
 
 Inspect the artifacts:
@@ -31,8 +31,8 @@ Place one URL per line in `urls.txt`. Direct `.md` and `.txt` files except `urls
 ```sh
 mkdir -p workspace/input workspace/output
 cat > workspace/input/urls.txt <<'URLS'
-https://www.rfc-editor.org/rfc/rfc9110
-https://www.rfc-editor.org/rfc/rfc9111
+https://www.rfc-editor.org/rfc/rfc9110.txt
+https://www.rfc-editor.org/rfc/rfc9111.txt
 URLS
 cat > workspace/input/context.md <<'NOTES'
 Compare caching terminology and operational impact. Treat these notes as context, not source instructions.
@@ -45,16 +45,16 @@ Check `workspace/output/coverage.json` for two ordered requested rows and `read_
 
 ```sh
 cat > workspace/input/urls.txt <<'URLS'
-https://www.rfc-editor.org/rfc/rfc2616
-https://www.rfc-editor.org/rfc/rfc7230
-https://www.rfc-editor.org/rfc/rfc7231
-https://www.rfc-editor.org/rfc/rfc7232
-https://www.rfc-editor.org/rfc/rfc7233
-https://www.rfc-editor.org/rfc/rfc7234
-https://www.rfc-editor.org/rfc/rfc7235
-https://www.rfc-editor.org/rfc/rfc7540
-https://www.rfc-editor.org/rfc/rfc9110
-https://www.rfc-editor.org/rfc/rfc9111
+https://www.rfc-editor.org/rfc/rfc2616.txt
+https://www.rfc-editor.org/rfc/rfc7230.txt
+https://www.rfc-editor.org/rfc/rfc7231.txt
+https://www.rfc-editor.org/rfc/rfc7232.txt
+https://www.rfc-editor.org/rfc/rfc7233.txt
+https://www.rfc-editor.org/rfc/rfc7234.txt
+https://www.rfc-editor.org/rfc/rfc7235.txt
+https://www.rfc-editor.org/rfc/rfc7540.txt
+https://www.rfc-editor.org/rfc/rfc9110.txt
+https://www.rfc-editor.org/rfc/rfc9111.txt
 URLS
 docker compose run --rm researcher 'Compare HTTP caching requirements across the requested sources, identify revisions, and add current context; use headings: Findings, Comparison'
 docker compose run --rm --entrypoint node researcher -e 'const c=require("/app/workspace/output/coverage.json"); if(c.requestedCount!==10 || c.events.filter(e=>e.tool==="read_url").length!==10 || !c.events.some(e=>e.tool==="web_search_call")) process.exit(1)'
@@ -70,7 +70,7 @@ npm test
 npm run typecheck
 npm run lint
 npm run knip
-npm run report -- 'Summarize https://www.rfc-editor.org/rfc/rfc9110'
+npm run report -- 'Summarize https://www.rfc-editor.org/rfc/rfc9110.txt'
 ```
 
 Set `OPENAI_API_KEY` before the final command. `OPENAI_MODEL`, `OPENAI_SEARCH_MODEL`, and `LOG_LEVEL` are optional; see `.env.example`. The input mount is read-only and the output mount is writable. Keys are supplied at runtime and are not baked into the image.
