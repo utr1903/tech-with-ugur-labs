@@ -127,3 +127,14 @@ test("accepts a direct text file exactly one MiB", async () => {
 		notes: [{ name: "maximum.txt", text }],
 	});
 });
+
+test("never reads owner-private x_ Markdown notes", async () => {
+	const directory = await inputDirectory();
+	await writeFile(join(directory, "x_private.md"), "a".repeat(1024 * 1024 + 1));
+	await writeFile(join(directory, "public.md"), "Shared context");
+
+	expect(await discoverInputs("", directory)).toEqual({
+		requestedUrls: [],
+		notes: [{ name: "public.md", text: "Shared context" }],
+	});
+});

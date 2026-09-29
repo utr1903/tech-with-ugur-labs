@@ -1,0 +1,11 @@
+services:
+  researcher:
+    build: .
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:?Set OPENAI_API_KEY in your shell}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-6-sol}
+      OPENAI_SEARCH_MODEL: ${OPENAI_SEARCH_MODEL:-gpt-6-sol}
+      LOG_LEVEL: ${LOG_LEVEL:-info}
+    volumes:
+      - ./workspace/input:/app/workspace/input:ro
+      - ./workspace/output:/app/workspace/output:rw

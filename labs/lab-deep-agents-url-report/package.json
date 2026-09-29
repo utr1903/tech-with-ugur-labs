@@ -10,12 +10,14 @@
 		"test": "vitest run",
 		"lint": "biome check .",
 		"typecheck": "tsc --noEmit",
-		"knip": "knip"
+		"knip": "knip",
+		"report": "tsx src/index.ts"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "2.5.14",
 		"@types/node": "24.19.0",
 		"knip": "6.38.0",
+		"tsx": "4.20.6",
 		"typescript": "7.0.2",
 		"vitest": "5.0.2"
 	},

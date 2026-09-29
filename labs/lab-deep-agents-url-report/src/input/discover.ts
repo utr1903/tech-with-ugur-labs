@@ -67,7 +67,12 @@ export async function discoverInputs(
 	for (const entry of entries.sort((left, right) =>
 		left.name.localeCompare(right.name),
 	)) {
-		if (!entry.isFile() || !/\.(md|txt)$/iu.test(entry.name)) continue;
+		if (
+			!entry.isFile() ||
+			!/\.(md|txt)$/iu.test(entry.name) ||
+			/^x_.*\.md$/iu.test(entry.name)
+		)
+			continue;
 		const text = await readBoundedText(join(inputDir, entry.name), entry.name);
 		if (entry.name === "urls.txt") {
 			for (const url of extractUrls(text)) requestedUrls.add(url);
