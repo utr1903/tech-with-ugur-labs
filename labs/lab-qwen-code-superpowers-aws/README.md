@@ -1,5 +1,7 @@
 # A self-hosted coding agent: Qwen Code with Superpowers on one AWS GPU VM
 
+[Read the companion post](https://techwithugur.dev/posts/qwen-code-superpowers-aws/).
+
 This lab rents one GPU VM, serves an open-weight coding model on it with
 vLLM, and points the [Qwen Code](https://github.com/QwenLM/qwen-code) CLI
 plus the [Superpowers](https://github.com/obra/superpowers) skills extension
