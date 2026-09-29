@@ -70,8 +70,8 @@ def gradient_descent(
         raise ExperimentError(
             f"learning_rate must be finite and positive, got {learning_rate}"
         )
-    if isinstance(steps, bool) or not isinstance(steps, int) or steps < 0:
-        raise ExperimentError(f"steps must be a non-negative integer, got {steps}")
+    if isinstance(steps, bool) or not isinstance(steps, int) or steps <= 0:
+        raise ExperimentError(f"steps must be a positive integer, got {steps}")
     if not run:
         raise ExperimentError("run must be non-empty")
 

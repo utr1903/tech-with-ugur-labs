@@ -104,6 +104,7 @@ def test_gradient_descent_rejects_wrong_type_numeric_input(
         (0.5, math.inf, 100, "example"),
         (0.5, 0.0, 100, "example"),
         (0.5, -0.04, 100, "example"),
+        (0.5, 0.04, 0, "example"),
         (0.5, 0.04, -1, "example"),
         (0.5, 0.04, 1.5, "example"),
         (0.5, 0.04, 100, ""),
