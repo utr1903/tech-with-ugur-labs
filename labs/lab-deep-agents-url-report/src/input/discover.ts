@@ -12,8 +12,26 @@ export interface DiscoveredInputs {
 function extractUrls(text: string): string[] {
 	const matches = text.match(/https?:\/\/[^\s<>"']+/gi) ?? [];
 	return matches
-		.map((match) => match.replace(/[.,;:!?()[\]{}]+$/u, ""))
+		.map(trimPromptPunctuation)
 		.filter((match) => match.length > "https://".length);
+}
+
+function trimPromptPunctuation(match: string): string {
+	let url = match.replace(/[.,;:!?[\]{}]+$/u, "");
+	while (
+		url.endsWith(")") &&
+		(url.match(/\)/g)?.length ?? 0) > (url.match(/\(/g)?.length ?? 0)
+	) {
+		url = url.slice(0, -1).replace(/[.,;:!?[\]{}]+$/u, "");
+	}
+	return url;
+}
+
+function urlLines(text: string): string[] {
+	return text
+		.split(/\r?\n/u)
+		.map((line) => line.trim())
+		.filter((url) => /^https?:\/\/\S+$/iu.test(url));
 }
 
 async function readBoundedText(path: string, name: string): Promise<string> {
@@ -75,7 +93,7 @@ export async function discoverInputs(
 			continue;
 		const text = await readBoundedText(join(inputDir, entry.name), entry.name);
 		if (entry.name === "urls.txt") {
-			for (const url of extractUrls(text)) requestedUrls.add(url);
+			for (const url of urlLines(text)) requestedUrls.add(url);
 		} else {
 			notes.push({ name: entry.name, text });
 		}

@@ -138,3 +138,24 @@ test("never reads owner-private x_ Markdown notes", async () => {
 		notes: [{ name: "public.md", text: "Shared context" }],
 	});
 });
+
+test.each([
+	"Read https://example.org/a(b)",
+	"Read [source](https://example.org/a(b)).",
+])("preserves balanced URL parentheses in %s", async (instruction) => {
+	expect(
+		(await discoverInputs(instruction, await inputDirectory())).requestedUrls,
+	).toEqual(["https://example.org/a(b)"]);
+});
+
+test("preserves exact URL lines including punctuation in urls.txt", async () => {
+	const directory = await inputDirectory();
+	await writeFile(
+		join(directory, "urls.txt"),
+		"https://example.org/a(b)\nhttps://example.org/end!\n",
+	);
+	expect((await discoverInputs("", directory)).requestedUrls).toEqual([
+		"https://example.org/a(b)",
+		"https://example.org/end!",
+	]);
+});
