@@ -157,22 +157,38 @@ export async function draftReport(
 					),
 				]
 			: [];
+		const inputFiles = new Set([
+			"/input/urls.txt",
+			...input.notes
+				.filter((note) => /^[^/\\]+\.(md|txt)$/iu.test(note.name))
+				.map((note) => `/input/${note.name}`),
+		]);
 		const options: AgentOptions = {
 			model: new ChatOpenAI({
 				model: input.model,
 				apiKey: input.client.apiKey,
 			}),
-			backend: new InputSafeBackend({
-				rootDir: input.workspaceDir,
-				virtualMode: true,
-			}),
+			backend: new InputSafeBackend(input.workspaceDir, inputFiles),
 			permissions: [
 				{
 					operations: ["read"],
-					paths: ["/x_*.md", "/**/x_*.md"],
+					paths: [
+						"/x_*.md",
+						"/**/x_*.md",
+						"/.env",
+						"/**/.env",
+						"/.env.local",
+						"/**/.env.local",
+						"/.env.*.local",
+						"/**/.env.*.local",
+					],
 					mode: "deny",
 				},
-				{ operations: ["read"], paths: ["/input", "/input/**"], mode: "allow" },
+				{
+					operations: ["read"],
+					paths: ["/input", ...inputFiles],
+					mode: "allow",
+				},
 				{
 					operations: ["read", "write"],
 					paths: ["/output", "/output/**"],

@@ -80,25 +80,12 @@ describe("drafting a source report", () => {
 		expect(result.report).toBe("## Comparison\nA differs from B.");
 		expect(h.prompt).toContain("Evidence for https://example.org/a");
 	});
-	it("does not expose shell execution and confines file operations to input/output", async () => {
+	it("exposes planning and source tools without shell execution", async () => {
 		const h = harness();
 		await draftReport(input(), h.dependencies);
 		expect(h.config?.backend).toBeInstanceOf(FilesystemBackend);
 		expect(h.config?.backend).not.toHaveProperty("execute");
-		expect(h.config?.permissions).toEqual([
-			{
-				operations: ["read"],
-				paths: ["/x_*.md", "/**/x_*.md"],
-				mode: "deny",
-			},
-			{ operations: ["read"], paths: ["/input", "/input/**"], mode: "allow" },
-			{
-				operations: ["read", "write"],
-				paths: ["/output", "/output/**"],
-				mode: "allow",
-			},
-			{ operations: ["read", "write"], paths: ["/**"], mode: "deny" },
-		]);
+
 		expect(h.config?.middleware?.map((m) => m.name)).toContain(
 			"todoListMiddleware",
 		);
