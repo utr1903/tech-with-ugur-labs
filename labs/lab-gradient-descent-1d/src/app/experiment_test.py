@@ -71,6 +71,32 @@ def test_polynomial_rejects_nonfinite_input_or_result(value: float) -> None:
         experiment.derivative(value)
 
 
+@pytest.mark.parametrize("value", ["0.5", None, 1j])
+def test_polynomial_rejects_wrong_type_numeric_input(value: object) -> None:
+    experiment = importlib.import_module("app.experiment")
+    errors = importlib.import_module("app.errors")
+    with pytest.raises(errors.ExperimentError):
+        experiment.cost(value)
+    with pytest.raises(errors.ExperimentError):
+        experiment.derivative(value)
+
+
+@pytest.mark.parametrize(
+    ("start", "rate"),
+    [("0.5", 0.04), (None, 0.04), (0.5, "0.04"), (0.5, None)],
+)
+def test_gradient_descent_rejects_wrong_type_numeric_input(
+    start: object, rate: object
+) -> None:
+    experiment = importlib.import_module("app.experiment")
+    errors = importlib.import_module("app.errors")
+    logging_setup = importlib.import_module("app.logging_setup")
+    with pytest.raises(errors.ExperimentError):
+        experiment.gradient_descent(
+            start, rate, 1, run="example", log=logging_setup.get_logger()
+        )
+
+
 @pytest.mark.parametrize(
     ("start", "rate", "steps", "run"),
     [

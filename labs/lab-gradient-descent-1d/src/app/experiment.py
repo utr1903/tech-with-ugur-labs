@@ -20,9 +20,18 @@ class Iteration:
     slope: float
 
 
+def _is_finite_real(value: object) -> bool:
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return False
+    try:
+        return math.isfinite(value)
+    except OverflowError:
+        return False
+
+
 def cost(x: float) -> float:
     """Evaluate the tilted double-well polynomial at a finite point."""
-    if not math.isfinite(x):
+    if not _is_finite_real(x):
         raise ExperimentError(f"x must be finite, got {x}")
     value = x * x * (x * x - 4) * (x * x - 4) / 16 + x / 10
     if not math.isfinite(value):
@@ -32,7 +41,7 @@ def cost(x: float) -> float:
 
 def derivative(x: float) -> float:
     """Evaluate the analytical derivative at a finite point."""
-    if not math.isfinite(x):
+    if not _is_finite_real(x):
         raise ExperimentError(f"x must be finite, got {x}")
     value = x * (x * x - 4) * (3 * x * x - 4) / 8 + 0.1
     if not math.isfinite(value):
@@ -55,9 +64,9 @@ def gradient_descent(
     start: float, learning_rate: float, steps: int, *, run: str, log: Logger
 ) -> tuple[Iteration, ...]:
     """Record the initial state and every gradient descent update."""
-    if not math.isfinite(start):
+    if not _is_finite_real(start):
         raise ExperimentError(f"start must be finite, got {start}")
-    if not math.isfinite(learning_rate) or learning_rate <= 0:
+    if not _is_finite_real(learning_rate) or learning_rate <= 0:
         raise ExperimentError(
             f"learning_rate must be finite and positive, got {learning_rate}"
         )
