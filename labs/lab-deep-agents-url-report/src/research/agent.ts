@@ -1,5 +1,5 @@
 import { ChatOpenAI } from "@langchain/openai";
-import { createDeepAgent, FilesystemBackend } from "deepagents";
+import { createDeepAgent } from "deepagents";
 import { todoListMiddleware, tool } from "langchain";
 import { z } from "zod";
 import type { ToolEvent } from "../report/coverage.js";
@@ -7,6 +7,7 @@ import { type ReadResult, readUrl } from "../retrieval/reader.js";
 import { extractReport } from "./model-output.js";
 import { searchWeb } from "./search.js";
 import { searchQuery } from "./search-query.js";
+import { InputSafeBackend } from "./secure-backend.js";
 import type {
 	AgentDependencies,
 	AgentInput,
@@ -15,6 +16,13 @@ import type {
 } from "./types.js";
 
 export type { AgentDependencies, AgentInput } from "./types.js";
+
+export class DraftReportError extends Error {
+	constructor(readonly evidence: Omit<AgentOutput, "report">) {
+		super("Report drafting failed after retrieval.");
+		this.name = "DraftReportError";
+	}
+}
 
 const systemPrompt = `Draft a factual Markdown report following the user's requested headings and criteria.
 Use write_todos to plan extraction, comparison, and drafting. Return the complete report in your final message.
@@ -49,8 +57,8 @@ async function collect(
 	input: AgentInput,
 	deps: AgentDependencies,
 	events: ToolEvent[],
-): Promise<ReadResult[]> {
-	const results: ReadResult[] = [];
+	results: ReadResult[],
+): Promise<void> {
 	for (const url of new Set(input.requestedUrls)) {
 		input.logger.info({ url }, "Reading URL...");
 		const result = await (deps.read ?? readUrl)(url);
@@ -68,7 +76,6 @@ async function collect(
 			);
 		else input.logger.warn({ url, error: result.error }, "Reading URL failed.");
 	}
-	return results;
 }
 async function supplemental(
 	input: AgentInput,
@@ -113,10 +120,13 @@ export async function draftReport(
 		{ requestedCount: input.requestedUrls.length },
 		"Drafting report...",
 	);
+	const events: ToolEvent[] = [];
+	const results: ReadResult[] = [];
+	let supplementalSources: AgentOutput["supplemental"] = [];
 	try {
-		const events: ToolEvent[] = [];
-		const results = await collect(input, dependencies, events);
+		await collect(input, dependencies, events, results);
 		const search = await supplemental(input, results, dependencies, events);
+		supplementalSources = search?.citations ?? [];
 		const readTool = tool(
 			async ({ url }) => {
 				const result = results.find((item) => item.requestedUrl === url);
@@ -152,11 +162,16 @@ export async function draftReport(
 				model: input.model,
 				apiKey: input.client.apiKey,
 			}),
-			backend: new FilesystemBackend({
+			backend: new InputSafeBackend({
 				rootDir: input.workspaceDir,
 				virtualMode: true,
 			}),
 			permissions: [
+				{
+					operations: ["read"],
+					paths: ["/x_*.md", "/**/x_*.md"],
+					mode: "deny",
+				},
 				{ operations: ["read"], paths: ["/input", "/input/**"], mode: "allow" },
 				{
 					operations: ["read", "write"],
@@ -187,9 +202,13 @@ export async function draftReport(
 			{ characters: report.length },
 			"Drafting report succeeded.",
 		);
-		return { report, results, supplemental: search?.citations ?? [], events };
+		return { report, results, supplemental: supplementalSources, events };
 	} catch (err) {
 		input.logger.error({ err }, "Drafting report failed.");
-		throw err;
+		throw new DraftReportError({
+			results,
+			supplemental: supplementalSources,
+			events,
+		});
 	}
 }

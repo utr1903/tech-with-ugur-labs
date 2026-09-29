@@ -13,6 +13,11 @@ it("enforces filesystem permissions in a real graph with mocked model HTTP", asy
 	await mkdir(join(root, "input"));
 	await mkdir(join(root, "output"));
 	await writeFile(join(root, "input", "notes.txt"), "original");
+	await writeFile(join(root, "input", "x_private.md"), "PRIVATE_SENTINEL");
+	await writeFile(
+		join(root, "output", "x_private.md"),
+		"OUTPUT_PRIVATE_SENTINEL",
+	);
 	const requests: {
 		tools: { function: { name: string } }[];
 		messages: { role: string; content: string }[];
@@ -58,6 +63,48 @@ it("enforces filesystem permissions in a real graph with mocked model HTTP", asy
 												arguments: JSON.stringify({
 													file_path: "/output/notes.txt",
 													content: "working notes",
+												}),
+											},
+										},
+										{
+											id: "private_read",
+											type: "function",
+											function: {
+												name: "read_file",
+												arguments: JSON.stringify({
+													file_path: "/input/x_private.md",
+												}),
+											},
+										},
+										{
+											id: "private_grep",
+											type: "function",
+											function: {
+												name: "grep",
+												arguments: JSON.stringify({
+													pattern: "PRIVATE_SENTINEL",
+													path: "/input",
+												}),
+											},
+										},
+										{
+											id: "output_private_read",
+											type: "function",
+											function: {
+												name: "read_file",
+												arguments: JSON.stringify({
+													file_path: "/output/x_private.md",
+												}),
+											},
+										},
+										{
+											id: "output_private_grep",
+											type: "function",
+											function: {
+												name: "grep",
+												arguments: JSON.stringify({
+													pattern: "OUTPUT_PRIVATE_SENTINEL",
+													path: "/output",
 												}),
 											},
 										},
@@ -117,7 +164,16 @@ it("enforces filesystem permissions in a real graph with mocked model HTTP", asy
 		expect(names).not.toContain("execute");
 		expect(names).not.toContain("shell");
 		const responses = requests[1].messages.filter((m) => m.role === "tool");
-		expect(responses.filter((m) => /denied/i.test(m.content))).toHaveLength(2);
+		expect(responses.filter((m) => /denied/i.test(m.content))).toHaveLength(4);
+		expect(responses.map((m) => m.content).join(" ")).not.toContain(
+			"PRIVATE_SENTINEL",
+		);
+		expect(responses.map((m) => m.content).join(" ")).not.toContain(
+			"OUTPUT_PRIVATE_SENTINEL",
+		);
+		expect(
+			responses.filter((m) => m.content.includes("not searchable")),
+		).toHaveLength(2);
 	} finally {
 		await rm(root, { recursive: true, force: true });
 	}

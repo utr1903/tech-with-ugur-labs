@@ -5,7 +5,7 @@ import type { Logger } from "pino";
 import { discoverInputs } from "../input/discover.js";
 import { appendCoverage, createCoverage } from "../report/coverage.js";
 import { validateReport } from "../report/validate.js";
-import { draftReport } from "../research/agent.js";
+import { DraftReportError, draftReport } from "../research/agent.js";
 import type { AgentInput, AgentOutput } from "../research/types.js";
 
 export interface ReportOptions {
@@ -31,16 +31,28 @@ export async function runReport(
 			instruction,
 			join(workspaceDir, "input"),
 		);
-		const output = await (options.draft ?? draftReport)({
-			instruction,
-			requestedUrls,
-			notes,
-			workspaceDir,
-			model: options.model ?? "gpt-6-sol",
-			...(options.searchModel ? { searchModel: options.searchModel } : {}),
-			client: new OpenAI({ apiKey: options.apiKey }),
-			logger,
-		});
+		let draftFailed = false;
+		let output: AgentOutput;
+		try {
+			output = await (options.draft ?? draftReport)({
+				instruction,
+				requestedUrls,
+				notes,
+				workspaceDir,
+				model: options.model ?? "gpt-6-sol",
+				...(options.searchModel ? { searchModel: options.searchModel } : {}),
+				client: new OpenAI({ apiKey: options.apiKey }),
+				logger,
+			});
+		} catch (err) {
+			if (!(err instanceof DraftReportError)) throw err;
+			draftFailed = true;
+			output = {
+				report:
+					"# Partial report\n\nDrafting could not complete. No source analysis is available.",
+				...err.evidence,
+			};
+		}
 		const manifest = createCoverage(
 			output.results,
 			output.supplemental,
@@ -48,6 +60,7 @@ export async function runReport(
 		);
 		const report = appendCoverage(output.report, manifest);
 		const failures = validateReport(report, instruction, manifest);
+		if (draftFailed) failures.push("Report drafting failed.");
 		if (!output.report.trim()) failures.push("Report is empty.");
 		if (manifest.failedCount > 0)
 			failures.push(`${manifest.failedCount} failed requested URL(s).`);

@@ -86,6 +86,11 @@ describe("drafting a source report", () => {
 		expect(h.config?.backend).toBeInstanceOf(FilesystemBackend);
 		expect(h.config?.backend).not.toHaveProperty("execute");
 		expect(h.config?.permissions).toEqual([
+			{
+				operations: ["read"],
+				paths: ["/x_*.md", "/**/x_*.md"],
+				mode: "deny",
+			},
 			{ operations: ["read"], paths: ["/input", "/input/**"], mode: "allow" },
 			{
 				operations: ["read", "write"],

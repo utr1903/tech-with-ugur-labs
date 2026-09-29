@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import pino from "pino";
 import { afterEach, expect, test, vi } from "vitest";
+import { draftReport } from "../research/agent.js";
 import type { AgentInput, AgentOutput } from "../research/types.js";
 import { runReport } from "./report.js";
 
@@ -196,4 +197,44 @@ test("empty draft remains a validation failure after appending coverage", async 
 	expect(
 		JSON.parse(await readFile(join(directory, "output/coverage.json"), "utf8")),
 	).toMatchObject({ status: "partial", requestedCount: 0 });
+});
+
+test("search failure after a failed URL preserves partial artifacts without error secrets", async () => {
+	const directory = await workspace();
+	const url = "https://example.com/down";
+	await expect(
+		runReport(`Summarize ${url} and include latest context`, {
+			workspaceDir: directory,
+			apiKey: "test-key",
+			logger,
+			draft: (input) =>
+				draftReport(input, {
+					read: async () => ({
+						requestedUrl: url,
+						status: "failed",
+						error: "timeout",
+					}),
+					search: async () => {
+						throw new Error("secret-key-value");
+					},
+				}),
+		}),
+	).rejects.toThrow();
+	const report = await readFile(join(directory, "output/report.md"), "utf8");
+	const coverage = JSON.parse(
+		await readFile(join(directory, "output/coverage.json"), "utf8"),
+	);
+	expect(report).toContain("Failed: timeout");
+	expect(report).toMatch(/drafting could not complete/i);
+	expect(report).not.toContain("secret-key-value");
+	expect(JSON.stringify(coverage)).not.toContain("secret-key-value");
+	expect(coverage).toMatchObject({
+		status: "partial",
+		requestedCount: 1,
+		failedCount: 1,
+		requested: [{ requestedUrl: url, status: "failed", error: "timeout" }],
+		events: [
+			{ tool: "read_url", input: url, status: "failed", error: "timeout" },
+		],
+	});
 });
