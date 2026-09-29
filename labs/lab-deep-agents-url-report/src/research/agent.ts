@@ -130,7 +130,12 @@ export async function draftReport(
 		const readTool = tool(
 			async ({ url }) => {
 				const result = results.find((item) => item.requestedUrl === url);
-				if (!result) throw new Error("Only requested URLs may be read");
+				if (!result)
+					return JSON.stringify({
+						requestedUrl: url,
+						status: "failed",
+						error: "Only requested URLs may be read",
+					});
 				return JSON.stringify({
 					...result,
 					text: result.text === undefined ? undefined : bounded(result.text),

@@ -93,6 +93,20 @@ describe("drafting a source report", () => {
 			h.config?.tools?.map((t) => ("name" in t ? t.name : undefined)),
 		).toEqual(["read_url"]);
 	});
+	it("returns a failed tool result for unrequested URLs without fetching them", async () => {
+		const h = harness();
+		await draftReport(input(), h.dependencies);
+		const readTool = h.config?.tools?.find((item) => item.name === "read_url");
+		if (!readTool || typeof readTool.invoke !== "function")
+			throw new Error("read_url tool is unavailable");
+		const result = await readTool.invoke({ url: "https://example.org/other" });
+		expect(JSON.parse(String(result))).toEqual({
+			requestedUrl: "https://example.org/other",
+			status: "failed",
+			error: "Only requested URLs may be read",
+		});
+		expect(h.read).toEqual(urls);
+	});
 	it("frames notes and retrieved documents as bounded untrusted data", async () => {
 		const h = harness();
 		h.dependencies.read = async (url) => ({
