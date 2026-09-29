@@ -20,6 +20,12 @@
 		"vitest": "5.0.2"
 	},
 	"dependencies": {
-		"cheerio": "1.2.0"
+		"@langchain/openai": "1.6.0",
+		"cheerio": "1.2.0",
+		"deepagents": "1.14.1",
+		"langchain": "1.5.14",
+		"openai": "7.25.0",
+		"pino": "10.3.1",
+		"zod": "4.6.5"
 	}
 }
