@@ -2,18 +2,38 @@ import type { CoverageManifest } from "./coverage.js";
 
 function requestedHeadings(instruction: string): string[] {
 	const match = instruction.match(
-		/\b(?:use\s+)?(?:headings|sections)(?:\s+titled)?\s*[:-]?\s+([^.!?\n]+)/i,
+		/\b(?:use\s+(?:the\s+)?(?:headings|sections)|(?:headings|sections)\s*:|(?:headings|sections)\s+(?:titled|named|called))\s*:?[ \t]+([^.!?\n]+)/i,
 	);
 	if (!match) return [];
-	return match[1]
+	const list = match[1].split(
+		/,\s*(?:and\s+)?then\b|;|\s+and\s+(?=compare|summarize|discuss)\b/i,
+	)[0];
+	return list
 		.split(/,|\s+and\s+/i)
 		.map((heading) => heading.trim().replace(/["'`]/g, ""))
 		.filter(Boolean);
 }
 
+function linkDestination(report: string, start: number): string | undefined {
+	let depth = 1;
+	for (let index = start; index < report.length; index++) {
+		if (report[index] === "(") depth++;
+		if (report[index] === ")") depth--;
+		if (depth === 0) return report.slice(start, index);
+	}
+	return undefined;
+}
+
 function citedUrls(report: string): Set<string> {
-	const links = report.matchAll(/\[[^\]]+\]\((https?:\/\/[^\s)]+)\)/g);
-	return new Set(Array.from(links, (match) => match[1]));
+	const urls = new Set<string>();
+	for (const match of report.matchAll(/\[[^\]]+\]\(/g)) {
+		const destination = linkDestination(
+			report,
+			(match.index ?? 0) + match[0].length,
+		);
+		if (destination && /^https?:\/\//i.test(destination)) urls.add(destination);
+	}
+	return urls;
 }
 
 function disclosesFailure(report: string, url: string): boolean {
@@ -26,13 +46,27 @@ function disclosesFailure(report: string, url: string): boolean {
 		);
 }
 
-function containsComparison(report: string): boolean {
-	const body = report
-		.replace(/^#{1,6}\s+.+$/gm, "")
-		.replace(/\[[^\]]+\]\([^)]*\)/g, "");
-	return /\b(whereas|compared|compare|comparison|contrast|versus|vs\.?|while|however)\b/i.test(
-		body,
+function containsComparison(
+	report: string,
+	manifest: CoverageManifest,
+): boolean {
+	const appendix = report.search(/^## Source coverage\s*$/m);
+	const draft = appendix < 0 ? report : report.slice(0, appendix);
+	const requested = new Set(
+		manifest.requested
+			.filter((entry) => entry.status === "ok")
+			.map((entry) => entry.requestedUrl),
 	);
+	return draft.split(/\n\s*\n/).some((paragraph) => {
+		if (
+			!/\b(whereas|compared|compare|comparison|contrast|versus|vs\.?|while|however)\b/i.test(
+				paragraph,
+			)
+		)
+			return false;
+		const cited = [...citedUrls(paragraph)].filter((url) => requested.has(url));
+		return cited.length >= 2;
+	});
 }
 
 export function validateReport(
@@ -63,7 +97,7 @@ export function validateReport(
 	}
 	if (
 		/\b(compare|comparison|contrast|versus|vs\.?)\b/i.test(instruction) &&
-		!containsComparison(report)
+		!containsComparison(report, manifest)
 	) {
 		failures.push("Missing cross-source comparison.");
 	}
