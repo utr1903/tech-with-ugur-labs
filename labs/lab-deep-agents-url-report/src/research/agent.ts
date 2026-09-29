@@ -167,6 +167,7 @@ export async function draftReport(
 			model: new ChatOpenAI({
 				model: input.model,
 				apiKey: input.client.apiKey,
+				useResponsesApi: true,
 			}),
 			backend: new InputSafeBackend(input.workspaceDir, inputFiles),
 			permissions: [
