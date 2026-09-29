@@ -1,0 +1,111 @@
+# Everything on the VM is one Compose project. vllm is always on; the
+# other services are started per run (profile "tools").
+name: qwen-lab
+
+services:
+  vllm:
+    image: vllm/vllm-openai:v0.30.0@sha256:8a69ffad015f138d7170c4ddc429e230a3bc1c1719f67e14324749df200a4b90
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        exec vllm serve "$$MODEL_ID"
+        --revision "$$MODEL_REVISION"
+        --served-model-name "$$SERVED_MODEL_NAME"
+        --max-model-len "$$MAX_MODEL_LEN"
+        --gpu-memory-utilization "$$GPU_MEMORY_UTILIZATION"
+        --max-num-seqs "$$MAX_NUM_SEQS"
+        --enable-auto-tool-choice --tool-call-parser qwen3_coder
+        --enable-prefix-caching
+        --host 0.0.0.0 --port 8000
+        $$SERVE_EXTRA_ARGS
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HF_HOME: /hf-cache
+    volumes:
+      - /opt/dlami/nvme/hf-cache:/hf-cache
+    # Loopback only: model-check on the VM can reach it, nothing else outside Docker.
+    ports:
+      - "127.0.0.1:8000:8000"
+    shm_size: 16gb
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    networks: [model, hf]
+    restart: unless-stopped
+
+  coder:
+    build: ./coder
+    image: qwen-lab/coder
+    profiles: [tools]
+    # The container is the sandbox: every tool call is auto-approved.
+    read_only: true
+    tmpfs:
+      - /run/qwen:exec,mode=1777,size=1g
+      - /tmp:exec,mode=1777,size=8g
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 16g
+    pids_limit: 1024
+    environment:
+      MAX_TURNS: ${MAX_TURNS:-200}
+      MAX_WALL_TIME: ${MAX_WALL_TIME:-90m}
+      MAX_ROUNDS: ${MAX_ROUNDS:-8}
+      TODAY: ${TODAY:-}
+      # Superpowers commits specs and plans as it works; the agent
+      # container has a read-only home, so git needs an explicit identity.
+      GIT_AUTHOR_NAME: coding-agent
+      GIT_AUTHOR_EMAIL: agent@localhost
+      GIT_COMMITTER_NAME: coding-agent
+      GIT_COMMITTER_EMAIL: agent@localhost
+    networks: [model, egress]
+    # The workspace bind mount is added per run by the host supervisor.
+
+  viewer:
+    build:
+      context: ./tools
+      target: runtime
+    image: qwen-lab/tools
+    profiles: [tools]
+    network_mode: none
+    read_only: true
+    # tsx writes a compile cache under the OS temp dir even in read-only mode.
+    tmpfs: ["/tmp:mode=1777,size=256m"]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      LOG_LEVEL: warn
+    volumes:
+      - /srv/lab/runs:/runs:ro
+
+  verifier:
+    image: qwen-lab/tools
+    profiles: [tools]
+    read_only: true
+    tmpfs:
+      - /scratch:exec,mode=1777,size=8g
+      - /tmp:exec,mode=1777,size=2g
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 8g
+    pids_limit: 1024
+    environment:
+      SCRATCH_DIR: /scratch
+      npm_config_cache: /tmp/npm-cache
+      LOG_LEVEL: warn
+    networks: [egress]
+    # The run and acceptance mounts are added per call by verify.sh.
+
+networks:
+  # The agent reaches the model here. Internal: no route out.
+  model:
+    internal: true
+  # vLLM's own way out, to download weights. Nothing else joins it.
+  hf: {}
+  # Package installs for the agent and the verifier. The model is not on it.
+  egress: {}

@@ -1,0 +1,29 @@
+{
+  "name": "lab-tools",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=22.12 <23"
+  },
+  "scripts": {
+    "start": "tsx src/index.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "knip": "knip"
+  },
+  "dependencies": {
+    "diff": "9.0.0",
+    "pino": "10.3.1",
+    "tsx": "4.23.15"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.14",
+    "@types/node": "22.20.4",
+    "knip": "6.38.0",
+    "typescript": "5.9.3",
+    "vitest": "5.0.2"
+  }
+}

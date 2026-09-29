@@ -1,0 +1,8 @@
+{
+  "name": "coder-cli",
+  "private": true,
+  "description": "Pins the Qwen Code CLI so npm ci installs exactly this version.",
+  "dependencies": {
+    "@qwen-code/qwen-code": "0.24.6"
+  }
+}

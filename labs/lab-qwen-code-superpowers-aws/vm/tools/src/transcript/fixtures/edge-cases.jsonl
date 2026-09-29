@@ -1,0 +1,11 @@
+{"type":"system","subtype":"init","uuid":"s1","session_id":"s1","cwd":"/workspace","tools":["edit","read_file","run_shell_command","skill","write_file"],"mcp_servers":[],"model":"qwen3-coder-next","permission_mode":"yolo","slash_commands":[],"qwen_code_version":"0.24.6","agents":["general-purpose"]}
+
+not json at all
+{"type":"system","subtype":"retry","uuid":"x","session_id":"s1","parent_tool_use_id":null,"data":{"reason":"rate limit","attempt":1,"maxRetries":3,"delayMs":1000}}
+{"type":"control_request","request_id":"q1"}
+{"type":"stream_event","uuid":"x","session_id":"s1","parent_tool_use_id":null,"event":{"type":"content_block_delta","index":0,"delta":{"type":"thinking_delta","thinking":"Let me think."}}}
+{"type":"stream_event","uuid":"x","session_id":"s1","parent_tool_use_id":null,"event":{"type":"tool_progress","tool_use_id":"call_9","content":{}}}
+{"type":"assistant","uuid":"x","session_id":"s1","parent_tool_use_id":null,"message":{"id":"a10","type":"message","role":"assistant","model":"qwen3-coder-next","content":[{"type":"tool_use","id":"call_8","name":"skill","input":{"skill":"brainstorming"}}],"stop_reason":"tool_use","usage":{"input_tokens":0,"output_tokens":0}}}
+{"type":"user","uuid":"x","session_id":"s1","parent_tool_use_id":null,"message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_8","is_error":true,"content":"Skill \"brainstorming\" not found."}]}}
+{"type":"assistant","uuid":"x","session_id":"s1","parent_tool_use_id":"call_10","message":{"id":"a11","type":"message","role":"assistant","model":"qwen3-coder-next","content":[{"type":"tool_use","id":"call_11","name":"read_file","input":{"file_path":"/workspace/TASK.md"}}],"stop_reason":"tool_use","usage":{"input_tokens":0,"output_tokens":0}}}
+{"type":"user","uuid":"x","session_id":"s1","parent_tool_use_id":"call_10","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"call_11","is_error":false}]}}

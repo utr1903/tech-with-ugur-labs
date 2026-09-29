@@ -1,0 +1,14 @@
+{
+  "totalLines": 20,
+  "validRequests": 20,
+  "malformedLines": 0,
+  "statusClasses": { "1xx": 0, "2xx": 14, "3xx": 2, "4xx": 3, "5xx": 1 },
+  "topPaths": [
+    { "path": "/a", "count": 5 },
+    { "path": "/b", "count": 4 },
+    { "path": "/c", "count": 3 },
+    { "path": "/d", "count": 3 },
+    { "path": "/e", "count": 2 }
+  ],
+  "p95LatencyMs": 19
+}
