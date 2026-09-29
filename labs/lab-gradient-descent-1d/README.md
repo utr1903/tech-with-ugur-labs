@@ -21,6 +21,10 @@ host's `output/` directory; running again overwrites them:
 | `iterations.csv` | All 303 records at full floating-point precision |
 | `iterations.md` | The same complete table in Markdown |
 
+Start by opening `output/iterations.md` to inspect every update in the readable
+table, then view `output/gradient-descent.png` and use `output/iterations.csv`
+for further analysis.
+
 No credentials or configuration are required. The optional `LOG_LEVEL` variable
 (default `info`, documented in `.env.example`) controls JSON logs on stdout.
 The final log reports the run with the lowest final cost.
