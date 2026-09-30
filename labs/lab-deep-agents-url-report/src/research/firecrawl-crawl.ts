@@ -53,6 +53,13 @@ export function createCrawl(
         reason: "crawl-pagination",
       });
     if (status.status === "failed") throw new Error("Crawl failed");
+    if (status.status === "scraping" && pages.full())
+      ledger.record({
+        kind: "cap",
+        operation: "crawl_site",
+        url,
+        reason: "crawl-pages",
+      });
     return status.status !== "scraping";
   };
   return async (input: {

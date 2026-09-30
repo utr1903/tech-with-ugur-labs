@@ -53,14 +53,26 @@ export function externalSearchAllowed(instruction: string): boolean {
     )
   )
     return false;
-  if (explicitExternalTarget(words)) return true;
-  // Current/latest/additional wording cannot widen an instruction about supplied content.
+  if (explicitExternalTarget(words) || additionalSourceRequest(wording))
+    return true;
+  // Context inside supplied content alone does not request external discovery.
   if (suppliedContent) return false;
   return (
     /\b(?:search|discover|find)\s+(?:for\s+)?(?:the\s+)?(?:additional|other|new)\b/i.test(
       wording,
     ) ||
     /\b(?:current|latest|recent|additional)\s+(?:\w+\s+){0,2}(?:context|sources?|articles?|pages?|information|updates?|research)\b/i.test(
+      wording,
+    )
+  );
+}
+
+function additionalSourceRequest(wording: string): boolean {
+  return (
+    /\b(?:search|discover|find)\s+(?:for\s+)?(?:the\s+)?(?:additional|other|new)\s+(?:independent\s+)?sources?\b/i.test(
+      wording,
+    ) ||
+    /\b(?:add|include)\s+(?:(?:current|latest|recent|additional)\s+)?context\s+from\s+(?:additional|other|new)\s+(?:independent\s+)?sources?\b/i.test(
       wording,
     )
   );

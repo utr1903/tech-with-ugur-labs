@@ -2,6 +2,35 @@ import { describe, expect, it } from "vitest";
 import { document, setup } from "./firecrawl-test-utils.js";
 
 describe("firecrawl-crawl", () => {
+  it("records the page cap when exactly five pages stop an unfinished crawl", async () => {
+    const { tools, firecrawl } = setup();
+    firecrawl.jobs = [
+      {
+        id: "job-1",
+        status: "scraping",
+        total: 9,
+        completed: 5,
+        data: Array.from({ length: 5 }, (_, index) =>
+          document(`https://example.com/article-${index + 1}`),
+        ),
+      },
+    ];
+    const result = await tools.crawl_site({ url: "https://example.com/" });
+    expect(result).toMatchObject({ ok: true, sources: expect.any(Array) });
+    expect(tools.snapshot().sources).toHaveLength(5);
+    expect(tools.snapshot().events).toContainEqual({
+      kind: "cap",
+      operation: "crawl_site",
+      url: "https://example.com/",
+      reason: "crawl-pages",
+    });
+    expect(firecrawl.calls.map((call) => call.operation)).toEqual([
+      "startCrawl",
+      "getCrawlStatus",
+      "cancelCrawl",
+    ]);
+    expect(tools.snapshot().counts).toEqual({ reads: 5, calls: 3 });
+  });
   it("enforces global reads across direct and crawl operations", async () => {
     const { tools, firecrawl } = setup({ maxReads: 2 });
     await tools.read_page({ url: "https://example.com/a" });
