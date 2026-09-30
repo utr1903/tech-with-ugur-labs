@@ -1,0 +1,25 @@
+services:
+  researcher:
+    build: .
+    user: "1000:1000"
+    read_only: true
+    init: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16777216
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      FIRECRAWL_API_KEY: ${FIRECRAWL_API_KEY:-}
+    volumes:
+      - type: bind
+        source: ./workspace/input
+        target: /app/workspace/input
+        read_only: true
+        bind:
+          create_host_path: false
+      - type: bind
+        source: ./workspace/output
+        target: /app/workspace/output
+        bind:
+          create_host_path: false

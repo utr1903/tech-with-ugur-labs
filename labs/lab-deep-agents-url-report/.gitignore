@@ -1,0 +1,9 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+workspace/input/*
+!workspace/input/.gitkeep
+workspace/output/*
+!workspace/output/.gitkeep
