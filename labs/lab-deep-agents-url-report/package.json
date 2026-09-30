@@ -14,6 +14,7 @@
     "knip": "knip"
   },
   "dependencies": {
+    "@mendable/firecrawl-js": "4.42.0",
     "pino": "9.6.0"
   },
   "devDependencies": {
