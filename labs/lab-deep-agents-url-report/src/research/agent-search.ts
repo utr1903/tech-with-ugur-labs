@@ -64,12 +64,17 @@ export function externalSearchAllowed(instruction: string): boolean {
 
 function externalDiscoveryProhibited(wording: string): boolean {
   const denial = "\\b(?:do not|don't|never|without|no)\\s+";
+  const generalSearchDenial = new RegExp(
+    `${denial}(?:(?:perform|conduct|carry\\s+out|undertake|use|do|make|attempt|any)\\s+){0,2}(?:(?:external|web|internet|online)\\s+)?(?:search|discovery|discover)\\b`,
+    "i",
+  );
+  if (generalSearchDenial.test(wording)) return true;
   const deniedTargets = [
     // Negation must govern a discovery scope, not an unrelated output request.
-    "(?:search|discover|find)\\s+(?:for\\s+)?(?:the\\s+)?(?:web|internet|online|external|additional|other|new|independent)\\b",
-    "(?:search|discover|find)\\s+(?:for\\s+)?(?:the\\s+)?sources?\\s+from\\s+(?:the\\s+)?(?:web|internet|online|external)\\b",
+    "find\\s+(?:for\\s+)?(?:the\\s+)?(?:web|internet|online|external|additional|other|new|independent)\\b",
+    "find\\s+(?:for\\s+)?(?:the\\s+)?sources?\\s+from\\s+(?:the\\s+)?(?:web|internet|online|external)\\b",
     "(?:add|include)\\s+(?:(?:additional|other|new|independent|external|web)\\s+)+sources?\\b",
-    "(?:add|include)\\s+(?:(?:current|latest|recent|additional)\\s+)?context\\s+from\\s+(?:additional|other|new|independent|external|web)\\s+sources?\\b",
+    "(?:add|include)\\s+(?:(?:current|latest|recent|additional)\\s+)?context\\s+from\\s+(?:(?:additional|other|new)(?:\\s+independent)?|independent|external|web)\\s+sources?\\b",
     "(?:add|include)\\s+sources?\\s+from\\s+(?:the\\s+)?(?:web|internet|online|external)\\b",
   ];
   return deniedTargets.some((target) =>

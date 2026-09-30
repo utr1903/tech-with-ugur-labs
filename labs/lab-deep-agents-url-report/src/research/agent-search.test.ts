@@ -80,6 +80,21 @@ it.each([
     allowed: false,
   },
   {
+    instruction:
+      "Read the supplied pages and find additional independent sources; do not search.",
+    allowed: false,
+  },
+  {
+    instruction:
+      "Search the web for current context; do not perform external discovery.",
+    allowed: false,
+  },
+  {
+    instruction:
+      "Search the web for current context; do not include current context from other independent sources.",
+    allowed: false,
+  },
+  {
     instruction: "Find additional sources inside the supplied pages.",
     allowed: false,
   },
@@ -110,6 +125,11 @@ it.each([
   {
     instruction:
       "Search the web for current context; do not include personal opinions.",
+    allowed: true,
+  },
+  {
+    instruction:
+      "Search the web for current context; do not include search results without reading their pages.",
     allowed: true,
   },
   {
