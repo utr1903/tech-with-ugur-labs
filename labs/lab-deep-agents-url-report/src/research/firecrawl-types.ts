@@ -54,4 +54,5 @@ export interface ResearchTools {
     ToolResult<{ sources: Source[] }>
   >;
   snapshot(): LedgerSnapshot;
+  record(event: LedgerSnapshot["events"][number]): void;
 }

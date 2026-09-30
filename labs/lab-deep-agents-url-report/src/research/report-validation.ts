@@ -16,7 +16,7 @@ import {
 import { validatePublicUrl } from "./scope.js";
 
 export function validateDraft(
-  draft: ReportDraft,
+  draft: unknown,
   ledger: LedgerSnapshot,
   request: ResearchRequest,
 ): ValidationFeedback {

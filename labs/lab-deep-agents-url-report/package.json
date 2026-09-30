@@ -14,7 +14,12 @@
     "knip": "knip"
   },
   "dependencies": {
+    "@langchain/core": "1.2.13",
+    "@langchain/langgraph": "1.4.18",
+    "@langchain/openai": "1.6.0",
     "@mendable/firecrawl-js": "4.42.0",
+    "deepagents": "1.14.1",
+    "langchain": "1.5.14",
     "pino": "9.6.0",
     "zod": "4.6.5"
   },

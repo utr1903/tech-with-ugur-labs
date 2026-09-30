@@ -25,6 +25,7 @@ export function createResearchTools(
   const search = createSearch(options, boundary);
   return {
     snapshot: () => ledger.snapshot(),
+    record: (event) => ledger.record(event),
     read_page: (input) =>
       boundary.run("read_page", input.url, async () => {
         const url = boundary.validate(input.url, input.referringUrl).url;

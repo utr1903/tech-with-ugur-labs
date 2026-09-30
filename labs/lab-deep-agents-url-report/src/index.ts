@@ -3,4 +3,5 @@ import { createLogger, installGlobalErrorHandlers } from "./logger.js";
 
 const logger = createLogger({ appName: "deep-agents-url-report" });
 installGlobalErrorHandlers(logger);
-await runReport(process.argv.slice(2).join(" "), logger);
+const result = await runReport(process.argv.slice(2).join(" "), logger);
+process.exitCode = result.exitCode;
