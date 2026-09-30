@@ -10,6 +10,41 @@ import { runResearch } from "./agent.js";
 
 it.each([
   {
+    instruction: "Search the web page supplied here for the latest updates.",
+    allowed: false,
+  },
+  {
+    instruction: "Search the supplied web page for the latest updates.",
+    allowed: false,
+  },
+  {
+    instruction: "Use the supplied sources only for current context.",
+    allowed: false,
+  },
+  {
+    instruction:
+      "Search the provided online reference document for current context.",
+    allowed: false,
+  },
+  {
+    instruction: "For latest updates, rely on supplied sources exclusively.",
+    allowed: false,
+  },
+  {
+    instruction: "Find additional context inside the supplied sources.",
+    allowed: false,
+  },
+  {
+    instruction:
+      "Use the supplied web pages only; search the web for current context.",
+    allowed: false,
+  },
+  {
+    instruction:
+      "Read the supplied pages and search the web for additional current context.",
+    allowed: true,
+  },
+  {
     instruction:
       "Search the supplied page for its main security recommendations.",
     allowed: false,

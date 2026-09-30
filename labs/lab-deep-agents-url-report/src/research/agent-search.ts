@@ -1,18 +1,79 @@
-// Conservative, application-owned permission. Searching inside supplied content is not discovery.
+const suppliedWords = new Set([
+  "supplied",
+  "provided",
+  "given",
+  "these",
+  "input",
+]);
+const contentWords = new Set([
+  "page",
+  "pages",
+  "url",
+  "urls",
+  "source",
+  "sources",
+  "document",
+  "documents",
+  "content",
+  "site",
+  "sites",
+  "article",
+  "articles",
+  "link",
+  "links",
+  "material",
+  "materials",
+]);
+const restrictiveWords = new Set([
+  "only",
+  "solely",
+  "exclusively",
+  "just",
+  "limited",
+  "restricted",
+  "confined",
+]);
+const discoveryWords = new Set(["search", "discover", "find"]);
+const targetFillers = new Set(["for", "the"]);
+const externalTargets = new Set(["web", "internet", "online", "external"]);
+
+// Scope restrictions win before discovery intent. Word classification avoids depending
+// on noun modifiers or whether "only" occurs before or after the supplied-content phrase.
 export function externalSearchAllowed(instruction: string): boolean {
   const wording = instruction.replace(/https?:\/\/[^\s<>]+/gi, "");
-  const restrictions = [
-    /\b(?:do not|don't|never|without|no)\s+(?:\w+\s+){0,2}(?:search|discovery|discover)\b/i,
-    /\b(?:only|solely|exclusively|limited to|restricted to)\b[^.;\n]{0,50}\b(?:supplied|provided|given|these|input)\s+(?:pages?|urls?|sources?|documents?|content)\b/i,
-    /\b(?:search|discover|find)\s+(?:(?:only|exclusively|solely|just|within|in|on|through|the)\s+){0,5}(?:supplied|provided|given|these|input)\s+(?:pages?|urls?|sources?|documents?|content)\b/i,
-  ];
-  if (restrictions.some((pattern) => pattern.test(wording))) return false;
+  const words = wording.toLowerCase().match(/[a-z]+/g) ?? [];
+  const suppliedContent =
+    words.some((word) => suppliedWords.has(word)) &&
+    words.some((word) => contentWords.has(word));
+  if (suppliedContent && words.some((word) => restrictiveWords.has(word)))
+    return false;
+  if (
+    /\b(?:do not|don't|never|without|no)\s+(?:\w+\s+){0,2}(?:search|discovery|discover)\b/i.test(
+      wording,
+    )
+  )
+    return false;
+  if (explicitExternalTarget(words)) return true;
+  // Current/latest/additional wording cannot widen an instruction about supplied content.
+  if (suppliedContent) return false;
   return (
-    /\b(?:search|discover|find)\s+(?:for\s+)?(?:the\s+)?(?:web|internet|online|external|additional|other|new)\b/i.test(
+    /\b(?:search|discover|find)\s+(?:for\s+)?(?:the\s+)?(?:additional|other|new)\b/i.test(
       wording,
     ) ||
     /\b(?:current|latest|recent|additional)\s+(?:\w+\s+){0,2}(?:context|sources?|articles?|pages?|information|updates?|research)\b/i.test(
       wording,
     )
   );
+}
+
+function explicitExternalTarget(words: string[]): boolean {
+  return words.some((word, index) => {
+    if (!discoveryWords.has(word)) return false;
+    let target = index + 1;
+    while (targetFillers.has(words[target] ?? "")) target += 1;
+    const scope = words[target] ?? "";
+    if (!externalTargets.has(scope)) return false;
+    // "Web page" names a document; "the web" names the external discovery scope.
+    return scope !== "web" || !contentWords.has(words[target + 1] ?? "");
+  });
 }
