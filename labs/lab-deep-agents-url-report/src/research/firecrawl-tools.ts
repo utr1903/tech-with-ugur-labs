@@ -38,6 +38,13 @@ export function createResearchTools(
           firecrawl.scrape(url, { formats: ["markdown", "links"] }),
         );
         const result = await documents.accept(page, url, "read_page");
+        if (result.source.url !== url)
+          ledger.record({
+            kind: "success",
+            operation: "read_page",
+            url,
+            sourceId: result.source.id,
+          });
         pages.set(url, structuredClone(result));
         pages.set(result.source.url, structuredClone(result));
         return result;

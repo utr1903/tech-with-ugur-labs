@@ -19,7 +19,14 @@ export interface Source {
 }
 
 interface LedgerEvent {
-  kind: "attempt" | "success" | "failure" | "denial" | "cap" | "plan";
+  kind:
+    | "attempt"
+    | "success"
+    | "failure"
+    | "denial"
+    | "cap"
+    | "plan"
+    | "candidate";
   operation: string;
   url?: string;
   sourceId?: string;

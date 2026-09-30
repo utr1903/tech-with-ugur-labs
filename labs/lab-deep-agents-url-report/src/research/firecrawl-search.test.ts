@@ -27,6 +27,15 @@ describe("firecrawl-search", () => {
       ],
     });
     expect(tools.snapshot().sources).toEqual([]);
+    expect(
+      tools.snapshot().events.filter((event) => event.kind === "candidate"),
+    ).toEqual([
+      {
+        kind: "candidate",
+        operation: "search_web",
+        url: "https://example.com/a",
+      },
+    ]);
     expect(firecrawl.calls[0]?.options).toMatchObject({
       sources: ["web"],
       limit: 5,

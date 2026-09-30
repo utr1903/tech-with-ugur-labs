@@ -37,8 +37,14 @@ export function createSearch(options: ResearchToolOptions, boundary: Boundary) {
     for (const input of response.web ?? []) {
       if (!("url" in input) || typeof input.url !== "string") continue;
       const result = await candidate(input);
-      if (result && !candidates.has(result.url))
+      if (result && !candidates.has(result.url)) {
         candidates.set(result.url, result);
+        ledger.record({
+          kind: "candidate",
+          operation: "search_web",
+          url: result.url,
+        });
+      }
     }
     return { candidates: [...candidates.values()] };
   };

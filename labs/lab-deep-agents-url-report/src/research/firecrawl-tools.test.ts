@@ -3,6 +3,22 @@ import { document, setup } from "./firecrawl-test-utils.js";
 import { createFirecrawlClient } from "./firecrawl-tools.js";
 
 describe("firecrawl-tools", () => {
+  it("records the requested URL as a success alias after a validated same-host redirect", async () => {
+    const { tools, firecrawl } = setup();
+    firecrawl.page = document("https://example.com/b");
+    expect(
+      await tools.read_page({ url: "https://example.com/a" }),
+    ).toMatchObject({
+      ok: true,
+      source: { id: "S1", url: "https://example.com/b" },
+    });
+    expect(tools.snapshot().events).toContainEqual({
+      kind: "success",
+      operation: "read_page",
+      url: "https://example.com/a",
+      sourceId: "S1",
+    });
+  });
   it("reads a direct page into stable evidence and deduplicates fragments", async () => {
     const { tools, firecrawl } = setup();
     expect(
