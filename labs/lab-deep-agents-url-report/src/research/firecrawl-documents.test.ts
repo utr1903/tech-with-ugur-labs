@@ -76,6 +76,16 @@ describe("firecrawl-documents", () => {
     expect(
       await tools.read_page({ url: "https://example.com/news/listing" }),
     ).toMatchObject({ ok: true, links: ["https://example.com/news/article"] });
+    expect(
+      tools.snapshot().events.filter((event) => event.kind === "link"),
+    ).toEqual([
+      {
+        kind: "link",
+        operation: "read_page",
+        url: "https://example.com/news/article",
+        sourceId: "S1",
+      },
+    ]);
   });
   it("rejects pages without returned source URL metadata", async () => {
     const { tools, firecrawl } = setup();

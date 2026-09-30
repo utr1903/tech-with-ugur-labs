@@ -1,18 +1,20 @@
 import type { ResearchRequest } from "./input.js";
 import type { LedgerSnapshot } from "./ledger.js";
 import {
-  checkSelections,
   requestedSourceIds,
   searchSourceIds,
   successfulSources,
   successfullyReadUrls,
 } from "./report-evidence.js";
 import { blockingOmissions } from "./report-omissions.js";
+import { selectionRepairs } from "./report-repairs.js";
 import {
   type ReportDraft,
   type ValidationFeedback,
   reportDraftSchema,
 } from "./report-schema.js";
+import { requestsExhaustiveListing } from "./report-scope.js";
+import { checkSelections } from "./report-selections.js";
 import { validatePublicUrl } from "./scope.js";
 
 export function validateDraft(
@@ -59,6 +61,7 @@ export function validateDraft(
         ...searchSourceIds(ledger, sourceUrls),
       ]),
     ].flatMap((id) => (sourceUrls[id] ? [sourceUrls[id]] : [])),
+    ledger,
   );
   const missingRequestedAttempts = request.requestedUrls
     .filter(
@@ -79,9 +82,7 @@ export function validateDraft(
     )
     .map(({ url }) => url);
   const unmetExhaustiveScope =
-    /\b(?:all|every|each)\b(?:\s+[\w-]+){0,3}\s+(?:articles?|posts?|pages?|urls?|entries|links?)\b/i.test(
-      request.instruction,
-    ) &&
+    requestsExhaustiveListing(request.instruction) &&
     (data.knownOmissions.length > 0 ||
       ledger.events.some((event) => event.kind === "cap"));
   const reasons = validationReasons(
@@ -117,6 +118,7 @@ export function validateDraft(
     failedRequestedUrls,
     invalidCitations,
     invalidSelections,
+    selectionRepairs: selectionRepairs(draft, ledger, sourceUrls),
     unmetExhaustiveScope,
     repairPossible: reasons.length > 0 && !blocked,
     articles: data.articles.filter((article) => validId(article.sourceId)),

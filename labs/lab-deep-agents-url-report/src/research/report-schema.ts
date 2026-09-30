@@ -38,6 +38,11 @@ export interface ValidationFeedback {
   failedRequestedUrls: string[];
   invalidCitations: string[];
   invalidSelections: string[];
+  selectionRepairs: {
+    url: string;
+    listingSourceId?: string;
+    action: "add-selection-with-reason";
+  }[];
   unmetExhaustiveScope: boolean;
   repairPossible: boolean;
   sourceUrls: Record<string, string>;

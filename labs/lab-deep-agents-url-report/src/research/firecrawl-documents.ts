@@ -52,7 +52,15 @@ export function createDocuments(ledger: Ledger, boundary: Boundary) {
       truncated,
       operation,
     });
-    return { source, links: listingLinks(page, url, operation) };
+    const links = listingLinks(page, url, operation);
+    for (const link of links)
+      ledger.record({
+        kind: "link",
+        operation,
+        url: link,
+        sourceId: source.id,
+      });
+    return { source, links };
   };
   return { accept };
 }

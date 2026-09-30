@@ -1,6 +1,5 @@
 import type { ResearchRequest } from "./input.js";
 import type { LedgerSnapshot } from "./ledger.js";
-import type { ReportDraft } from "./report-schema.js";
 import { validatePublicUrl } from "./scope.js";
 
 export function successfulSources(
@@ -84,7 +83,7 @@ export function searchSourceIds(
   );
 }
 
-function sourceIdsForUrls(
+export function sourceIdsForUrls(
   ledger: LedgerSnapshot,
   sourceUrls: Record<string, string>,
   urls: Set<string>,
@@ -109,57 +108,5 @@ function validAlias(alias: string, actual: string | undefined): boolean {
   const result = validatePublicUrl(alias);
   return Boolean(
     actual && result.valid && new URL(actual).hostname === result.host,
-  );
-}
-
-export function checkSelections(
-  draft: ReportDraft,
-  sourceUrls: Record<string, string>,
-  independentUrls: string[],
-) {
-  const selectedUrls = draft.selectedUrls.filter(
-    (selection) =>
-      validSelection(selection, draft.listingSourceIds, sourceUrls) &&
-      (Boolean(selection.listingSourceId) ||
-        independentUrls.includes(selection.url)),
-  );
-  const missing = draft.articles.flatMap(({ sourceId }) => {
-    const url = Object.hasOwn(sourceUrls, sourceId)
-      ? sourceUrls[sourceId]
-      : undefined;
-    return url && !selectedUrls.some((selection) => selection.url === url)
-      ? [url]
-      : [];
-  });
-  const invalidSelections = [
-    ...new Set([
-      ...draft.selectedUrls
-        .filter((selection) => !selectedUrls.includes(selection))
-        .map((selection) => selection.url),
-      ...missing,
-    ]),
-  ];
-  return { selectedUrls, invalidSelections };
-}
-
-function validSelection(
-  selection: ReportDraft["selectedUrls"][number],
-  listingIds: string[],
-  sourceUrls: Record<string, string>,
-): boolean {
-  const url = validatePublicUrl(selection.url);
-  if (
-    !url.valid ||
-    url.url !== selection.url ||
-    !Object.values(sourceUrls).includes(url.url)
-  )
-    return false;
-  if (!selection.listingSourceId) return true;
-  if (!Object.hasOwn(sourceUrls, selection.listingSourceId)) return false;
-  const listing = sourceUrls[selection.listingSourceId];
-  return Boolean(
-    listing &&
-      listingIds.includes(selection.listingSourceId) &&
-      new URL(listing).host === new URL(url.url).host,
   );
 }

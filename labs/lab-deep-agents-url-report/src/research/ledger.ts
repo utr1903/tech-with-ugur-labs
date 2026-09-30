@@ -27,7 +27,8 @@ interface LedgerEvent {
     | "denial"
     | "cap"
     | "plan"
-    | "candidate";
+    | "candidate"
+    | "link";
   operation: string;
   url?: string;
   sourceId?: string;
