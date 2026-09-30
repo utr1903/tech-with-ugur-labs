@@ -13,7 +13,7 @@ export function requestsExhaustiveListing(instruction: string): boolean {
     // "Each" commonly refers to supplied pages or citation formatting. Require site scope.
     const after = instruction.slice((match.index ?? 0) + match[0].length);
     if (
-      /^\s+(?:on|from|in|across)\s+(?:(?:the|this|that|supplied|provided)\s+)?(?:listing|site|website|blog|archive|collection)\b/i.test(
+      /^\s+(?:linked\s+)?(?:on|from|in|across)\s+(?:(?:the|this|that)\s+)?(?:(?:supplied|provided)\s+)?(?:listing|site|website|blog|archive|collection)\b/i.test(
         after,
       )
     )

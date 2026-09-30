@@ -64,6 +64,37 @@ describe("exhaustive listing scope", () => {
   });
 
   it.each([
+    "Read each article linked from this listing",
+    "Read each article on the supplied listing",
+    "Read all articles on this listing",
+    "Read every article on this listing",
+  ])(
+    "keeps an explicit listing request partial despite a nonblocking omission: %s",
+    (instruction) => {
+      const request = requestFor([listing], instruction);
+      const ledger = createLedger(request);
+      read(ledger, listing);
+      read(ledger, a);
+      const draft = draftFor();
+      draft.listingSourceIds = ["S1"];
+      draft.articles = [{ sourceId: "S2", summary: "Read article" }];
+      draft.selectedUrls = [
+        { url: a, reason: "Explains the topic", listingSourceId: "S1" },
+      ];
+      draft.knownOmissions = [
+        { url: b, reason: "Not selected", impact: "nonblocking" },
+      ];
+      const feedback = validateDraft(draft, ledger.snapshot(), request);
+      expect(feedback.unmetExhaustiveScope).toBe(true);
+      expect(feedback.status).toBe("partial");
+      expect(feedback.exitCode).toBe(1);
+      expect(feedback.reasons).toEqual([
+        "The explicit exhaustive request remains unmet.",
+      ]);
+    },
+  );
+
+  it.each([
     "Read all articles",
     "Read every article on this listing",
     "Read each page on this site",
