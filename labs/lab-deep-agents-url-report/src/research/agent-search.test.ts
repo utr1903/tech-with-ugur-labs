@@ -91,6 +91,11 @@ it.each([
   },
   {
     instruction:
+      "Search the web for current context; do not use external search.",
+    allowed: false,
+  },
+  {
+    instruction:
       "Search the web for current context; do not include current context from other independent sources.",
     allowed: false,
   },
@@ -130,6 +135,16 @@ it.each([
   {
     instruction:
       "Search the web for current context; do not include search results without reading their pages.",
+    allowed: true,
+  },
+  {
+    instruction:
+      "Search the web for current context; do not use search results as evidence without reading their pages.",
+    allowed: true,
+  },
+  {
+    instruction:
+      "Search the web for current context; do not use web search snippets as evidence.",
     allowed: true,
   },
   {

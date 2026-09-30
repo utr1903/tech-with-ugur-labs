@@ -65,10 +65,15 @@ export function externalSearchAllowed(instruction: string): boolean {
 function externalDiscoveryProhibited(wording: string): boolean {
   const denial = "\\b(?:do not|don't|never|without|no)\\s+";
   const generalSearchDenial = new RegExp(
-    `${denial}(?:(?:perform|conduct|carry\\s+out|undertake|use|do|make|attempt|any)\\s+){0,2}(?:(?:external|web|internet|online)\\s+)?(?:search|discovery|discover)\\b`,
+    `${denial}(?:(?:perform|conduct|carry\\s+out|undertake|do|make|attempt|any)\\s+){0,2}(?:(?:external|web|internet|online)\\s+)?(?:search|discovery|discover)\\b`,
     "i",
   );
-  if (generalSearchDenial.test(wording)) return true;
+  const useSearchDenial = new RegExp(
+    `${denial}use\\s+(?:(?:any|external|web|internet|online)\\s+){0,2}(?:search\\b(?!\\s+(?:results?|snippets?|as\\s+evidence)\\b)|discovery\\b|discover\\b)`,
+    "i",
+  );
+  if (generalSearchDenial.test(wording) || useSearchDenial.test(wording))
+    return true;
   const deniedTargets = [
     // Negation must govern a discovery scope, not an unrelated output request.
     "find\\s+(?:for\\s+)?(?:the\\s+)?(?:web|internet|online|external|additional|other|new|independent)\\b",
