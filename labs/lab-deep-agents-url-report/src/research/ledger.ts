@@ -1,4 +1,5 @@
 import type { ResearchRequest } from "./input.js";
+import type { PlanTask } from "./plan-milestones.js";
 
 export interface Limits {
   maxReads: number;
@@ -31,6 +32,7 @@ interface LedgerEvent {
   url?: string;
   sourceId?: string;
   reason?: string;
+  tasks?: PlanTask[];
 }
 
 export interface LedgerSnapshot {

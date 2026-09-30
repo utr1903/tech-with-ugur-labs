@@ -1,5 +1,6 @@
 import type { ResearchRequest } from "./input.js";
 import type { LedgerSnapshot, Source } from "./ledger.js";
+import { type PlanTask, publicPlanTasks } from "./plan-milestones.js";
 import {
   requestedSourceIds,
   searchCandidateUrls,
@@ -48,7 +49,7 @@ export interface CoverageRecord {
     reason?: string;
   }[];
   limitsReached: { operation: string; url?: string; reason?: string }[];
-  planMilestones: { operation: string }[];
+  planMilestones: { operation: string; tasks?: PlanTask[] }[];
   limits: LedgerSnapshot["limits"];
   counts: LedgerSnapshot["counts"];
 }
@@ -117,7 +118,10 @@ export function renderCoverage(
         .map(eventMetadata),
       planMilestones: ledger.events
         .filter((event) => event.kind === "plan")
-        .map(({ operation }) => ({ operation })),
+        .map(({ operation, tasks }) => ({
+          operation,
+          ...(tasks ? { tasks: publicPlanTasks(tasks) } : {}),
+        })),
       limits: { ...ledger.limits },
       counts: { ...ledger.counts },
     },

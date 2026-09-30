@@ -2,6 +2,7 @@ import { ToolMessage } from "@langchain/core/messages";
 import { createMiddleware } from "langchain";
 import type { Logger } from "../logger.js";
 import type { ResearchTools } from "./firecrawl-types.js";
+import { summarizePlanTasks } from "./plan-milestones.js";
 
 const permitted = new Set([
   "write_todos",
@@ -58,6 +59,7 @@ export function createAgentGate(
           research.record({
             kind: "plan",
             operation: `plan-${revision}:${statuses}`,
+            tasks: summarizePlanTasks(todos),
           });
           logger.info(
             { revision, taskCount: todos.length },

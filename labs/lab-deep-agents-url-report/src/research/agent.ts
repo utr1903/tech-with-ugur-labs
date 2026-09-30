@@ -4,8 +4,10 @@ import { type CreateDeepAgentParams, createDeepAgent } from "deepagents";
 import { todoListMiddleware, toolStrategy } from "langchain";
 import type { Logger } from "../logger.js";
 import { createAgentGate } from "./agent-gate.js";
+import { invokeCandidate } from "./agent-invoke.js";
 import { researchPrompt } from "./agent-prompt.js";
 import { emptyDraft, evaluateDraft, researchResult } from "./agent-result.js";
+import { externalSearchAllowed } from "./agent-search.js";
 import { agentTools } from "./agent-tools.js";
 import type { ResearchTools } from "./firecrawl-types.js";
 import type { ResearchRequest } from "./input.js";
@@ -56,6 +58,7 @@ export async function runResearch(
   let feedback = validateDraft(draft, tools.snapshot(), request);
   let content = JSON.stringify({
     instruction: request.instruction,
+    externalSearchAllowed: externalSearchAllowed(request.instruction),
     suppliedUrls: request.requestedUrls.map(({ url }) => url),
     invalidInputCount: request.invalidEntries.length,
     limits: tools.snapshot().limits,
@@ -69,16 +72,19 @@ export async function runResearch(
   });
   try {
     for (let round = 0; round <= 2; round += 1) {
-      const state = await Promise.race([
-        agent.invoke({ messages: [{ role: "user", content }] }, config),
-        timeout,
-      ]);
+      const output = await invokeCandidate(() =>
+        Promise.race([
+          agent.invoke({ messages: [{ role: "user", content }] }, config),
+          timeout,
+        ]),
+      );
       ({ draft, feedback } = evaluateDraft(
-        state.structuredResponse,
+        output.candidate,
         tools.snapshot(),
         request,
         gate.hasPlan(),
       ));
+      if (output.schemaErrors) feedback.schemaErrors = output.schemaErrors;
       logger.info(
         {
           round,

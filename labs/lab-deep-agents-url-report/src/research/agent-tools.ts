@@ -1,5 +1,6 @@
 import { tool } from "langchain";
 import { z } from "zod";
+import { externalSearchAllowed } from "./agent-search.js";
 import type { ResearchTools } from "./firecrawl-types.js";
 import type { ResearchRequest } from "./input.js";
 import { validatePublicUrl } from "./scope.js";
@@ -9,20 +10,7 @@ export function agentTools(request: ResearchRequest, research: ResearchTools) {
   const links = new Map<string, string>();
   const candidates = new Set<string>();
   const siteSources = new Set(requested);
-  const wording = request.instruction.replace(/https?:\/\/[^\s<>]+/gi, "");
-  const forbidsSearch =
-    /\b(?:do not|don't|never|without|no)\s+(?:\w+\s+){0,2}(?:search|discovery|discover)\b/i.test(
-      wording,
-    );
-  const searchAllowed =
-    !forbidsSearch &&
-    (/\b(?:search|discover)\b/i.test(wording) ||
-      /\bfind\s+(?:additional|other|new|external|recent|current|latest)\b/i.test(
-        wording,
-      ) ||
-      /\b(?:current|latest|recent|additional)\s+(?:\w+\s+){0,2}(?:context|sources?|articles?|pages?|information|updates?|research)\b/i.test(
-        wording,
-      ));
+  const searchAllowed = externalSearchAllowed(request.instruction);
   const deny = (operation: string, reason: string) => {
     research.record({ kind: "denial", operation, reason });
     return { ok: false, recoverable: true, reason };
@@ -82,8 +70,9 @@ export function agentTools(request: ResearchRequest, research: ResearchTools) {
       },
       {
         name: "search_web",
-        description:
-          "Find candidate pages only when the reader requests discovery or current/additional context. Read candidates before citing.",
+        description: searchAllowed
+          ? "External search is permitted for this request. Find candidate pages and read them before citing."
+          : "External search is disabled for this request. Research supplied content with read_page instead.",
         schema: z.object({ query: z.string() }),
       },
     ),
