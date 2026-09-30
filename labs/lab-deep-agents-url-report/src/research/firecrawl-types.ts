@@ -12,7 +12,10 @@ import type { Logger } from "../logger.js";
 import type { Ledger, LedgerSnapshot, Source } from "./ledger.js";
 
 interface FirecrawlClient {
-  scrape(url: string, options?: ScrapeOptions): Promise<Document>;
+  scrape(
+    url: string,
+    options?: ScrapeOptions & { autoResume?: boolean },
+  ): Promise<Document>;
   search(
     query: string,
     options?: Omit<SearchRequest, "query">,

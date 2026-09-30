@@ -5,11 +5,15 @@ import { createDocuments } from "./firecrawl-documents.js";
 import { createSearch } from "./firecrawl-search.js";
 import type { ResearchToolOptions, ResearchTools } from "./firecrawl-types.js";
 
-export function createFirecrawlClient(apiKey: string): Firecrawl {
+export function createFirecrawlClient(
+  apiKey: string,
+  apiUrl = "https://api.firecrawl.dev",
+): Firecrawl {
   return new Firecrawl({
     apiKey,
-    apiUrl: "https://api.firecrawl.dev",
-    maxRetries: 0,
+    apiUrl,
+    // SDK 4.42.0 counts total attempts here, so 1 sends once without retrying.
+    maxRetries: 1,
     timeoutMs: 30_000,
   });
 }
@@ -36,7 +40,10 @@ export function createResearchTools(
         if (!ledger.takeRead("read_page", url))
           throw new ResearchDenied("read-budget");
         const page = await boundary.call("read_page", url, () =>
-          firecrawl.scrape(url, { formats: ["markdown", "links"] }),
+          firecrawl.scrape(url, {
+            formats: ["markdown", "links"],
+            autoResume: false,
+          }),
         );
         const result = await documents.accept(page, url, "read_page");
         if (result.source.url !== url)
