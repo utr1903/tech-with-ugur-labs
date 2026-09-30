@@ -183,15 +183,27 @@ Docker socket mount. Outbound API access remains enabled.
 For local execution you also need Node 22 and npm. Keep the same exported keys
 from setup; local execution reads the optional `urls.txt` and writes the same
 output paths. Unlike Compose, it runs with your terminal user's permissions.
+On native Linux, existing output files may belong to a different UID and block
+the next writer. Before switching between local execution and Compose in either
+direction, save any outputs you want to keep, then remove both files. The host
+owner of the sticky output directory can remove either writer's files.
 
 ```sh
 npm ci
+rm -f workspace/output/report.md workspace/output/coverage.json
 npm run dev -- "Summarize https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP and cite the source."
 npm test
 npm run typecheck
 npm run lint
 npm run knip
 npm run build
+```
+
+Before returning to Compose, save any local outputs you want to keep, then
+clear them on the host:
+
+```sh
+rm -f workspace/output/report.md workspace/output/coverage.json
 docker compose build
 docker compose --env-file /dev/null config --quiet
 ```
