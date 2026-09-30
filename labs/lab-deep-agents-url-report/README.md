@@ -54,18 +54,19 @@ excluded from the image.
 ## Direct URLs
 
 Start with no `workspace/input/urls.txt`. The following reads two public pages
-on different hosts and asks for a comparison:
+on different hosts and compares the purpose and appropriate use of example
+domains:
 
 ```sh
-docker compose run --rm researcher "Compare the browser security purposes and limitations described at https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP and https://en.wikipedia.org/wiki/Cross-origin_resource_sharing . Summarize each page separately, cite both, and explain how CSP and CORS differ."
+docker compose run --rm researcher "Compare the example-domain purposes and appropriate uses described at https://example.com/ and https://www.iana.org/domains/reserved . Summarize each page separately, cite each source individually, and explain practical limitations."
 ```
 
 To provide URLs through a file instead, write one public HTTP(S) URL per line:
 
 ```sh
-printf '%s\n' 'https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP' 'https://en.wikipedia.org/wiki/Cross-origin_resource_sharing' > workspace/input/urls.txt
+printf '%s\n' 'https://example.com/' 'https://www.iana.org/domains/reserved' > workspace/input/urls.txt
 chmod a+r workspace/input/urls.txt
-docker compose run --rm researcher "Compare the browser security purposes and limitations in the supplied pages. Summarize each separately and cite both."
+docker compose run --rm researcher "Compare the example-domain purposes and appropriate uses in the supplied pages. Summarize each page separately, cite each source individually, and explain practical limitations."
 ```
 
 The CLI combines file URLs with URLs in the instruction, normalizes and
@@ -191,7 +192,7 @@ owner of the sticky output directory can remove either writer's files.
 ```sh
 npm ci
 rm -f workspace/output/report.md workspace/output/coverage.json
-npm run dev -- "Summarize https://developer.mozilla.org/en-US/docs/Web/HTTP/Guides/CSP and cite the source."
+npm run dev -- "Compare the example-domain purposes and appropriate uses described at https://example.com/ and https://www.iana.org/domains/reserved . Summarize each page separately, cite each source individually, and explain practical limitations."
 npm test
 npm run typecheck
 npm run lint
