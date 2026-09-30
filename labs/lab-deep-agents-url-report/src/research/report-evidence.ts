@@ -54,34 +54,74 @@ export function requestedSourceIds(
   sourceUrls: Record<string, string>,
   request: ResearchRequest = ledger.request,
 ): Set<string> {
-  const readUrls = successfullyReadUrls(ledger, sourceUrls);
   const requestedUrls = new Set(request.requestedUrls.map(({ url }) => url));
+  return sourceIdsForUrls(ledger, sourceUrls, requestedUrls);
+}
+
+export function searchCandidateUrls(ledger: LedgerSnapshot): string[] {
+  return [
+    ...new Set(
+      ledger.events
+        .filter(
+          (event) =>
+            event.kind === "candidate" && event.operation === "search_web",
+        )
+        .flatMap((event) =>
+          event.url && validatePublicUrl(event.url).valid ? [event.url] : [],
+        ),
+    ),
+  ];
+}
+
+export function searchSourceIds(
+  ledger: LedgerSnapshot,
+  sourceUrls: Record<string, string>,
+): Set<string> {
+  return sourceIdsForUrls(
+    ledger,
+    sourceUrls,
+    new Set(searchCandidateUrls(ledger)),
+  );
+}
+
+function sourceIdsForUrls(
+  ledger: LedgerSnapshot,
+  sourceUrls: Record<string, string>,
+  urls: Set<string>,
+): Set<string> {
   const ids = Object.keys(sourceUrls).filter(
     (id) =>
-      requestedUrls.has(sourceUrls[id] ?? "") ||
+      urls.has(sourceUrls[id] ?? "") ||
       ledger.events.some(
         (event) =>
           event.kind === "success" &&
+          event.operation === "read_page" &&
           event.sourceId === id &&
           event.url &&
-          requestedUrls.has(event.url) &&
-          readUrls.has(event.url),
+          urls.has(event.url) &&
+          validAlias(event.url, sourceUrls[id]),
       ),
   );
   return new Set(ids);
 }
 
+function validAlias(alias: string, actual: string | undefined): boolean {
+  const result = validatePublicUrl(alias);
+  return Boolean(
+    actual && result.valid && new URL(actual).hostname === result.host,
+  );
+}
+
 export function checkSelections(
   draft: ReportDraft,
   sourceUrls: Record<string, string>,
-  requestedUrls: string[],
+  independentUrls: string[],
 ) {
   const selectedUrls = draft.selectedUrls.filter(
     (selection) =>
       validSelection(selection, draft.listingSourceIds, sourceUrls) &&
       (Boolean(selection.listingSourceId) ||
-        draft.listingSourceIds.length === 0 ||
-        requestedUrls.includes(selection.url)),
+        independentUrls.includes(selection.url)),
   );
   const missing = draft.articles.flatMap(({ sourceId }) => {
     const url = Object.hasOwn(sourceUrls, sourceId)

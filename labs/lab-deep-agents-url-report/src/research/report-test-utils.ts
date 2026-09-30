@@ -12,7 +12,7 @@ export const requestFor = (
   instruction,
   requestedUrls: urls.map((url) => ({
     url,
-    host: "example.com",
+    host: new URL(url).hostname,
     origins: [{ kind: "instruction" }],
   })),
   invalidEntries: [],

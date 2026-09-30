@@ -77,7 +77,11 @@ describe("structured report validation", () => {
     read(ledger, a);
     const draft = draftFor();
     draft.knownOmissions = [
-      { url: "https://u:p@example.com/private", reason: "Outside topic" },
+      {
+        url: "https://u:p@example.com/private",
+        reason: "Outside topic",
+        impact: "nonblocking",
+      },
     ];
     expect(validateDraft(draft, ledger.snapshot(), request).status).toBe(
       "partial",
@@ -184,10 +188,14 @@ describe("structured report validation", () => {
       },
       { url: b, reason: "Unread" },
     ];
+    draft.knownOmissions = [
+      { url: b, reason: "Outside the requested topic", impact: "nonblocking" },
+    ];
     const feedback = validateDraft(draft, ledger.snapshot(), request);
     expect(feedback.invalidSelections).toEqual(["https://other.example/a", b]);
     expect(feedback.selectedUrls).toEqual([]);
     expect(feedback.status).toBe("partial");
+    expect(feedback.blockingOmissions).toEqual([]);
   });
 
   it("does not let draft Markdown create evidence links outside validated citations", () => {

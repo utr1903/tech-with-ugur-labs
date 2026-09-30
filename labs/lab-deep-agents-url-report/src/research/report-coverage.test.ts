@@ -8,7 +8,12 @@ import {
   read,
   requestFor,
 } from "./report-test-utils.js";
-import { renderCoverage, renderReport, validateDraft } from "./report.js";
+import {
+  type CoverageRecord,
+  renderCoverage,
+  renderReport,
+  validateDraft,
+} from "./report.js";
 
 describe("report coverage", () => {
   it("counts a successful same-host redirect as a requested read while citing its actual URL", () => {
@@ -32,7 +37,10 @@ describe("report coverage", () => {
     expect(renderReport(draft, feedback)).toContain(
       "[S1](https://example.com/b)",
     );
-    const coverage = renderCoverage(ledger.snapshot(), feedback);
+    const coverage: CoverageRecord = renderCoverage(
+      ledger.snapshot(),
+      feedback,
+    );
     expect(coverage.requestedUrls).toEqual([
       { url: a, origins: [{ kind: "instruction" }], outcome: "read" },
     ]);
@@ -134,12 +142,14 @@ describe("report coverage", () => {
     const ledger = createLedger(request);
     read(ledger, a);
     const draft = draftFor();
-    draft.knownOmissions = [{ url: b, reason: "Unrelated topic" }];
+    draft.knownOmissions = [
+      { url: b, reason: "Unrelated topic", impact: "nonblocking" },
+    ];
     const feedback = validateDraft(draft, ledger.snapshot(), request);
     expect(feedback.status).toBe("complete");
     expect(renderReport(draft, feedback)).toContain("Unrelated topic");
     expect(renderCoverage(ledger.snapshot(), feedback).knownOmissions).toEqual([
-      { url: b, reason: "Unrelated topic" },
+      { url: b, reason: "Unrelated topic", impact: "nonblocking" },
     ]);
   });
 
@@ -214,7 +224,9 @@ describe("report coverage", () => {
       url: a,
       reason: "RAW PAGE BODY sk-private-fixture",
     };
-    draft.knownOmissions = [{ reason: "sk-omission-fixture" }];
+    draft.knownOmissions = [
+      { reason: "sk-omission-fixture", impact: "nonblocking" },
+    ];
     const json = JSON.stringify(
       renderCoverage(
         ledger.snapshot(),

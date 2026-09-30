@@ -1,6 +1,11 @@
 import type { ResearchRequest } from "./input.js";
 import type { LedgerSnapshot, Source } from "./ledger.js";
-import { requestedSourceIds, successfullyReadUrls } from "./report-evidence.js";
+import {
+  requestedSourceIds,
+  searchCandidateUrls,
+  searchSourceIds,
+  successfullyReadUrls,
+} from "./report-evidence.js";
 import { redactCoverage } from "./report-privacy.js";
 import type { ReportDraft, ValidationFeedback } from "./report-schema.js";
 
@@ -29,6 +34,7 @@ export interface CoverageRecord {
   searchCandidates: string[];
   selectedUrls: ReportDraft["selectedUrls"];
   knownOmissions: ReportDraft["knownOmissions"];
+  blockingOmissions: ValidationFeedback["blockingOmissions"];
   sources: {
     id: string;
     url: string;
@@ -51,22 +57,13 @@ export function renderCoverage(
   ledger: LedgerSnapshot,
   feedback: ValidationFeedback,
 ): CoverageRecord {
-  const searchCandidates = [
-    ...new Set(
-      ledger.events
-        .filter(
-          (event) =>
-            event.kind === "candidate" && event.operation === "search_web",
-        )
-        .flatMap((event) => (event.url ? [event.url] : [])),
-    ),
-  ];
+  const searchCandidates = searchCandidateUrls(ledger);
   const origin = (
     source: Source,
   ): CoverageRecord["sources"][number]["origin"] => {
     if (requestedSourceIds(ledger, feedback.sourceUrls).has(source.id))
       return "requested";
-    return searchCandidates.includes(source.url)
+    return searchSourceIds(ledger, feedback.sourceUrls).has(source.id)
       ? "search-discovered"
       : "site-discovered";
   };
@@ -103,6 +100,7 @@ export function renderCoverage(
       searchCandidates,
       selectedUrls: structuredClone(feedback.selectedUrls),
       knownOmissions: structuredClone(feedback.knownOmissions),
+      blockingOmissions: structuredClone(feedback.blockingOmissions),
       sources: ledger.sources
         .filter((source) => feedback.sourceUrls[source.id] === source.url)
         .map((source) => ({
@@ -132,6 +130,7 @@ function requestedOutcome(
   ledger: LedgerSnapshot,
   feedback: ValidationFeedback,
 ): Outcome {
+  if (feedback.missingRequestedAttempts.includes(url)) return "unattempted";
   if (successfullyReadUrls(ledger, feedback.sourceUrls).has(url)) return "read";
   const events = ledger.events.filter(
     (event) => event.url === url && event.operation !== "search_web",

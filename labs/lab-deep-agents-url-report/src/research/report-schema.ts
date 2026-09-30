@@ -20,7 +20,11 @@ export const reportDraftSchema = z.strictObject({
   ),
   listingSourceIds: z.array(text),
   knownOmissions: z.array(
-    z.strictObject({ url: publicUrl.optional(), reason: text }),
+    z.strictObject({
+      url: publicUrl.optional(),
+      reason: text,
+      impact: z.enum(["blocking", "nonblocking"]),
+    }),
   ),
   coverageNarrative: text,
 });
@@ -42,5 +46,8 @@ export interface ValidationFeedback {
   selectedUrls: ReportDraft["selectedUrls"];
   listingSourceIds: string[];
   knownOmissions: ReportDraft["knownOmissions"];
+  blockingOmissions: (ReportDraft["knownOmissions"][number] & {
+    outcome: "capped" | "failed" | "denied" | "unread" | "read";
+  })[];
   coverageNarrative: string;
 }

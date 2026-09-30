@@ -3,9 +3,11 @@ import type { LedgerSnapshot } from "./ledger.js";
 import {
   checkSelections,
   requestedSourceIds,
+  searchSourceIds,
   successfulSources,
   successfullyReadUrls,
 } from "./report-evidence.js";
+import { blockingOmissions } from "./report-omissions.js";
 import {
   type ReportDraft,
   type ValidationFeedback,
@@ -51,9 +53,12 @@ export function validateDraft(
   const { selectedUrls, invalidSelections } = checkSelections(
     data,
     sourceUrls,
-    [...requestedSourceIds(ledger, sourceUrls, request)].flatMap((id) =>
-      sourceUrls[id] ? [sourceUrls[id]] : [],
-    ),
+    [
+      ...new Set([
+        ...requestedSourceIds(ledger, sourceUrls, request),
+        ...searchSourceIds(ledger, sourceUrls),
+      ]),
+    ].flatMap((id) => (sourceUrls[id] ? [sourceUrls[id]] : [])),
   );
   const missingRequestedAttempts = request.requestedUrls
     .filter(
@@ -61,7 +66,7 @@ export function validateDraft(
         !ledger.events.some(
           (event) =>
             event.kind === "attempt" &&
-            event.operation !== "search_web" &&
+            event.operation === "read_page" &&
             event.url === url,
         ),
     )
@@ -92,6 +97,8 @@ export function validateDraft(
     ledger,
     data,
   );
+  const omissions = blockingOmissions(data, ledger, sourceUrls);
+  if (omissions.length) reasons.push("Some required evidence remains omitted.");
   const blocked =
     request.invalidEntries.length > 0 ||
     ledger.counts.reads >= ledger.limits.maxReads ||
@@ -119,6 +126,7 @@ export function validateDraft(
     knownOmissions: data.knownOmissions.filter(
       (omission) => !omission.url || validatePublicUrl(omission.url).valid,
     ),
+    blockingOmissions: omissions,
     coverageNarrative: data.coverageNarrative,
   };
 }
