@@ -34,6 +34,42 @@ describe("validatePublicUrl", () => {
   ])("rejects %s as %s", (raw, reason) => {
     expect(validatePublicUrl(raw)).toEqual({ valid: false, raw, reason });
   });
+  it.each([
+    ["192.0.0.0", false],
+    ["192.0.0.255", false],
+    ["192.0.1.0", true],
+    ["192.0.1.255", true],
+    ["192.0.2.0", false],
+    ["192.0.2.255", false],
+    ["192.0.3.0", true],
+    ["192.0.78.24", true],
+    ["192.0.255.255", true],
+  ])("classifies IPv4 /24 boundary %s as public=%s", (host, valid) => {
+    expect(validatePublicUrl(`http://${host}/`)).toMatchObject({ valid });
+  });
+  it.each([
+    ["1fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false],
+    ["2000::1", true],
+    ["2001::1", false],
+    ["2001:0:0:1::1", false],
+    ["2001:1ff:ffff:ffff:ffff:ffff:ffff:ffff", false],
+    ["2001:200::1", true],
+    ["2001:db7:ffff:ffff:ffff:ffff:ffff:ffff", true],
+    ["2001:db8::1", false],
+    ["2001:db8:ffff:ffff:ffff:ffff:ffff:ffff", false],
+    ["2001:db9::1", true],
+    ["2002::1", false],
+    ["2002:ffff:ffff:ffff:ffff:ffff:ffff:ffff", false],
+    ["2003::1", true],
+    ["3ffe:ffff:ffff:ffff:ffff:ffff:ffff:ffff", true],
+    ["3fff::1", false],
+    ["3fff:fff:ffff:ffff:ffff:ffff:ffff:ffff", false],
+    ["3fff:1000::1", true],
+    ["3fff:ffff:ffff:ffff:ffff:ffff:ffff:ffff", true],
+    ["4000::1", false],
+  ])("classifies parsed IPv6 prefix %s as public=%s", (host, valid) => {
+    expect(validatePublicUrl(`http://[${host}]/`)).toMatchObject({ valid });
+  });
   it.each(["https://8.8.8.8/", "https://[2606:4700:4700::1111]/"])(
     "accepts public IP address %s",
     (url) => {

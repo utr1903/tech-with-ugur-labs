@@ -30,11 +30,49 @@ function isPublicIpv4(host: string): boolean {
 
 function isSpecialIpv4(a: number, b: number, c: number): boolean {
   const special =
-    (a === 192 && (b === 0 || (b === 88 && c === 99))) ||
+    (a === 192 &&
+      ((b === 0 && (c === 0 || c === 2)) || (b === 88 && c === 99))) ||
     (a === 198 && (b === 18 || b === 19));
   const documentation =
     (a === 198 && b === 51 && c === 100) || (a === 203 && b === 0 && c === 113);
   return special || documentation;
+}
+
+// Called only with IPv6 literals already validated and canonicalized by URL.
+function ipv6Value(host: string): bigint {
+  const [left = "", right] = host.split("::");
+  const head = left ? left.split(":") : [];
+  const tail = right ? right.split(":") : [];
+  const groups =
+    right === undefined
+      ? head
+      : [
+          ...head,
+          ...Array<string>(8 - head.length - tail.length).fill("0"),
+          ...tail,
+        ];
+  return groups.reduce(
+    (value, group) => (value << 16n) | BigInt(`0x${group}`),
+    0n,
+  );
+}
+
+function isPublicIpv6(host: string): boolean {
+  const address = ipv6Value(host);
+  // Public global unicast is 2000::/3; these allocations are non-public.
+  const exclusions: [string, number][] = [
+    ["2001::", 23],
+    ["2001:db8::", 32],
+    ["2002::", 16],
+    ["3fff::", 20],
+  ];
+  return (
+    address >> 125n === 1n &&
+    !exclusions.some(([network, bits]) => {
+      const shift = BigInt(128 - bits);
+      return address >> shift === ipv6Value(network) >> shift;
+    })
+  );
 }
 
 function isPublicHost(host: string): boolean {
@@ -44,14 +82,7 @@ function isPublicHost(host: string): boolean {
     .toLowerCase();
   const version = isIP(bare);
   if (version === 4) return isPublicIpv4(bare);
-  if (version === 6) {
-    // Admit global unicast only, excluding documentation and protocol assignments.
-    return (
-      /^[23][0-9a-f]{3}:/.test(bare) &&
-      !/^2001:(?:db8|[0-9a-f]{1,2}|1[0-9a-f]{2}):/.test(bare) &&
-      !bare.startsWith("2002:")
-    );
-  }
+  if (version === 6) return isPublicIpv6(bare);
   const forbiddenSuffix =
     /(?:^|\.)(?:localhost|local|internal|lan|home|home\.arpa|test|invalid)$/;
   return bare.includes(".") && !forbiddenSuffix.test(bare);

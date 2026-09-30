@@ -98,6 +98,23 @@ describe("readRequest", () => {
       ],
     });
   });
+  it.each(["https://", "http://", "HTTPS://"])(
+    "retains empty-host instruction URL %s as a malformed entry",
+    async (raw) => {
+      expect(await readRequest(`Read ${raw}`, file)).toEqual({
+        instruction: `Read ${raw}`,
+        requestedUrls: [],
+        invalidEntries: [
+          {
+            valid: false,
+            raw,
+            reason: "malformed",
+            origin: { kind: "instruction" },
+          },
+        ],
+      });
+    },
+  );
   it("extracts URLs from Markdown and sentence punctuation", async () => {
     expect(
       await readRequest(

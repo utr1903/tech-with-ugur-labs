@@ -27,7 +27,7 @@ async function readOptionalFile(path: string): Promise<string> {
 
 function instructionUrls(instruction: string): string[] {
   const candidates =
-    instruction.match(/\b[a-z][a-z0-9+.-]*:\/\/[^\s<>"`]+/gi) ?? [];
+    instruction.match(/\b[a-z][a-z0-9+.-]*:\/\/[^\s<>"`]*/gi) ?? [];
   return candidates.map(trimUrlPunctuation);
 }
 
