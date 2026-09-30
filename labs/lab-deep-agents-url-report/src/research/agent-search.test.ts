@@ -51,6 +51,24 @@ it.each([
   },
   {
     instruction:
+      "Read the supplied pages; do not find additional independent sources.",
+    allowed: false,
+  },
+  {
+    instruction:
+      "Read the supplied pages; do not add current context from other sources.",
+    allowed: false,
+  },
+  {
+    instruction: "Find additional sources inside the supplied pages.",
+    allowed: false,
+  },
+  {
+    instruction: "Find additional sources within the supplied pages.",
+    allowed: false,
+  },
+  {
+    instruction:
       "Use the supplied web pages only; search the web for current context.",
     allowed: false,
   },

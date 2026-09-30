@@ -48,7 +48,7 @@ export function externalSearchAllowed(instruction: string): boolean {
   if (suppliedContent && words.some((word) => restrictiveWords.has(word)))
     return false;
   if (
-    /\b(?:do not|don't|never|without|no)\s+(?:\w+\s+){0,2}(?:search|discovery|discover)\b/i.test(
+    /\b(?:do not|don't|never|without|no)\s+(?:\w+\s+){0,2}(?:search|discovery|discover|find|add|include)\b/i.test(
       wording,
     )
   )
@@ -68,11 +68,12 @@ export function externalSearchAllowed(instruction: string): boolean {
 }
 
 function additionalSourceRequest(wording: string): boolean {
+  // An inside/within qualifier keeps the matched request in supplied content.
   return (
-    /\b(?:search|discover|find)\s+(?:for\s+)?(?:the\s+)?(?:additional|other|new)\s+(?:independent\s+)?sources?\b/i.test(
+    /\b(?:search|discover|find)\s+(?:for\s+)?(?:the\s+)?(?:additional|other|new)\s+(?:independent\s+)?sources?\b(?!\s+(?:inside|within)\s+(?:the\s+)?(?:supplied|provided|given|these|those|input)\b)/i.test(
       wording,
     ) ||
-    /\b(?:add|include)\s+(?:(?:current|latest|recent|additional)\s+)?context\s+from\s+(?:additional|other|new)\s+(?:independent\s+)?sources?\b/i.test(
+    /\b(?:add|include)\s+(?:(?:current|latest|recent|additional)\s+)?context\s+from\s+(?:additional|other|new)\s+(?:independent\s+)?sources?\b(?!\s+(?:inside|within)\s+(?:the\s+)?(?:supplied|provided|given|these|those|input)\b)/i.test(
       wording,
     )
   );
