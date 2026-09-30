@@ -60,6 +60,26 @@ it.each([
     allowed: false,
   },
   {
+    instruction:
+      "Read the supplied pages; do not include additional independent sources.",
+    allowed: false,
+  },
+  {
+    instruction:
+      "Read the supplied pages; do not include sources from the web.",
+    allowed: false,
+  },
+  {
+    instruction:
+      "Search the web for current context; do not find independent sources.",
+    allowed: false,
+  },
+  {
+    instruction:
+      "Search the web for current context; do not find sources from the web.",
+    allowed: false,
+  },
+  {
     instruction: "Find additional sources inside the supplied pages.",
     allowed: false,
   },
@@ -75,6 +95,21 @@ it.each([
   {
     instruction:
       "Read the supplied pages and search the web for additional current context.",
+    allowed: true,
+  },
+  {
+    instruction:
+      "Search the web for current context; do not include speculation.",
+    allowed: true,
+  },
+  {
+    instruction:
+      "Search the web for current context; do not add unsupported claims.",
+    allowed: true,
+  },
+  {
+    instruction:
+      "Search the web for current context; do not include personal opinions.",
     allowed: true,
   },
   {

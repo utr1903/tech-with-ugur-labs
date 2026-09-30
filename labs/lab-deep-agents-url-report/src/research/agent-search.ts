@@ -47,12 +47,7 @@ export function externalSearchAllowed(instruction: string): boolean {
     words.some((word) => contentWords.has(word));
   if (suppliedContent && words.some((word) => restrictiveWords.has(word)))
     return false;
-  if (
-    /\b(?:do not|don't|never|without|no)\s+(?:\w+\s+){0,2}(?:search|discovery|discover|find|add|include)\b/i.test(
-      wording,
-    )
-  )
-    return false;
+  if (externalDiscoveryProhibited(wording)) return false;
   if (explicitExternalTarget(words) || additionalSourceRequest(wording))
     return true;
   // Context inside supplied content alone does not request external discovery.
@@ -64,6 +59,21 @@ export function externalSearchAllowed(instruction: string): boolean {
     /\b(?:current|latest|recent|additional)\s+(?:\w+\s+){0,2}(?:context|sources?|articles?|pages?|information|updates?|research)\b/i.test(
       wording,
     )
+  );
+}
+
+function externalDiscoveryProhibited(wording: string): boolean {
+  const denial = "\\b(?:do not|don't|never|without|no)\\s+";
+  const deniedTargets = [
+    // Negation must govern a discovery scope, not an unrelated output request.
+    "(?:search|discover|find)\\s+(?:for\\s+)?(?:the\\s+)?(?:web|internet|online|external|additional|other|new|independent)\\b",
+    "(?:search|discover|find)\\s+(?:for\\s+)?(?:the\\s+)?sources?\\s+from\\s+(?:the\\s+)?(?:web|internet|online|external)\\b",
+    "(?:add|include)\\s+(?:(?:additional|other|new|independent|external|web)\\s+)+sources?\\b",
+    "(?:add|include)\\s+(?:(?:current|latest|recent|additional)\\s+)?context\\s+from\\s+(?:additional|other|new|independent|external|web)\\s+sources?\\b",
+    "(?:add|include)\\s+sources?\\s+from\\s+(?:the\\s+)?(?:web|internet|online|external)\\b",
+  ];
+  return deniedTargets.some((target) =>
+    new RegExp(`${denial}${target}`, "i").test(wording),
   );
 }
 
