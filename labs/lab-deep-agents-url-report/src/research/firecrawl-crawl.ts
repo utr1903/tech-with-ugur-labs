@@ -22,6 +22,20 @@ export function createCrawl(
     });
     return true;
   };
+  const cancel = async (
+    id: string,
+    url: string,
+    primaryFailed: boolean,
+    done: boolean,
+  ): Promise<void> => {
+    if (done || boundary.remaining() <= 0) return;
+    try {
+      await boundary.call("crawl_cancel", url, () => firecrawl.cancelCrawl(id));
+    } catch (err) {
+      boundary.recordError("crawl_cancel", url, err);
+      if (!primaryFailed) throw err;
+    }
+  };
   const poll = async (
     id: string,
     url: string,
@@ -71,17 +85,18 @@ export function createCrawl(
     );
     const pages = createCrawlPages(ledger, documents, url, limit);
     let done = false;
+    let primaryFailed = false;
     try {
       while (!done && !mustStop(url)) {
         done = await poll(job.id, url, pages);
         if (done || pages.full()) break;
         await clock.sleep(Math.min(1000, boundary.remaining()));
       }
+    } catch (err) {
+      primaryFailed = true;
+      throw err;
     } finally {
-      if (!done && boundary.remaining() > 0)
-        await boundary.call("crawl_cancel", url, () =>
-          firecrawl.cancelCrawl(job.id),
-        );
+      await cancel(job.id, url, primaryFailed, done);
     }
     return { sources: pages.sources() };
   };

@@ -16,7 +16,8 @@ export function createSearch(options: ResearchToolOptions, boundary: Boundary) {
         description: input.description ?? "",
       };
     } catch (err) {
-      if (!(err instanceof ResearchDenied)) throw err;
+      if (!(err instanceof ResearchDenied) || err.reason.endsWith("budget"))
+        throw err;
       ledger.record({
         kind: "denial",
         operation: "search_web",

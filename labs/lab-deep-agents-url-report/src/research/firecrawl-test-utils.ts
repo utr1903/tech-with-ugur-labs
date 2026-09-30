@@ -64,6 +64,7 @@ export function setup(limits: Partial<Limits> = {}) {
   let time = 0;
   const dnsHosts: string[] = [];
   let answers = ["93.184.216.34"];
+  let resolver = async (_host: string): Promise<string[]> => answers;
   const logs: string[] = [];
   const tools = createResearchTools({
     firecrawl,
@@ -84,7 +85,7 @@ export function setup(limits: Partial<Limits> = {}) {
     },
     resolveDns: async (host: string) => {
       dnsHosts.push(host);
-      return answers;
+      return resolver(host);
     },
   });
   return {
@@ -93,6 +94,9 @@ export function setup(limits: Partial<Limits> = {}) {
     tools,
     dnsHosts,
     logs,
+    setResolver: (value: (host: string) => Promise<string[]>) => {
+      resolver = value;
+    },
     setTime: (value: number) => {
       time = value;
     },

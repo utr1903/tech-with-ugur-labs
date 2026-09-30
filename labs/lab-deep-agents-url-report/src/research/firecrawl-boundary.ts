@@ -22,7 +22,7 @@ export function createBoundary(options: ResearchToolOptions) {
     if (duration <= 0) throw new ResearchDenied("time-budget");
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
-      return await Promise.race([
+      const result = await Promise.race([
         work(),
         new Promise<never>((_, reject) => {
           timer = setTimeout(
@@ -31,6 +31,8 @@ export function createBoundary(options: ResearchToolOptions) {
           );
         }),
       ]);
+      if (remaining() <= 0) throw new ResearchDenied("time-budget");
+      return result;
     } finally {
       if (timer) clearTimeout(timer);
     }
@@ -97,6 +99,7 @@ export function createBoundary(options: ResearchToolOptions) {
     try {
       if (remaining() <= 0) throw new ResearchDenied("time-budget");
       const result = await work();
+      if (remaining() <= 0) throw new ResearchDenied("time-budget");
       logger.info(
         { sourceCount: ledger.snapshot().sources.length },
         `${operation} succeeded.`,
@@ -124,15 +127,24 @@ export function createBoundary(options: ResearchToolOptions) {
       release();
     }
   };
-  return { validate, publicDns, call, run, remaining };
+  return {
+    validate,
+    publicDns,
+    call,
+    run,
+    remaining,
+    recordError: (operation: string, url: string, err: unknown): void => {
+      recordError(options, operation, url, err);
+    },
+  };
 }
 
-function handleError(
+function recordError(
   options: ResearchToolOptions,
   operation: string,
   url: string,
   err: unknown,
-): ToolResult<never> {
+): ToolResult<never> | Error {
   const { ledger, logger } = options;
   if (err instanceof ResearchDenied) {
     const reason = err.reason;
@@ -155,7 +167,18 @@ function handleError(
   );
   ledger.record({ kind: "failure", operation, url, reason });
   logger.error({ err: safeError, url, status }, `${operation} failed.`);
-  throw safeError;
+  return safeError;
+}
+
+function handleError(
+  options: ResearchToolOptions,
+  operation: string,
+  url: string,
+  err: unknown,
+): ToolResult<never> {
+  const result = recordError(options, operation, url, err);
+  if (result instanceof Error) throw result;
+  return result;
 }
 
 function providerStatus(err: unknown): number | undefined {
