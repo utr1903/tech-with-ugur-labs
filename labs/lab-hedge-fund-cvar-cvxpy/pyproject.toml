@@ -1,0 +1,109 @@
+[project]
+name = "app"
+version = "0.0.0"
+requires-python = "==3.12.*"
+dependencies = [
+  "cvxpy==1.9.3",
+  "numpy==2.5.3",
+  "PyYAML==6.0.3",
+  "matplotlib==3.11.2",
+  "structlog==26.1.0",
+]
+
+[project.scripts]
+app = "app.__main__:main"
+
+[dependency-groups]
+dev = [
+  "deptry==0.25.1",
+  "mypy==2.3.1",
+  "pytest==9.1.1",
+  "ruff==0.16.8",
+  "scipy==1.18.1",
+  "scipy-stubs==1.18.1.0",
+  "types-PyYAML==6.0.12.20260906",
+]
+
+[build-system]
+requires = ["hatchling==1.32.3"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/app"]
+
+[tool.ruff]
+line-length = 88
+src = ["src"]
+
+[tool.ruff.lint]
+select = [
+  "E", "F", "W", "I", "N", "UP", "B", "A", "C4", "SIM",
+  "RET", "ARG", "PTH", "ANN", "TRY", "LOG", "G", "C90",
+]
+ignore = [
+  # TRY003: forbids a contextual f-string message in a raise; validation
+  # needs contextual messages so readers know exactly which field to edit.
+  "TRY003",
+]
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.mypy]
+strict = true
+files = ["src"]
+
+[[tool.mypy.overrides]]
+# cvxpy 1.9.3 ships a py.typed marker but re-exports its public API via
+# bare `from cvxpy.atoms import *` in cvxpy/__init__.py with no __all__.
+# mypy's --no-implicit-reexport (part of --strict) then reports "Module
+# has no attribute" for names such as cp.sum / cp.sum_largest even though
+# they exist at runtime and are cvxpy's documented public API.
+# implicit_reexport is scoped to this one module override, evaluated
+# against cvxpy's own exported symbol table, so every other module in
+# this codebase stays fully re-export-strict.
+module = ["cvxpy", "cvxpy.*"]
+implicit_reexport = true
+
+[[tool.mypy.overrides]]
+# Measured, not assumed: running --strict against modules that build and
+# solve a real CVaR-shaped LP with cp.Variable, cp.Minimize, cp.Problem,
+# cp.sum, cp.abs, cp.sum_largest, cp.quad_form, cp.psd_wrap,
+# constraint.dual_value, problem.value and problem.status surfaces exactly
+# four no-untyped-call errors, one per entry point that cvxpy ships with
+# no internal annotations: the module-level installed_solvers() and cvar(),
+# Problem.solve() and Canonical.parameters(). Every other symbol in that
+# surface is already strict-clean. That flag is evaluated against the
+# calling file's config, not the callee's module, so (unlike
+# implicit_reexport above) it cannot be scoped to cvxpy.* — so all four
+# calls are confined to app/cvxpy_api.py, the app's one typed facade over
+# them, and only that module gets this override. Adding this override to
+# any other module is a defect: it would relax disallow_untyped_calls over
+# real model/solver logic instead of the short wrapper file that exists to
+# prevent exactly that.
+#
+# Note what is deliberately NOT here. Problem.is_dcp(dpp=True) fails under
+# --strict too, but as call-arg rather than no-untyped-call: is_dcp is
+# annotated, and cvxpy's compute_once memoization decorator then erases
+# the dpp argument from the signature mypy sees. Silencing that would take
+# a second, broader flag, so the facade calls Problem.is_dpp() instead —
+# cvxpy documents the two as equivalent, and is_dpp takes its context as a
+# default this codebase never passes. See app/cvxpy_api.is_dpp.
+module = ["app.cvxpy_api"]
+disallow_untyped_calls = false
+
+[tool.pytest.ini_options]
+python_files = ["*_test.py"]
+testpaths = ["src"]
+addopts = "--import-mode=importlib"
+markers = [
+  # The one test file that runs the shipped scenario.yaml at its real
+  # settings rather than a cut-down fixture. It is part of the default
+  # run; the marker exists so it can be selected on its own with
+  # `-m e2e`, or skipped with `-m "not e2e"` while iterating.
+  "e2e: the full default run, end to end, at the shipped settings",
+]
+
+[tool.deptry]
+known_first_party = ["app"]
+extend_exclude = [".*_test\\.py", ".*conftest\\.py"]
