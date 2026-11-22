@@ -1,0 +1,16 @@
+# Values for the upstream aikido/kubernetes-agent chart, nested under its name.
+kubernetes-agent:
+  config:
+    apiEndpoint: https://k8s.aikido-security.com
+    # Injected at install time with
+    #   --set kubernetes-agent.config.apiToken=...
+    # Never commit a real token.
+    apiToken: ""
+  sbomCollector:
+    # Needed for image scanning (runs as a DaemonSet).
+    enabled: true
+  runtimeDetection:
+    # Runtime Sensors: Falco (modern eBPF) DaemonSet that streams detections to
+    # the agent. Detect-only, it never blocks or kills. It also needs the
+    # cluster's "threat detection" toggle in the Aikido UI (no API for it).
+    enabled: true

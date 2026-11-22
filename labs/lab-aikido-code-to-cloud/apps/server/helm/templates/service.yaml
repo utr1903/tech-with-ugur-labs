@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: chatbot-server
+  namespace: chatbot
+  labels:
+    {{- include "chatbot-server.labels" . | nindent 4 }}
+spec:
+  # INSECURE-BY-DESIGN: internet-facing LoadBalancer on plain HTTP port 80, no TLS
+  type: LoadBalancer
+  selector:
+    {{- include "chatbot-server.labels" . | nindent 4 }}
+  ports:
+    - name: http
+      port: 80
+      targetPort: 8080
+      protocol: TCP

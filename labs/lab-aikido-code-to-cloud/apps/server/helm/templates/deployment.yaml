@@ -1,0 +1,70 @@
+# INSECURE-BY-DESIGN: no NetworkPolicy shipped with this chart, all pod traffic is allowed
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: chatbot-server
+  namespace: chatbot
+  labels:
+    {{- include "chatbot-server.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "chatbot-server.labels" . | nindent 6 }}
+  template:
+    metadata:
+      labels:
+        {{- include "chatbot-server.labels" . | nindent 8 }}
+    spec:
+      serviceAccountName: chatbot-server
+      # INSECURE-BY-DESIGN: hostPID: true shares the node's process namespace
+      hostPID: true
+      hostNetwork: false
+      containers:
+        - name: chatbot-server
+          image: "{{ required "image.repository is required" .Values.image.repository }}:{{ required "image.tag is required" .Values.image.tag }}"
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+          # INSECURE-BY-DESIGN: no CPU/memory requests or limits set (the container resource block is missing)
+          securityContext:
+            # INSECURE-BY-DESIGN: privileged container
+            privileged: true
+            # INSECURE-BY-DESIGN: runs as root, privilege escalation allowed, root filesystem writable
+            runAsUser: 0
+            allowPrivilegeEscalation: true
+            # INSECURE-BY-DESIGN: dangerous capabilities added (NET_ADMIN, SYS_ADMIN)
+            capabilities:
+              add:
+                - NET_ADMIN
+                - SYS_ADMIN
+          envFrom:
+            - configMapRef:
+                name: chatbot-server
+          env:
+            - name: AIKIDO_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: chatbot-server
+                  key: AIKIDO_TOKEN
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /healthz
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: node-logs
+              mountPath: /host-logs
+      volumes:
+        # INSECURE-BY-DESIGN: hostPath volume mounts the node's /var/log into the pod
+        - name: node-logs
+          hostPath:
+            path: /var/log

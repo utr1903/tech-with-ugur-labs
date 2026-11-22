@@ -1,0 +1,9 @@
+apiVersion: v2
+name: aikido-k8s
+description: Wrapper chart for the Aikido Kubernetes agent
+type: application
+version: 0.1.0
+dependencies:
+  - name: kubernetes-agent
+    version: 2.16.1
+    repository: https://aikidosec.github.io/helm-charts
