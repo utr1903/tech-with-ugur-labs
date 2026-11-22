@@ -40,6 +40,7 @@ the only instruction set you need.
 | [lab-bedrock-langchain-agent](labs/lab-bedrock-langchain-agent/) | ai, cloud | [post](https://techwithugur.dev/posts/bedrock-langchain-agent/) | A small Hono service that answers plain-English questions about a seeded shop database by calling three typed, read-only tools instead of writing SQL, with one LangChain agent and a request field that picks which of four open-weight models on Amazon Bedrock sits behind it. |
 | [lab-qwen-code-superpowers-aws](labs/lab-qwen-code-superpowers-aws/) | ai, cloud | [post](https://techwithugur.dev/posts/qwen-code-superpowers-aws/) | One AWS GPU VM serves an open-weight Qwen coding model with vLLM, Qwen Code with the Superpowers skills extension works through a task file unattended in a locked-down container, and an independent verifier with hidden acceptance tests decides whether it actually succeeded. |
 | [lab-gradient-descent-1d](labs/lab-gradient-descent-1d/) | maths | [post](https://techwithugur.dev/posts/gradient-descent-1d/) | See how the same update rule reaches three different valleys when only the starting point changes. |
+| [lab-aikido-code-to-cloud](labs/lab-aikido-code-to-cloud/) | cybersecurity, cloud | [post](https://techwithugur.dev/posts/aikido-code-to-cloud/) | A deliberately vulnerable AWS and GCP environment for trying out Aikido Security across every layer it scans, from code and containers to cloud posture and VM disks. |
 <!-- LAB-INDEX:END -->
 
 ## Conventions
