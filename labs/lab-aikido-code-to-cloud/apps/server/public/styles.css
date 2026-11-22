@@ -1,0 +1,27 @@
+:root { --accent: #0f9d7a; --accent-dark: #0b7a5f; --bg: #f3f7f6; --ink: #1c2a27; }
+* { box-sizing: border-box; }
+body { margin: 0; font-family: system-ui, sans-serif; background: var(--bg); color: var(--ink); }
+[hidden] { display: none !important; }
+.wordmark { margin: 0; font-weight: 800; letter-spacing: -0.5px; }
+.wordmark span { color: var(--accent); }
+.card { max-width: 380px; margin: 8vh auto; background: #fff; padding: 2rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,.08); }
+.tagline { color: #5b6b67; margin-top: .25rem; }
+label { display: block; margin: .75rem 0; font-size: .9rem; }
+input { width: 100%; padding: .6rem; border: 1px solid #c8d4d1; border-radius: 8px; font-size: 1rem; }
+button { background: var(--accent); color: #fff; border: 0; border-radius: 8px; padding: .6rem 1rem; font-size: 1rem; cursor: pointer; }
+button:hover { background: var(--accent-dark); }
+.error { color: #b3261e; min-height: 1.2em; }
+.chat { display: flex; flex-direction: column; height: 100vh; max-width: 760px; margin: 0 auto; background: #fff; }
+.chat header { display: flex; justify-content: space-between; align-items: center; padding: .75rem 1rem; border-bottom: 1px solid #e0e8e6; }
+.who { display: flex; gap: .75rem; align-items: center; font-size: .85rem; color: #5b6b67; }
+.who button { padding: .3rem .7rem; font-size: .85rem; background: #5b6b67; }
+#messages { flex: 1; overflow-y: auto; padding: 1rem; display: flex; flex-direction: column; gap: .6rem; }
+.bubble { max-width: 80%; padding: .6rem .9rem; border-radius: 14px; white-space: pre-wrap; word-wrap: break-word; }
+.bubble.user { align-self: flex-end; background: var(--accent); color: #fff; }
+.bubble.assistant { align-self: flex-start; background: #e9f0ee; }
+.typing { padding: 0 1rem .5rem; color: #5b6b67; font-size: .85rem; }
+.typing span { animation: blink 1.2s infinite; }
+.typing span:nth-child(2) { animation-delay: .2s; }
+.typing span:nth-child(3) { animation-delay: .4s; }
+@keyframes blink { 0%, 60%, 100% { opacity: .2; } 30% { opacity: 1; } }
+#chat-form { display: flex; gap: .5rem; padding: .75rem 1rem; border-top: 1px solid #e0e8e6; }

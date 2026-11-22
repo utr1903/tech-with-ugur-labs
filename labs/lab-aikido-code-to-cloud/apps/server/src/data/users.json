@@ -1,0 +1,6 @@
+[
+  { "username": "alice", "password": "alice123", "customerId": "cus_0001", "role": "customer" },
+  { "username": "bob", "password": "bob123", "customerId": "cus_0002", "role": "customer" },
+  { "username": "carol", "password": "carol123", "customerId": "cus_0003", "role": "customer" },
+  { "username": "admin", "password": "admin", "customerId": "cus_0000", "role": "admin" }
+]

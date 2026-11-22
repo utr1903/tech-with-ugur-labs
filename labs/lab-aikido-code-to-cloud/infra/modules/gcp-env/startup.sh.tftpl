@@ -1,0 +1,61 @@
+#!/bin/bash
+# Boot script of the files-app VM. Installs Docker and a systemd unit that pulls
+# and runs the image, retrying forever until deploy.sh has pushed it.
+set -euxo pipefail
+
+# Keep the old Debian packages old: they are what Aikido VM scanning should find.
+# Debian 12 upgrades daily via apt-daily-upgrade.timer -> apt.systemd.daily ->
+# unattended-upgrade (enabled by 20auto-upgrades), so turn off the timers and
+# the periodic settings, not only unattended-upgrades.service. Manual apt-get
+# below still works.
+systemctl disable --now apt-daily.timer apt-daily-upgrade.timer || true
+systemctl mask apt-daily.timer apt-daily-upgrade.timer
+systemctl stop apt-daily.service apt-daily-upgrade.service unattended-upgrades.service || true
+systemctl mask unattended-upgrades.service
+cat > /etc/apt/apt.conf.d/20auto-upgrades <<'APT'
+APT::Periodic::Update-Package-Lists "0";
+APT::Periodic::Unattended-Upgrade "0";
+APT
+
+if ! command -v docker >/dev/null 2>&1; then
+  # A boot-time apt run may still hold the dpkg lock: wait for it.
+  apt-get -o DPkg::Lock::Timeout=300 update
+  DEBIAN_FRONTEND=noninteractive apt-get -o DPkg::Lock::Timeout=300 install -y docker.io curl
+fi
+systemctl enable --now docker
+
+# Logs Docker in to Artifact Registry with the VM service account's token
+# from the metadata server (user oauth2accesstoken).
+cat > /usr/local/bin/files-app-login <<'LOGIN'
+#!/bin/sh
+set -eu
+token="$(curl -sf -H 'Metadata-Flavor: Google' \
+  http://metadata.google.internal/computeMetadata/v1/instance/service-accounts/default/token \
+  | sed -E 's/.*"access_token":"([^"]+)".*/\1/')"
+printf '%s' "$token" | docker login -u oauth2accesstoken --password-stdin https://${split("/", registry)[0]}
+LOGIN
+chmod 0755 /usr/local/bin/files-app-login
+
+cat > /etc/systemd/system/files-app.service <<'UNIT'
+[Unit]
+Description=files-app (${env})
+After=docker.service network-online.target
+Wants=network-online.target
+Requires=docker.service
+StartLimitIntervalSec=0
+
+[Service]
+Restart=always
+RestartSec=15
+ExecStartPre=-/usr/bin/docker rm -f files-app
+ExecStartPre=/usr/local/bin/files-app-login
+ExecStartPre=/usr/bin/docker pull ${registry}/files-app:latest
+ExecStart=/usr/bin/docker run --rm --name files-app -p 8080:8080 -e BUCKET=${bucket} -e APP_ENV=${env} ${registry}/files-app:latest
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable files-app.service
+systemctl restart files-app.service

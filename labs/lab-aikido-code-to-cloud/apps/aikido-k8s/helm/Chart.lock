@@ -1,0 +1,6 @@
+dependencies:
+- name: kubernetes-agent
+  repository: https://aikidosec.github.io/helm-charts
+  version: 2.16.1
+digest: sha256:c45a77e2d3ef6562f114a542d0a666618ac76d83712ca5141cc90d470bfa1cd7
+generated: "2026-11-20T11:47:10.721758+01:00"

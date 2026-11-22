@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>PayBuddy</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <main id="login-view" class="card">
+    <h1 class="wordmark">Pay<span>Buddy</span></h1>
+    <p class="tagline">Your friendly payments assistant</p>
+    <form id="login-form">
+      <label>Username <input id="username" name="username" autocomplete="username" required></label>
+      <label>Password <input id="password" name="password" type="password" autocomplete="current-password" required></label>
+      <button type="submit">Sign in</button>
+      <p id="login-error" class="error" role="alert"></p>
+    </form>
+  </main>
+
+  <div id="chat-view" class="chat" hidden>
+    <header>
+      <h1 class="wordmark">Pay<span>Buddy</span></h1>
+      <div class="who">
+        <span id="customer-id"></span>
+        <button id="logout" type="button">Log out</button>
+      </div>
+    </header>
+    <div id="messages" aria-live="polite"></div>
+    <div id="typing" class="typing" hidden>PayBuddy is typing<span>.</span><span>.</span><span>.</span></div>
+    <form id="chat-form">
+      <input id="message" name="message" placeholder="Ask about your cards, payments, documents..." autocomplete="off" required>
+      <button type="submit">Send</button>
+    </form>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

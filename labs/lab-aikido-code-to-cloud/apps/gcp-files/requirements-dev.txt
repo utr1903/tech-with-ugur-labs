@@ -1,0 +1,5 @@
+# Test-only: current versions, because the pinned (deliberately old) flask==2.0.1
+# stack in requirements.txt does not install on the local Python 3.14.
+flask
+requests
+pytest

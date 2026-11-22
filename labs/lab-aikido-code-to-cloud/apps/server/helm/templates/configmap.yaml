@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: chatbot-server
+  namespace: chatbot
+  labels:
+    {{- include "chatbot-server.labels" . | nindent 4 }}
+data:
+  DATA_BUCKET: {{ required "dataBucket is required" .Values.dataBucket | quote }}
+  AWS_REGION: {{ .Values.awsRegion | quote }}
+  BEDROCK_MODEL_ID: {{ .Values.bedrockModelId | quote }}
+  AIKIDO_BLOCK: {{ .Values.aikidoBlock | quote }}

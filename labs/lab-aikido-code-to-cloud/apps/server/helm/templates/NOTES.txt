@@ -1,0 +1,7 @@
+PayBuddy chatbot-server deployed to namespace chatbot.
+
+Get the LoadBalancer hostname (DNS can take a few minutes):
+
+  kubectl -n chatbot get svc chatbot-server -o jsonpath='{.status.loadBalancer.ingress[0].hostname}'
+
+Then: curl http://<hostname>/healthz
