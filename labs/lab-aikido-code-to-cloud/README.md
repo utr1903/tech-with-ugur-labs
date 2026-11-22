@@ -2,7 +2,7 @@
 
 A deliberately vulnerable environment for trying out [Aikido Security](https://www.aikido.dev) across every layer it scans. It includes a payments chatbot ("PayBuddy") on EKS that reads fake customer data from S3 through Amazon Bedrock, and a small file viewer on a GCP VM, deployed into a dev and a prod project. Code, dependencies, container images, Terraform, Helm, cloud posture and VM packages are all misconfigured on purpose. One command deploys the environment and connects it to **your own** Aikido workspace, a second command shows what Aikido found, and a third removes it all again.
 
-> Companion post: [Aikido Security, hands-on: from code to cloud on AWS and GCP](TBD)
+> Companion post: [Aikido Security, hands-on: from code to cloud on AWS and GCP](https://techwithugur.dev/posts/aikido-code-to-cloud/)
 
 > **Deliberately insecure and internet-exposed.** Use fake data only, and only in accounts you are happy to expose for a short while. The chatbot and both file viewers are public. Strangers can reach them, and they can spend your Bedrock budget. Keep the environment up only while you evaluate, then run `make destroy`. Every planted flaw carries an `INSECURE-BY-DESIGN:` comment in the source.
 >
