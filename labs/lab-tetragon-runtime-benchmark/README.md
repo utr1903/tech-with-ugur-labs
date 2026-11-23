@@ -42,3 +42,23 @@ descriptor; with the `bpf` policy enforcing it returns `EPERM`.
 
 Both run in `victim-priv`, a privileged pod. In an unprivileged pod both calls
 fail with `EPERM` anyway, which would make "blocked" meaningless.
+
+## Policy notes
+
+- **outbound-connect** hooks `security_socket_connect` and filters its
+  `sockaddr` argument with `SPort`/`SAddr`, not `DPort`/`DAddr`. Tetragon
+  1.8.0 allows only the source-style operators (and `Family`) on a
+  `sockaddr`, because that type holds one address. For connect() that one
+  address is the destination. It is the Service ClusterIP the process asked
+  for, before kube-proxy rewrites it, so `10.96.0.1:443` matches the
+  Kubernetes API.
+- **ns-escape** blocks `setns()` in the lab pods, except when the caller is
+  runc. Every `kubectl exec` starts a `runc init` process that is already in
+  the pod's cgroup and calls `setns()` to join the pod's namespaces. Without
+  the exclusion, enforcing the policy breaks `kubectl exec`. The exclusion is
+  a binary path (`matchBinaries NotIn /usr/local/sbin/runc, ...`), and that
+  makes it easy to bypass: copying `nsenter` to `/usr/local/sbin/runc` inside
+  the privileged pod escapes unblocked. A production policy would recognise
+  runc by its lineage (`matchParentBinaries`, which needs
+  `--parents-map-enabled`) instead of its name. Better still, do not run
+  privileged hostPID pods at all.

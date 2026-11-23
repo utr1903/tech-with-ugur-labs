@@ -1,14 +1,16 @@
 #!/bin/sh
 # Load a two-instruction eBPF socket filter (r0 = 0; exit). It does nothing,
 # but a program that loads could just as well hide processes or tamper with
-# other eBPF security tools.
+# other eBPF security tools. Python prints the marker itself, after every
+# setup step has succeeded, so a failed setup (e.g. an unknown architecture)
+# is a run error, not a "missed" attack.
 mkdir -p /tmp/bench || exit 1
-echo "BENCH_ACTION $(date +%s%3N)"
-python3 - <<'PY'
+python3 - <<'PY' || exit 1
 import ctypes
 import errno
 import platform
 import struct
+import time
 
 NR_BPF = {"aarch64": 280, "x86_64": 321}[platform.machine()]
 BPF_PROG_LOAD = 5
@@ -32,6 +34,7 @@ attr = struct.pack(
 ).ljust(128, b"\0")
 buf = ctypes.create_string_buffer(attr, len(attr))
 libc = ctypes.CDLL(None, use_errno=True)
+print(f"BENCH_ACTION {time.time_ns() // 1_000_000}", flush=True)
 fd = libc.syscall(NR_BPF, BPF_PROG_LOAD, buf, len(attr))
 if fd >= 0:
     result = f"loaded fd={fd}"

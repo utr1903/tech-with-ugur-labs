@@ -12,6 +12,15 @@
 # covers the usual install paths; kind installs runc at /usr/local/sbin/runc.
 # The `host_ns` namespace value is no help here: on kind, Tetragon's "host"
 # is the VM under the node container, not the node itself.
+#
+# Known bypass: the exclusion is a path, and paths resolve inside the
+# container. `cp /usr/bin/nsenter /usr/local/sbin/runc` in the privileged pod
+# and running the copy escapes unblocked (verified on this lab). This is a
+# benchmark policy, not a production one. A production policy would tell
+# runc apart by lineage instead of by name, e.g. `matchParentBinaries`
+# (containerd-shim -> runc, needs Tetragon's `--parents-map-enabled`), or
+# would only allow setns before the container's first exec. Better still,
+# do not run privileged hostPID pods at all.
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
 metadata:
