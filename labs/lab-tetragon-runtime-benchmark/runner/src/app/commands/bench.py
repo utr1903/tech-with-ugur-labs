@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Sequence
+from datetime import datetime
 from pathlib import Path
 
 from app.bench.aggregate import evaluate, summarize
@@ -11,7 +12,9 @@ from app.bench.attribute import attribute
 from app.bench.marker import parse_marker
 from app.bench.model import Profile, RunResult
 from app.bench.render import render_json, render_markdown
+from app.bench.sink import sink_connected
 from app.errors import ExpectationError
+from app.kube.attacker import attacker_log, pod_ip
 from app.kube.events import EventStream
 from app.kube.kubectl import exec_script
 from app.kube.policy_apply import apply_profile, delete_lab_policies
@@ -19,7 +22,7 @@ from app.kube.tetra import override_available
 from app.logging_setup import Logger
 from app.output import write_line
 from app.scenarios.load import load_scenarios
-from app.scenarios.model import Scenario
+from app.scenarios.model import ATTACKER_SINKS, Scenario
 
 FLUSH_MARGIN_S = 1.0
 LAB_ROOT = Path(__file__).resolve().parents[4]
@@ -29,6 +32,20 @@ def select(scenarios: Sequence[Scenario], only: Sequence[str]) -> tuple[Scenario
     """Scenarios whose id starts with any prefix in `only` (all when empty)."""
     return tuple(
         s for s in scenarios if not only or any(s.id.startswith(p) for p in only)
+    )
+
+
+def _side_effect(scenario: Scenario, marker: datetime, *, log: Logger) -> bool:
+    """Whether the attack's effect happened: check.sh, or the attacker log."""
+    ns, pod = scenario.namespace, scenario.pod
+    if scenario.attacker_sink is None:
+        check = scenario.directory / "check.sh"
+        return exec_script(ns, pod, check, log=log).returncode == 0
+    return sink_connected(
+        attacker_log(log=log),
+        sink=ATTACKER_SINKS[scenario.attacker_sink],
+        peer=pod_ip(ns, pod, log=log),
+        since_ms=round(marker.timestamp() * 1000),
     )
 
 
@@ -46,7 +63,7 @@ def _run_once(
     acted = exec_script(ns, pod, base / "run.sh", log=log)
     marker = parse_marker(acted.stdout)
     time.sleep(window_s + FLUSH_MARGIN_S)
-    side_effect = exec_script(ns, pod, base / "check.sh", log=log).returncode == 0
+    side_effect = _side_effect(scenario, marker, log=log)
     attribution = attribute(
         stream.snapshot(), scenario, marker=marker, window_s=window_s
     )

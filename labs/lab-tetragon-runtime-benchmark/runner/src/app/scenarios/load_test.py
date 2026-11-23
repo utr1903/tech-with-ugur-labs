@@ -110,3 +110,27 @@ def test_invalid_regex_raises(tmp_path: Path, field: str) -> None:
 
     with pytest.raises(ScenarioError, match=field):
         load_scenarios(tmp_path, log=get_logger())
+
+
+def test_loads_attacker_sink_check(tmp_path: Path) -> None:
+    directory = _make(tmp_path, "a", VALID + "check:\n  attacker_sink: 4444\n")
+    (directory / "check.sh").unlink()
+
+    (scenario,) = load_scenarios(tmp_path, log=get_logger())
+
+    assert scenario.attacker_sink == 4444
+
+
+def test_check_script_is_used_by_default(tmp_path: Path) -> None:
+    _make(tmp_path, "a")
+
+    (scenario,) = load_scenarios(tmp_path, log=get_logger())
+
+    assert scenario.attacker_sink is None
+
+
+def test_unknown_attacker_sink_raises(tmp_path: Path) -> None:
+    _make(tmp_path, "a", VALID + "check:\n  attacker_sink: 9999\n")
+
+    with pytest.raises(ScenarioError, match="attacker_sink"):
+        load_scenarios(tmp_path, log=get_logger())

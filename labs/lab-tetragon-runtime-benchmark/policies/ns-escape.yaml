@@ -1,0 +1,41 @@
+# T1611: escaping a container by joining the host's namespaces, as in
+# `nsenter -t 1 -m` from a privileged pod with hostPID. setns() is the only
+# way into an existing namespace, so a setns() from a lab pod is suspicious.
+# Override makes setns fail with EPERM, so the process stays in the
+# container's namespaces.
+#
+# One legitimate caller must be excluded: every `kubectl exec` starts a
+# `runc init` process that is already in the pod's cgroup and calls setns()
+# to join the pod's namespaces. Blocking it breaks `kubectl exec` for the
+# whole pod. matchBinaries checks the resolved binary, so runc's in-memory
+# re-exec (`/proc/self/fd/N init`) still resolves to the runc path. The list
+# covers the usual install paths; kind installs runc at /usr/local/sbin/runc.
+# The `host_ns` namespace value is no help here: on kind, Tetragon's "host"
+# is the VM under the node container, not the node itself.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: ns-escape
+spec:
+  podSelector:
+    matchLabels:
+      app: victim
+  kprobes:
+    - call: sys_setns
+      syscall: true
+      args:
+        - index: 0
+          type: int
+        - index: 1
+          type: int
+      selectors:
+        - matchBinaries:
+            - operator: NotIn
+              values:
+                - /usr/local/sbin/runc
+                - /usr/sbin/runc
+                - /usr/bin/runc
+                - /usr/local/bin/runc
+          matchActions:
+            - action: Override
+              argError: -1

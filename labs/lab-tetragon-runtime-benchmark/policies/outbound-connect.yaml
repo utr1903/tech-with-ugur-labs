@@ -1,0 +1,47 @@
+# Outbound connections a workload should not make:
+#   - T1059 / T1571: a reverse shell to port 4444
+#   - T1496: a cryptominer's stratum beacon to port 3333
+#   - T1613: a pod talking to the Kubernetes API (10.96.0.1:443, the
+#     ClusterIP of the `kubernetes` service in kind)
+# security_socket_connect sees the address the process asked for, i.e. the
+# Service ClusterIP before kube-proxy rewrites it. A `sockaddr` argument is a
+# single address, and Tetragon filters it with the SAddr/SPort operators
+# (DAddr/DPort are only for `sock`/`skb` arguments): here that single address
+# is the connect() destination. Override makes connect() fail with EPERM, so
+# no packet leaves the pod.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: outbound-connect
+spec:
+  podSelector:
+    matchLabels:
+      app: victim
+  kprobes:
+    - call: security_socket_connect
+      syscall: false
+      args:
+        - index: 1
+          type: sockaddr
+      selectors:
+        - matchArgs:
+            - index: 1
+              operator: SPort
+              values:
+                - "4444"
+                - "3333"
+          matchActions:
+            - action: Override
+              argError: -1
+        - matchArgs:
+            - index: 1
+              operator: SAddr
+              values:
+                - 10.96.0.1
+            - index: 1
+              operator: SPort
+              values:
+                - "443"
+          matchActions:
+            - action: Override
+              argError: -1

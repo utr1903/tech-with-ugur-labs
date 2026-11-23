@@ -10,9 +10,9 @@ import yaml
 
 from app.errors import ScenarioError
 from app.logging_setup import Logger
-from app.scenarios.model import Matcher, Scenario
+from app.scenarios.model import ATTACKER_SINKS, Matcher, Scenario
 
-_SCRIPTS = ("run.sh", "check.sh", "cleanup.sh")
+_SCRIPTS = ("run.sh", "cleanup.sh")
 _TUNED: dict[str, Literal["detect", "miss"]] = {"detect": "detect", "miss": "miss"}
 _ENFORCE: dict[str, Literal["block", "detect", "none"]] = {
     "block": "block",
@@ -92,6 +92,27 @@ def _parse_requires(data: dict[str, object], where: Path) -> tuple[str, ...]:
     return tuple(str(item) for item in raw)
 
 
+def _parse_attacker_sink(data: dict[str, object], where: Path) -> int | None:
+    if "check" not in data:
+        return None
+    check = _mapping(data["check"], "field 'check'", where)
+    port = check.get("attacker_sink")
+    for known in ATTACKER_SINKS:
+        if port == known and not isinstance(port, bool):
+            return known
+    raise ScenarioError(
+        f"{where}: check.attacker_sink must be one of {tuple(ATTACKER_SINKS)}, "
+        f"got {port!r}"
+    )
+
+
+def _check_scripts(directory: Path, attacker_sink: int | None) -> None:
+    needed = _SCRIPTS if attacker_sink is not None else (*_SCRIPTS, "check.sh")
+    for script in needed:
+        if not (directory / script).is_file():
+            raise ScenarioError(f"{directory}: missing {script}")
+
+
 def _read_yaml(path: Path) -> dict[str, object]:
     try:
         raw = yaml.safe_load(path.read_text())
@@ -102,10 +123,9 @@ def _read_yaml(path: Path) -> dict[str, object]:
 
 def _load_one(directory: Path) -> Scenario:
     where = directory / "scenario.yaml"
-    for script in _SCRIPTS:
-        if not (directory / script).is_file():
-            raise ScenarioError(f"{directory}: missing {script}")
     data = _read_yaml(where)
+    attacker_sink = _parse_attacker_sink(data, where)
+    _check_scripts(directory, attacker_sink)
     expected = _mapping(data.get("expected"), "field 'expected'", where)
     benign = data.get("benign", False)
     if not isinstance(benign, bool):
@@ -128,6 +148,7 @@ def _load_one(directory: Path) -> Scenario:
         requires=_parse_requires(data, where),
         signals=_parse_signals(data, where),
         directory=directory,
+        attacker_sink=attacker_sink,
     )
 
 

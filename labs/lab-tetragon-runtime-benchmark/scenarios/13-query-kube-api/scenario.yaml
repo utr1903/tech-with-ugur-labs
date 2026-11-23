@@ -1,0 +1,13 @@
+id: "13"
+technique: T1613
+name: Query the Kubernetes API with the pod's token
+tactic: Discovery
+pod: victim
+benign: false
+expected:
+  tuned: detect
+  enforce: block
+requires: [override]
+signals:
+  - kind: kprobe
+    policy: outbound-connect

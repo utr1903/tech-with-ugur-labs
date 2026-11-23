@@ -1,0 +1,13 @@
+id: "08"
+technique: T1547.006
+name: Load a kernel module
+tactic: Persistence
+pod: victim-priv
+benign: false
+expected:
+  tuned: detect
+  enforce: block
+requires: [override]
+signals:
+  - kind: kprobe
+    policy: kmod
