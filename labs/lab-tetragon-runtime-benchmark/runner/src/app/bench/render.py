@@ -81,7 +81,7 @@ def render_markdown(
     attack = [s for s in scenarios if not s.benign]
     benign = [s for s in scenarios if s.benign]
     lines = [
-        "| ATT&CK | Scenario | Tactic | default | tuned | enforce "
+        "| # | Scenario | Technique | default | tuned | enforce "
         "| median latency (tuned) |",
         "|---|---|---|---|---|---|---|",
     ]

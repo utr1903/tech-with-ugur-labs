@@ -1,0 +1,36 @@
+# T1003.008 / T1552.001: reading password hashes or the pod's service
+# account token. security_file_open sees the resolved path, so the
+# /var/run -> /run symlink does not hide the token. Override makes open()
+# fail with EPERM.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: cred-files
+spec:
+  podSelector:
+    matchLabels:
+      app: victim
+  kprobes:
+    - call: security_file_open
+      syscall: false
+      args:
+        - index: 0
+          type: file
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: Equal
+              values:
+                - /etc/shadow
+          matchActions:
+            - action: Override
+              argError: -1
+        - matchArgs:
+            - index: 0
+              operator: Prefix
+              values:
+                - /run/secrets/kubernetes.io/serviceaccount/
+                - /var/run/secrets/kubernetes.io/serviceaccount/
+          matchActions:
+            - action: Override
+              argError: -1

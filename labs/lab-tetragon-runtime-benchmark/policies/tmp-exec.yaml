@@ -1,0 +1,27 @@
+# T1105: running a binary that was dropped into a world-writable directory.
+# security_bprm_check sees the file the kernel is about to execute, after
+# symlinks are resolved. Override makes execve fail with EPERM.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: tmp-exec
+spec:
+  podSelector:
+    matchLabels:
+      app: victim
+  kprobes:
+    - call: security_bprm_check
+      syscall: false
+      args:
+        - index: 0
+          type: linux_binprm
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: Prefix
+              values:
+                - /tmp/
+                - /dev/shm/
+          matchActions:
+            - action: Override
+              argError: -1

@@ -9,10 +9,18 @@ from app.scenarios.model import Matcher
 
 
 def matches(event: Event, matcher: Matcher) -> bool:
-    """True when the kinds agree and every field the matcher sets matches."""
+    """True when the kinds agree and every field the matcher sets matches.
+
+    A kprobe matcher without a policy matches every lab policy's event, which is
+    how benign scenarios catch any false positive.
+    """
     if event.kind != matcher.kind:
         return False
-    if event.kind == "kprobe" and event.policy != matcher.policy:
+    if (
+        event.kind == "kprobe"
+        and matcher.policy is not None
+        and event.policy != matcher.policy
+    ):
         return False
     if matcher.binary_prefix is not None and not event.binary.startswith(
         matcher.binary_prefix

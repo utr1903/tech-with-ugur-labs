@@ -1,0 +1,13 @@
+id: "03"
+name: Fileless exec from a memfd
+tactic: T1620 reflective-code-loading
+pod: victim
+benign: false
+expected:
+  tuned: detect
+  enforce: block
+signals:
+  - kind: kprobe
+    policy: memfd-exec
+  - kind: exec
+    binary_regex: '^(/dev/fd/\d+|/memfd:)'

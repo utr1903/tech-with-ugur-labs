@@ -64,7 +64,7 @@ def test_markdown_has_row_per_scenario_and_recall_lines() -> None:
     text = render_markdown(
         summaries, scenarios, override_available=True, failures=["T1105 missed"]
     )
-    assert "| ATT&CK | Scenario | Tactic | default | tuned | enforce |" in text
+    assert "| # | Scenario | Technique | default | tuned | enforce |" in text
     assert "| T1059.004 | name T1059.004 | Execution | missed | detected 3/3 |" in text
     assert "blocked 3/3" in text
     assert "| 42 ms |" in text

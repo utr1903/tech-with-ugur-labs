@@ -1,0 +1,14 @@
+id: "02"
+name: Download a tool to /tmp and run it
+tactic: T1105 ingress-tool-transfer
+pod: victim
+benign: false
+expected:
+  tuned: detect
+  enforce: block
+requires: [override]
+signals:
+  - kind: kprobe
+    policy: tmp-exec
+  - kind: exec
+    binary_prefix: /tmp/

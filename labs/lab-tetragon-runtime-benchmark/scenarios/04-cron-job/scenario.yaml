@@ -1,0 +1,12 @@
+id: "04"
+name: Write a cron job to /etc/cron.d
+tactic: T1053.003 persistence
+pod: victim
+benign: false
+expected:
+  tuned: detect
+  enforce: block
+requires: [override]
+signals:
+  - kind: kprobe
+    policy: persistence-write

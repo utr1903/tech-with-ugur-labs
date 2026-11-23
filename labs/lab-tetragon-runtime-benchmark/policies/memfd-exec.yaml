@@ -1,0 +1,33 @@
+# T1620: fileless execution from a memfd. A memfd lives on an internal
+# mount, so Tetragon's path walk for linux_binprm returns an empty path.
+# Instead the policy reads the file's dentry name through BTF (resolve):
+# memfd_create names it "memfd:<name>". args[1] is the filename the caller
+# passed (e.g. /dev/fd/3), reported for context.
+# Sigkill at security_bprm_check kills the process before the in-memory
+# payload runs.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: memfd-exec
+spec:
+  podSelector:
+    matchLabels:
+      app: victim
+  kprobes:
+    - call: security_bprm_check
+      syscall: false
+      args:
+        - index: 0
+          type: string
+          resolve: file.f_path.dentry.d_name.name
+        - index: 0
+          type: string
+          resolve: filename
+      selectors:
+        - matchArgs:
+            - args: [0]
+              operator: Prefix
+              values:
+                - "memfd:"
+          matchActions:
+            - action: Sigkill

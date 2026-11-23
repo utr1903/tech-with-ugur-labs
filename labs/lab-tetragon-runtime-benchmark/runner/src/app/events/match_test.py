@@ -59,6 +59,11 @@ def test_kprobe_requires_same_policy() -> None:
     assert not matches(KPROBE, _matcher("kprobe", policy="other"))
 
 
+def test_kprobe_without_policy_matches_any_policy() -> None:
+    assert matches(KPROBE, _matcher("kprobe"))
+    assert not matches(EXEC, _matcher("kprobe"))
+
+
 def test_exec_matcher_ignores_kprobe_event() -> None:
     assert not matches(KPROBE, _matcher(binary_prefix="/usr/"))
 
