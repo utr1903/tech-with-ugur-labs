@@ -34,8 +34,9 @@ behaviour:
 test:
 	cd runner && uv run ruff check --config pyproject.toml . ../images && uv run ruff format --config pyproject.toml --check . ../images && uv run mypy && uv run pytest && uv run deptry src
 
-e2e:
-	@echo "e2e is not available yet" >&2; exit 1
+# Cold start to verdict: cluster, benchmark (all profiles), behaviour demos.
+# Each step exits non-zero if its assertions fail.
+e2e: up bench behaviour
 
 # `kind delete cluster` also switches the current kube context; restore it.
 down:

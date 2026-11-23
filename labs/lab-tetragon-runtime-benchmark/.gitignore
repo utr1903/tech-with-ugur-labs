@@ -1,5 +1,6 @@
 results/*
 !results/example-coverage.md
+!results/example-behaviour.md
 runner/.venv/
 runner/.env
 __pycache__/

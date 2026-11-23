@@ -16,11 +16,12 @@
 # Known bypass: the exclusion is a path, and paths resolve inside the
 # container. `cp /usr/bin/nsenter /usr/local/sbin/runc` in the privileged pod
 # and running the copy escapes unblocked (verified on this lab). This is a
-# benchmark policy, not a production one. A production policy would tell
-# runc apart by lineage instead of by name, e.g. `matchParentBinaries`
-# (containerd-shim -> runc, needs Tetragon's `--parents-map-enabled`), or
-# would only allow setns before the container's first exec. Better still,
-# do not run privileged hostPID pods at all.
+# benchmark policy, not a production one. A sturdier policy needs something
+# the container cannot rename. `matchParentBinaries` (which needs Tetragon's
+# `--parents-map-enabled`) is not reliable for this: in this lab's testing
+# it also matched an admin `kubectl exec` shell. Allowing setns only before
+# the container's first exec is one option. Better still, do not run
+# privileged hostPID pods at all.
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
 metadata:
