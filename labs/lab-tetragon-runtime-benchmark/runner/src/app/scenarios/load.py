@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Literal
 
@@ -19,6 +20,7 @@ _ENFORCE: dict[str, Literal["block", "detect", "none"]] = {
     "none": "none",
 }
 _KINDS: dict[str, Literal["exec", "kprobe"]] = {"exec": "exec", "kprobe": "kprobe"}
+_REGEX_FIELDS = ("binary_regex", "args_regex")
 _MATCHER_FIELDS = ("policy", "binary_prefix", "binary_regex", "args_regex")
 
 
@@ -49,10 +51,24 @@ def _optional_str(entry: dict[str, object], key: str, where: Path) -> str | None
     return value
 
 
+def _regex_field(entry: dict[str, object], key: str, where: Path) -> str | None:
+    value = _optional_str(entry, key, where)
+    if value is not None:
+        try:
+            re.compile(value)
+        except re.error as err:
+            raise ScenarioError(
+                f"{where}: signal field '{key}' is not a valid regex: {err}"
+            ) from err
+    return value
+
+
 def _parse_signal(raw: object, where: Path) -> Matcher:
     entry = _mapping(raw, "signal", where)
     kind = _choice(entry.get("kind"), _KINDS, "signal kind", where)
     fields = {key: _optional_str(entry, key, where) for key in _MATCHER_FIELDS}
+    for key in _REGEX_FIELDS:
+        _regex_field(entry, key, where)
     return Matcher(
         kind=kind,
         policy=fields["policy"],

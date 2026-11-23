@@ -92,3 +92,11 @@ def test_malformed_yaml_raises(tmp_path: Path) -> None:
 
     with pytest.raises(ScenarioError, match="scenario.yaml"):
         load_scenarios(tmp_path, log=get_logger())
+
+
+@pytest.mark.parametrize("field", ["binary_regex", "args_regex"])
+def test_invalid_regex_raises(tmp_path: Path, field: str) -> None:
+    _make(tmp_path, "a", VALID + f"  - kind: exec\n    {field}: '(unclosed'\n")
+
+    with pytest.raises(ScenarioError, match=field):
+        load_scenarios(tmp_path, log=get_logger())
