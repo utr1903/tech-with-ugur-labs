@@ -59,3 +59,25 @@ def test_render_lists_every_case() -> None:
 def test_render_states_failures() -> None:
     text = render_behaviour([_result("rce", expected=True, alerted=False)])
     assert "FAILED" in text
+
+
+def _lesson(case: str, *, alerted: bool) -> DemoResult:
+    return DemoResult(
+        name="sigkill-vs-override",
+        case=case,
+        expected_alert=True,
+        alerted=alerted,
+        detail="d",
+        outcome_ok=True,
+    )
+
+
+def test_lesson_shown_only_when_both_cases_pass() -> None:
+    passing = render_behaviour(
+        [_lesson("sigkill", alerted=True), _lesson("override", alerted=True)]
+    )
+    failing = render_behaviour(
+        [_lesson("sigkill", alerted=True), _lesson("override", alerted=False)]
+    )
+    assert "**Lesson:**" in passing
+    assert "**Lesson:**" not in failing

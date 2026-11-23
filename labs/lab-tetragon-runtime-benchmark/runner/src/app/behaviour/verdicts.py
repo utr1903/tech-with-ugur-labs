@@ -51,6 +51,11 @@ def _row(result: DemoResult) -> str:
     )
 
 
+def _lesson_passed(results: Sequence[DemoResult]) -> bool:
+    lesson = [r for r in results if r.name == LESSON_DEMO]
+    return bool(lesson) and all(_failure(r) is None for r in lesson)
+
+
 def render_behaviour(results: Sequence[DemoResult]) -> str:
     """Markdown summary of every case, with the Sigkill-versus-Override lesson."""
     lines = [
@@ -61,7 +66,7 @@ def render_behaviour(results: Sequence[DemoResult]) -> str:
         *(_row(r) for r in results),
         "",
     ]
-    if any(r.name == LESSON_DEMO for r in results):
+    if _lesson_passed(results):
         lines += [f"**Lesson:** {LESSON}", ""]
     failures = judge(results)
     if failures:
