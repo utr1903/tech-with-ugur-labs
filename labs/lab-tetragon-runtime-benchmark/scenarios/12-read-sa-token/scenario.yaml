@@ -1,6 +1,7 @@
 id: "12"
+technique: T1552.001
 name: Read the service-account token
-tactic: T1552.001 credential-access
+tactic: Credential Access
 pod: victim
 benign: false
 expected:

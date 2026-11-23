@@ -117,6 +117,7 @@ def _load_one(directory: Path) -> Scenario:
     enforce = _choice(expected.get("enforce"), _ENFORCE, "expected.enforce", where)
     return Scenario(
         id=_str_field(data, "id", where),
+        technique=_str_field(data, "technique", where),
         name=_str_field(data, "name", where),
         tactic=_str_field(data, "tactic", where),
         pod=_str_field(data, "pod", where),

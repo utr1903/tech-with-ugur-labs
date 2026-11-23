@@ -10,6 +10,9 @@ from app.logging_setup import Logger
 
 _OVERRIDE = re.compile(r"^override_return:\s*true\s*$", re.MULTILINE)
 _COLUMNS = ("NAME", "STATE", "MODE")
+# A kprobe marked `ignore: {callNotFound: true}` whose function is missing on
+# this kernel leaves the policy "partially_enabled"; its other hooks are live.
+READY_STATES = frozenset({"enabled", "partially_enabled"})
 
 
 def tetra(args: Sequence[str], *, log: Logger) -> str:
@@ -69,3 +72,8 @@ def parse_policy_list(text: str) -> dict[str, tuple[str, str]]:
         )
         for line in lines[1:]
     }
+
+
+def policy_ready(listed: tuple[str, str] | None, mode: str) -> bool:
+    """True when a listed (state, mode) is loaded in the wanted mode."""
+    return listed is not None and listed[0] in READY_STATES and listed[1] == mode

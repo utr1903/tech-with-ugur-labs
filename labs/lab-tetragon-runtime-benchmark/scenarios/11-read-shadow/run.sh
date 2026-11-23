@@ -1,5 +1,5 @@
 #!/bin/sh
 # Dump the password hashes (this container's own shadow file).
-mkdir -p /tmp/bench
+mkdir -p /tmp/bench || exit 1
 echo "BENCH_ACTION $(date +%s%3N)"
 cat /etc/shadow > /tmp/bench/11.out

@@ -11,7 +11,7 @@ import yaml
 from app.bench.model import Profile
 from app.errors import PolicyError
 from app.kube.kubectl import kubectl
-from app.kube.tetra import parse_policy_list, tetra
+from app.kube.tetra import parse_policy_list, policy_ready, tetra
 from app.logging_setup import Logger
 from app.policies.profile import (
     LAB_LABEL_KEY,
@@ -103,7 +103,7 @@ def _wait_ready(names: dict[str, str], *, log: Logger) -> None:
         pending = {
             name: mode
             for name, mode in names.items()
-            if listed.get(name) != ("enabled", mode)
+            if not policy_ready(listed.get(name), mode)
         }
         if not pending:
             return

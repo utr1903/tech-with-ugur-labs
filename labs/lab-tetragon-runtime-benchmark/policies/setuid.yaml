@@ -3,6 +3,8 @@
 # (no CONFIG_SECURITY_PATH), so the policy hooks the chmod syscalls instead.
 # Arg 2 is the new mode; Mask 2048 (04000, S_ISUID) matches any mode with the
 # setuid bit. Override makes chmod fail with EPERM.
+# fchmodat2 only exists on Linux 6.6+, so that kprobe is skipped (not a load
+# error) on older kernels.
 apiVersion: cilium.io/v1alpha1
 kind: TracingPolicy
 metadata:
@@ -30,6 +32,8 @@ spec:
               argError: -1
     - call: sys_fchmodat2
       syscall: true
+      ignore:
+        callNotFound: true
       args:
         - index: 1
           type: string

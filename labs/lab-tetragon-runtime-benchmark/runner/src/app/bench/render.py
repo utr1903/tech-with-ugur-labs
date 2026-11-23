@@ -81,15 +81,16 @@ def render_markdown(
     attack = [s for s in scenarios if not s.benign]
     benign = [s for s in scenarios if s.benign]
     lines = [
-        "| # | Scenario | Technique | default | tuned | enforce "
+        "| # | Technique | Scenario | Tactic | default | tuned | enforce "
         "| median latency (tuned) |",
-        "|---|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|---|---|",
     ]
     for s in attack:
         found = [_find(summaries, s.id, p) for p in _PROFILES]
         cells = " | ".join(_cell(f) for f in found)
         lines.append(
-            f"| {s.id} | {s.name} | {s.tactic} | {cells} | {_latency(found[1])} |"
+            f"| {s.id} | {s.technique} | {s.name} | {s.tactic} | {cells} "
+            f"| {_latency(found[1])} |"
         )
     lines += ["", "## False positives (benign scenarios)", ""]
     lines += _false_positives(summaries, benign)

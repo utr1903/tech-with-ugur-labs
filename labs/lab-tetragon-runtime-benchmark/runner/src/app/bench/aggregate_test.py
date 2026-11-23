@@ -19,6 +19,7 @@ def _scenario(
 ) -> Scenario:
     return Scenario(
         id=sid,
+        technique="T1",
         name="n",
         tactic="t",
         pod="victim",

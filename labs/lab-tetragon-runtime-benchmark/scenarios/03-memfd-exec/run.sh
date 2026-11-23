@@ -1,7 +1,7 @@
 #!/bin/sh
 # Copy a binary into an anonymous memory file and execute it from there,
 # so nothing new is written to disk. The payload is `touch`.
-mkdir -p /tmp/bench
+mkdir -p /tmp/bench || exit 1
 echo "BENCH_ACTION $(date +%s%3N)"
 python3 -c "
 import os

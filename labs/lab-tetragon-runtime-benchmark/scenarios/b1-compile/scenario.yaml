@@ -1,4 +1,5 @@
 id: b1
+technique: benign
 name: Compile and run a C program in /build
 tactic: benign
 pod: victim

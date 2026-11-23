@@ -1,6 +1,7 @@
 id: "02"
+technique: T1105
 name: Download a tool to /tmp and run it
-tactic: T1105 ingress-tool-transfer
+tactic: Command and Control
 pod: victim
 benign: false
 expected:

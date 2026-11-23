@@ -1,4 +1,5 @@
 id: b2
+technique: benign
 name: List installed packages with dpkg
 tactic: benign
 pod: victim

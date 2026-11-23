@@ -1,6 +1,7 @@
 id: "09"
+technique: T1070.004
 name: Delete an application audit log
-tactic: T1070.004 defense-evasion
+tactic: Defense Evasion
 pod: victim
 benign: false
 expected:

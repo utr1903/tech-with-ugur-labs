@@ -1,6 +1,7 @@
 id: "05"
+technique: T1098.004
 name: Append a key to root's authorized_keys
-tactic: T1098.004 persistence
+tactic: Persistence
 pod: victim
 benign: false
 expected:

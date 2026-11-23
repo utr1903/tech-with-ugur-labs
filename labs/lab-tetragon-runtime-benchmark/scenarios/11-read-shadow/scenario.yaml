@@ -1,6 +1,7 @@
 id: "11"
+technique: T1003.008
 name: Read /etc/shadow
-tactic: T1003.008 credential-access
+tactic: Credential Access
 pod: victim
 benign: false
 expected:

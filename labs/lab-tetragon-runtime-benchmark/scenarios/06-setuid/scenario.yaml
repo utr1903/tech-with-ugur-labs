@@ -1,6 +1,7 @@
 id: "06"
+technique: T1548.001
 name: Set the setuid bit on a copied binary
-tactic: T1548.001 privilege-escalation
+tactic: Privilege Escalation
 pod: victim
 benign: false
 expected:

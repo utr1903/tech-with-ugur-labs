@@ -11,9 +11,10 @@ from app.logging_setup import get_logger
 from app.scenarios.load import load_scenarios
 
 VALID = """\
-id: T1003.008
+id: "11"
+technique: T1003.008
 name: Read shadow
-tactic: credential-access
+tactic: Credential Access
 pod: victim
 expected:
   tuned: detect
@@ -41,7 +42,8 @@ def test_loads_and_sorts(tmp_path: Path) -> None:
     _make(
         tmp_path,
         "a-first",
-        "id: B1\nname: Compile\ntactic: benign\npod: victim\nbenign: true\n"
+        "id: b1\ntechnique: benign\nname: Compile\ntactic: benign\n"
+        "pod: victim\nbenign: true\n"
         "namespace: build\nexpected: {tuned: miss, enforce: none}\nsignals: []\n",
     )
 
@@ -51,6 +53,7 @@ def test_loads_and_sorts(tmp_path: Path) -> None:
     first, second = scenarios
     assert first.benign and first.namespace == "build" and first.signals == ()
     assert second.namespace == "victim" and not second.benign
+    assert second.technique == "T1003.008" and first.technique == "benign"
     assert second.requires == ("override",)
     assert second.expected_enforce == "block"
     assert second.signals[0].kind == "kprobe"
@@ -74,9 +77,16 @@ def test_unknown_signal_kind_raises(tmp_path: Path) -> None:
 
 
 def test_missing_field_raises(tmp_path: Path) -> None:
-    _make(tmp_path, "a", VALID.replace("tactic: credential-access\n", ""))
+    _make(tmp_path, "a", VALID.replace("tactic: Credential Access\n", ""))
 
     with pytest.raises(ScenarioError, match="tactic"):
+        load_scenarios(tmp_path, log=get_logger())
+
+
+def test_missing_technique_raises(tmp_path: Path) -> None:
+    _make(tmp_path, "a", VALID.replace("technique: T1003.008\n", ""))
+
+    with pytest.raises(ScenarioError, match="technique"):
         load_scenarios(tmp_path, log=get_logger())
 
 

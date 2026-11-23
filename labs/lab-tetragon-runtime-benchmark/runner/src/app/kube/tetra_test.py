@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.kube.tetra import parse_policy_list, probe_has_override
+from app.kube.tetra import parse_policy_list, policy_ready, probe_has_override
 
 COLUMNS = (
     ("ID", 5),
@@ -79,3 +79,11 @@ def test_probe_detects_override() -> None:
     assert probe_has_override("foo: true\noverride_return: true\n")
     assert not probe_has_override("override_return: false\n")
     assert not probe_has_override("")
+
+
+def test_policy_ready_accepts_partially_enabled_in_the_wanted_mode() -> None:
+    assert policy_ready(("enabled", "enforce"), "enforce")
+    assert policy_ready(("partially_enabled", "monitor"), "monitor")
+    assert not policy_ready(("partially_enabled", "monitor"), "enforce")
+    assert not policy_ready(("load_error", "unknown"), "enforce")
+    assert not policy_ready(None, "enforce")

@@ -10,9 +10,10 @@ from app.bench.render import render_json, render_markdown
 from app.scenarios.model import Scenario
 
 
-def _scenario(sid: str, *, benign: bool = False) -> Scenario:
+def _scenario(sid: str, technique: str, *, benign: bool = False) -> Scenario:
     return Scenario(
         id=sid,
+        technique=technique,
         name=f"name {sid}",
         tactic="Execution",
         pod="victim",
@@ -42,19 +43,19 @@ def _summary(sid: str, profile: Profile, detected: int, blocked: int = 0) -> Sum
 
 def _fixture() -> tuple[list[Summary], list[Scenario]]:
     scenarios = [
-        _scenario("T1059.004"),
-        _scenario("T1105"),
-        _scenario("B1", benign=True),
+        _scenario("01", "T1059.004"),
+        _scenario("02", "T1105"),
+        _scenario("b1", "benign", benign=True),
     ]
     summaries = [
-        _summary("T1059.004", "default", 0),
-        _summary("T1059.004", "tuned", 3),
-        _summary("T1059.004", "enforce", 3, blocked=3),
-        _summary("T1105", "default", 3),
-        _summary("T1105", "tuned", 0),
-        _summary("T1105", "enforce", 0),
-        _summary("B1", "tuned", 1),
-        _summary("B1", "enforce", 0),
+        _summary("01", "default", 0),
+        _summary("01", "tuned", 3),
+        _summary("01", "enforce", 3, blocked=3),
+        _summary("02", "default", 3),
+        _summary("02", "tuned", 0),
+        _summary("02", "enforce", 0),
+        _summary("b1", "tuned", 1),
+        _summary("b1", "enforce", 0),
     ]
     return summaries, scenarios
 
@@ -62,17 +63,18 @@ def _fixture() -> tuple[list[Summary], list[Scenario]]:
 def test_markdown_has_row_per_scenario_and_recall_lines() -> None:
     summaries, scenarios = _fixture()
     text = render_markdown(
-        summaries, scenarios, override_available=True, failures=["T1105 missed"]
+        summaries, scenarios, override_available=True, failures=["02 missed"]
     )
-    assert "| # | Scenario | Technique | default | tuned | enforce |" in text
-    assert "| T1059.004 | name T1059.004 | Execution | missed | detected 3/3 |" in text
+    header = "| # | Technique | Scenario | Tactic | default | tuned | enforce |"
+    assert header in text
+    assert "| 01 | T1059.004 | name 01 | Execution | missed | detected 3/3 |" in text
     assert "blocked 3/3" in text
     assert "| 42 ms |" in text
     assert "tuned: 1/2 attack scenarios detected" in text
     assert "default: 1/2 attack scenarios detected" in text
     assert "enforce: 1/2 attack scenarios blocked" in text
-    assert "B1" in text.split("False positives")[1]
-    assert "- T1105 missed" in text
+    assert "b1" in text.split("False positives")[1]
+    assert "- 02 missed" in text
 
 
 def test_json_roundtrips_counts() -> None:

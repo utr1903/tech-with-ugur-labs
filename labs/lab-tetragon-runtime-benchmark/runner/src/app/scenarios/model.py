@@ -23,6 +23,7 @@ class Scenario:
     """One attack (or benign) scenario loaded from its scenario.yaml."""
 
     id: str
+    technique: str
     name: str
     tactic: str
     pod: str

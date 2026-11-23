@@ -1,6 +1,7 @@
 id: "04"
+technique: T1053.003
 name: Write a cron job to /etc/cron.d
-tactic: T1053.003 persistence
+tactic: Persistence
 pod: victim
 benign: false
 expected:

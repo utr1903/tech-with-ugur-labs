@@ -1,4 +1,5 @@
 id: b3
+technique: benign
 name: Rotate the application log
 tactic: benign
 pod: victim

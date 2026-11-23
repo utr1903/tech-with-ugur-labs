@@ -14,7 +14,8 @@ MARKER = datetime(2026, 11, 23, 12, 0, 0, tzinfo=UTC)
 
 def _scenario() -> Scenario:
     return Scenario(
-        id="T1003.008",
+        id="11",
+        technique="T1003.008",
         name="read shadow",
         tactic="Credential Access",
         pod="victim",
