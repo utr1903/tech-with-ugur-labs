@@ -120,3 +120,21 @@ def test_default_zero_recall_fails() -> None:
     runs = [_run("default", i, detected=False) for i in range(3)]
     summaries = summarize(runs, override_available=True, scenarios=[scenario])
     assert len(evaluate(summaries, [scenario])) == 1
+
+
+def test_attack_side_effect_missing_without_enforcement_fails() -> None:
+    scenario = _scenario()
+    runs = [_run("default", i, side_effect=i < 1) for i in range(3)]
+    runs += [_run("tuned", i, side_effect=False) for i in range(3)]
+    summaries = summarize(runs, override_available=True, scenarios=[scenario])
+    failures = evaluate(summaries, [scenario])
+    assert len(failures) == 2
+    assert all("check.sh is broken" in f for f in failures)
+
+
+def test_attack_side_effect_seen_in_two_of_three_passes() -> None:
+    scenario = _scenario()
+    runs = [_run("default", i, side_effect=i < 2) for i in range(3)]
+    runs += [_run("tuned", i, side_effect=i < 2) for i in range(3)]
+    summaries = summarize(runs, override_available=True, scenarios=[scenario])
+    assert evaluate(summaries, [scenario]) == ()

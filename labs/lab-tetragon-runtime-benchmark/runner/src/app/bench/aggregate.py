@@ -93,23 +93,38 @@ def _default_failures(
 def _scenario_failures(summary: Summary, scenario: Scenario) -> list[str]:
     need = threshold(summary.runs)
     label = f"{scenario.id} ({scenario.name}) {summary.profile}"
-    if summary.profile == "default":
-        return []
     if scenario.benign:
         return _benign_failures(summary, label)
+    failures = _control_failures(summary, label, need)
+    if summary.profile == "default":
+        return failures
     expects_detect = (
         scenario.expected_tuned == "detect"
         if summary.profile == "tuned"
         else scenario.expected_enforce == "detect"
     )
     if expects_detect and summary.detected < need:
-        return [f"{label}: detected {summary.detected}/{summary.runs}, need {need}"]
+        failures.append(
+            f"{label}: detected {summary.detected}/{summary.runs}, need {need}"
+        )
     expects_block = (
         summary.profile == "enforce" and scenario.expected_enforce == "block"
     )
     if expects_block and summary.note is None and summary.blocked < need:
-        return [f"{label}: blocked {summary.blocked}/{summary.runs}, need {need}"]
-    return []
+        failures.append(
+            f"{label}: blocked {summary.blocked}/{summary.runs}, need {need}"
+        )
+    return failures
+
+
+def _control_failures(summary: Summary, label: str, need: int) -> list[str]:
+    """Without enforcement the side effect must happen, or check.sh is untrustworthy."""
+    if summary.profile == "enforce" or summary.side_effect_ok >= need:
+        return []
+    return [
+        f"{label}: side effect seen in {summary.side_effect_ok}/{summary.runs} "
+        f"runs without enforcement, need {need}; the attack or check.sh is broken"
+    ]
 
 
 def _benign_failures(summary: Summary, label: str) -> list[str]:

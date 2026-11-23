@@ -60,8 +60,10 @@ Everything stays inside the cluster. No workload has internet egress, the
 | [uv](https://docs.astral.sh/uv/) | 0.9+ (fetches Python 3.12 for the runner) |
 | make, bash | any recent version |
 
-The lab runs on arm64 (Apple Silicon) and amd64. The node kernel needs BTF
-(`/sys/kernel/btf/vmlinux`), which Docker Desktop's kernel has. See
+The lab was tested on Docker Desktop on arm64 (Apple Silicon). The scripts
+also carry the amd64 syscall numbers, but amd64 has not been run. The node
+kernel needs BTF (`/sys/kernel/btf/vmlinux`), which Docker Desktop's kernel
+has. See
 [Kernel features](#kernel-features) for what else the kernel must offer.
 
 The cluster is called `tetragon-bench`. Every `kubectl` and `helm` call pins
@@ -165,7 +167,10 @@ alone cannot see that.
   `default` must detect at least one scenario, `tuned` must detect every
   scenario marked `detect` in at least 2 of 3 runs, and `enforce` must block
   every scenario marked `block` in at least 2 of 3 runs. The runner exits
-  non-zero if anything is listed here.
+  non-zero if anything is listed here. As a sanity check, `default` and
+  `tuned` must also see every attack's side effect happen in at least 2 of 3
+  runs. That proves monitor mode does not act and that `check.sh` can tell
+  "happened" apart from "blocked".
 - **Sigkill only:** shown instead of a result for scenarios that need
   Override when the kernel does not support it. See
   [Kernel features](#kernel-features).
@@ -263,9 +268,10 @@ waits 3 s for the probes to settle.
    matchers (`policy: <name>`) only where lab policies are loaded. All
    profiles use the same matchers, so `default` tells you what execs alone
    can see.
-4. `check.sh` exits 0 if the side effect happened. For the network
-   scenarios the runner asks the attacker's connection log instead: did a
-   connection from this pod's IP arrive after the marker?
+4. `check.sh` exits 0 if the side effect happened. For 14 and 15 the
+   runner asks the attacker's connection log instead: did a connection
+   from this pod's IP arrive after the marker? Scenario 13 uses `check.sh`
+   and checks whether curl got any HTTP status from the API server.
 5. `cleanup.sh` resets the pod for the next run.
 
 Malformed or truncated lines in the export stream (for example around a
@@ -289,7 +295,7 @@ All scenario scripts are written for this lab.
 | 10 | T1562.001 | Load an eBPF program | victim-priv | `bpf` | `sys_bpf` | cmd Equal 5 (`BPF_PROG_LOAD`) | Override |
 | 11 | T1003.008 | Read /etc/shadow | victim | `cred-files` | `security_file_open` | path Equal `/etc/shadow` | Override |
 | 12 | T1552.001 | Read the service-account token | victim | `cred-files` | `security_file_open` | path Prefix `/run/secrets/kubernetes.io/serviceaccount/` | Override |
-| 13 | T1613 | Query the Kubernetes API with the pod's token | victim | `outbound-connect` | `security_socket_connect` | `sockaddr` SAddr `10.96.0.1` AND SPort `443` | Override |
+| 13 | T1613 | Query the Kubernetes API with the pod's token | victim | `outbound-connect` | `security_socket_connect` | `sockaddr` SAddr `10.96.0.1` and SPort `443` (both entries must match) | Override |
 | 14 | T1571 | Reverse shell to the attacker on port 4444 | victim | `outbound-connect` | `security_socket_connect` | `sockaddr` SPort `4444` | Override |
 | 15 | T1496 | Cryptominer stratum beacon to port 3333 | victim | `outbound-connect` | `security_socket_connect` | `sockaddr` SPort `3333` | Override |
 | b1 | benign | Compile and run a C program in /build | victim | (all) | | must match nothing | none |
@@ -411,7 +417,8 @@ Reading `/etc/lab/credentials` sets the policy state `cred_read` to 1
 (`UpdateState`), and a `tcp_connect` then alerts only while the state is 1
 (`matchStates`). Connect only gives no alert. Read only gives only the read
 event. Read then connect gives the exfil alert. The catch, **measured on
-Tetragon v1.8.0**: the state is **global to the policy**, not per pod or
+Tetragon v1.8.0 during development; `make behaviour` does not reproduce
+it**: the state is **global to the policy**, not per pod or
 per process tree. A read in one pod armed the connect alert for a
 different pod. Re-applying the policy is the only reset. The docs do not
 say what the scope is, so treat this as a sequence detector for "it
@@ -437,7 +444,9 @@ probe` reports `override_return: true`, `fmodret: true`, `lsm: true`, and
 
 The runner does not assume this. Before the bench it runs `tetra probe`.
 If Override is missing it rewrites every `Override` action to `Sigkill`
-when applying the policies, so they still load. It then reports the
+when applying the policies, so they still load. This applies to `make
+bench` only: `make behaviour` (and so `make e2e`) does not downgrade, and
+its Override case needs a kernel with Override and fails without it. It then reports the
 scenarios that depend on Override (they carry `requires: [override]`) as
 **Sigkill only**, without asserting them. Those results would not mean
 much anyway: the Sigkill demo above shows the side effect can still
@@ -490,10 +499,12 @@ It is not a verdict on runtime security in general. Specific limits:
   token belongs to an account with no RBAC permissions: the API answers 403.
 - `victim-priv` is privileged with `hostPID: true`, so scenario 07 really
   does enter the kind node's mount namespace, and 10 really loads an eBPF
-  program into the node's kernel. That kernel is the Docker VM's. The
-  program is a two-instruction socket filter that returns 0 and is never
-  attached. The "kernel module" in 08 is random bytes that the loader
-  rejects.
+  program into the node's kernel. On Docker Desktop that kernel is the
+  VM's. On a Linux host, kind shares **your host kernel**, so 08 (kernel
+  module) and 10 (BPF) reach your real kernel. It is still safe: the
+  "kernel module" in 08 is random bytes that the loader rejects, and the
+  BPF program is a two-instruction socket filter that returns 0 and is
+  never attached.
 - Every lab policy is scoped with `podSelector` to the lab's pods, and the
   runner deletes all lab and demo policies when it finishes.
 

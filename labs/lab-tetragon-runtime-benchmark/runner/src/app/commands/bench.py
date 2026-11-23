@@ -13,7 +13,7 @@ from app.bench.marker import parse_marker
 from app.bench.model import Profile, RunResult
 from app.bench.render import render_json, render_markdown
 from app.bench.sink import sink_connected
-from app.errors import ExpectationError
+from app.errors import ExpectationError, ScenarioError
 from app.kube.attacker import attacker_log, pod_ip
 from app.kube.events import EventStream
 from app.kube.kubectl import exec_script
@@ -30,9 +30,12 @@ LAB_ROOT = Path(__file__).resolve().parents[4]
 
 def select(scenarios: Sequence[Scenario], only: Sequence[str]) -> tuple[Scenario, ...]:
     """Scenarios whose id starts with any prefix in `only` (all when empty)."""
-    return tuple(
+    chosen = tuple(
         s for s in scenarios if not only or any(s.id.startswith(p) for p in only)
     )
+    if not chosen:
+        raise ScenarioError(f"--only {list(only)} matches no scenario")
+    return chosen
 
 
 def _side_effect(scenario: Scenario, marker: datetime, *, log: Logger) -> bool:
