@@ -27,3 +27,5 @@ kubectl --context "$CTX" -n attacker wait --for=condition=Ready pod --all --time
 
 pod="$(kubectl --context "$CTX" -n kube-system get pods -l app.kubernetes.io/name=tetragon -o name | head -n1)"
 kubectl --context "$CTX" -n kube-system exec "$pod" -c tetragon -- tetra status
+
+(cd runner && uv run app canary)
