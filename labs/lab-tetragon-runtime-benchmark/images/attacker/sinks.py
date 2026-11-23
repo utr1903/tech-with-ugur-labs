@@ -1,6 +1,7 @@
-"""Attacker-side sinks: HTTP tool server (8080), reverse-shell (4444) and stratum (3333) listeners."""
+"""Attacker sinks: HTTP tool server (8080), reverse shell (4444), stratum (3333)."""
 
 import asyncio
+import contextlib
 import json
 import time
 from collections.abc import Awaitable, Callable
@@ -9,9 +10,13 @@ from threading import Thread
 
 TOOL = b"#!/bin/sh\nmkdir -p /tmp/bench && touch /tmp/bench/02.done\n"
 
+Handler = Callable[[asyncio.StreamReader, asyncio.StreamWriter], Awaitable[None]]
 
-def log(sink: str, peer: object) -> None:
-    print(json.dumps({"sink": sink, "peer": str(peer), "time_ms": int(time.time() * 1000)}), flush=True)
+
+def log(sink: str, peer: str) -> None:
+    """Print one JSON line per accepted connection."""
+    line = {"sink": sink, "peer": peer, "time_ms": int(time.time() * 1000)}
+    print(json.dumps(line), flush=True)
 
 
 class Http(BaseHTTPRequestHandler):
@@ -30,26 +35,27 @@ class Http(BaseHTTPRequestHandler):
         self.send_header("Content-Length", "0")
         self.end_headers()
 
-    def log_message(self, format: str, *args: object) -> None:
-        return
+    def log_message(self, fmt: str, *_args: object) -> None:
+        """Silence the default access log; sinks log JSON instead."""
 
 
-def make_handler(sink: str, greeting: bytes) -> Callable[[asyncio.StreamReader, asyncio.StreamWriter], Awaitable[None]]:
-    async def handle(reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        log(sink, writer.get_extra_info("peername"))
+def make_handler(sink: str, greeting: bytes) -> Handler:
+    async def handle(
+        reader: asyncio.StreamReader, writer: asyncio.StreamWriter
+    ) -> None:
+        log(sink, writer.get_extra_info("peername")[0])
         writer.write(greeting)
         await writer.drain()
-        try:
+        with contextlib.suppress(TimeoutError):
             await asyncio.wait_for(reader.readline(), timeout=2)
-        except TimeoutError:
-            pass
         writer.close()
 
     return handle
 
 
 async def main() -> None:
-    Thread(target=ThreadingHTTPServer(("0.0.0.0", 8080), Http).serve_forever, daemon=True).start()
+    http = ThreadingHTTPServer(("0.0.0.0", 8080), Http)
+    Thread(target=http.serve_forever, daemon=True).start()
     servers = [
         await asyncio.start_server(make_handler("revshell", b"id\n"), "0.0.0.0", 4444),
         await asyncio.start_server(make_handler("stratum", b""), "0.0.0.0", 3333),

@@ -32,7 +32,7 @@ behaviour:
 	cd runner && uv run app behaviour
 
 test:
-	cd runner && uv run ruff check && uv run ruff format --check && uv run mypy && uv run pytest && uv run deptry src
+	cd runner && uv run ruff check --config pyproject.toml . ../images && uv run ruff format --config pyproject.toml --check . ../images && uv run mypy && uv run pytest && uv run deptry src
 
 e2e:
 	@echo "e2e is not available yet" >&2; exit 1

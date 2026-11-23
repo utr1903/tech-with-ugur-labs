@@ -19,7 +19,8 @@ class Handler(BaseHTTPRequestHandler):
         cmd = parse_qs(url.query).get("cmd", [""])[0]
         # INTENTIONALLY VULNERABLE: untrusted input goes straight to a shell.
         result = subprocess.run(cmd, shell=True, capture_output=True, timeout=30)
-        self.respond(200, json.dumps({"rc": result.returncode, "out": result.stdout.decode(errors="replace")}).encode())
+        out = result.stdout.decode(errors="replace")
+        self.respond(200, json.dumps({"rc": result.returncode, "out": out}).encode())
 
     def respond(self, code: int, body: bytes) -> None:
         self.send_response(code)
