@@ -51,12 +51,14 @@ def downgrade_overrides(doc: dict[str, object]) -> dict[str, object]:
     return {str(key): value for key, value in downgraded.items()}
 
 
-def ensure_lab_label(doc: dict[str, object]) -> dict[str, object]:
+def ensure_lab_label(
+    doc: dict[str, object], value: str = LAB_LABEL_VALUE
+) -> dict[str, object]:
     """Copy of `doc` labelled so the runner can find and delete it."""
     labelled = copy.deepcopy(doc)
     metadata = _section(labelled, "metadata")
     labels = metadata.setdefault("labels", {})
     if not isinstance(labels, dict):
         raise TypeError("metadata.labels must be a mapping")
-    labels[LAB_LABEL_KEY] = LAB_LABEL_VALUE
+    labels[LAB_LABEL_KEY] = value
     return labelled

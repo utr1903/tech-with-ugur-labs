@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import cast
 
 from app.bench.model import Profile
+from app.commands import behaviour as behaviour_command
 from app.commands import bench as bench_command
 from app.commands import canary as canary_command
 from app.errors import LabError
@@ -24,7 +25,7 @@ PROFILES = ("default", "tuned", "enforce")
 
 
 def run_command(args: argparse.Namespace, log: Logger) -> None:
-    """Dispatches one subcommand; behaviour is wired in as its module lands."""
+    """Dispatches one subcommand to its command module."""
     if args.command == "canary":
         canary_command.run(log=log)
     elif args.command == "bench":
@@ -39,6 +40,13 @@ def run_command(args: argparse.Namespace, log: Logger) -> None:
             profiles=cast(list[Profile], names),
             results_dir=Path(args.results or Path(args.root) / "results"),
             only=[p for p in args.only.split(",") if p],
+            log=log,
+        )
+    elif args.command == "behaviour":
+        behaviour_command.run(
+            root=Path(args.root),
+            window_s=args.window,
+            results_dir=Path(args.results or Path(args.root) / "results"),
             log=log,
         )
     else:
@@ -61,6 +69,10 @@ def main() -> int:
             subparser.add_argument("--results", default=None)
             subparser.add_argument("--root", default=str(bench_command.LAB_ROOT))
             subparser.add_argument("--only", default="")
+        if name == "behaviour":
+            subparser.add_argument("--window", type=float, default=5.0)
+            subparser.add_argument("--results", default=None)
+            subparser.add_argument("--root", default=str(bench_command.LAB_ROOT))
     args = parser.parse_args()
 
     try:

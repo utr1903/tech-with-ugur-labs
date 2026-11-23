@@ -25,6 +25,8 @@ READY_TIMEOUT_S = 60.0
 POLL_S = 1.0
 SETTLE_S = 3.0
 _SELECTOR = f"{LAB_LABEL_KEY}={LAB_LABEL_VALUE}"
+BEHAVIOUR_LABEL_VALUE = "tetragon-behaviour"
+_BEHAVIOUR_SELECTOR = f"{LAB_LABEL_KEY}={BEHAVIOUR_LABEL_VALUE}"
 
 
 def delete_lab_policies(*, log: Logger) -> None:
@@ -134,3 +136,46 @@ def apply_profile(
         raise
     else:
         log.info("Applying profile succeeded.", profile=profile, policies=len(applied))
+
+
+def delete_behaviour_policies(*, log: Logger) -> None:
+    """Deletes every policy labelled as a behaviour demo policy."""
+    try:
+        log.info("Deleting behaviour policies...")
+        kubectl(
+            [
+                "delete",
+                "tracingpolicy",
+                "-l",
+                _BEHAVIOUR_SELECTOR,
+                "--ignore-not-found",
+            ],
+            log=log,
+        )
+    except Exception:
+        log.exception("Deleting behaviour policies failed.")
+        raise
+    else:
+        log.info("Deleting behaviour policies succeeded.")
+
+
+def apply_behaviour_policy(path: Path, *, mode: str, log: Logger) -> str:
+    """Applies one demo policy fresh (state reset); waits until live in `mode`.
+
+    `mode` is what `tetra tracingpolicy list` reports: `enforce` for a policy
+    with Sigkill/Override, `monitor_only` for one that only posts events.
+    """
+    try:
+        log.info("Applying behaviour policy...", path=str(path))
+        doc = ensure_lab_label(_load_doc(path), BEHAVIOUR_LABEL_VALUE)
+        name = _policy_name(doc, path)
+        delete_policy(name, log=log)
+        kubectl(["apply", "-f", "-"], stdin=yaml.safe_dump(doc), log=log)
+        _wait_ready({name: mode}, log=log)
+        time.sleep(SETTLE_S)
+    except Exception:
+        log.exception("Applying behaviour policy failed.", path=str(path))
+        raise
+    else:
+        log.info("Applying behaviour policy succeeded.", policy=name)
+        return name

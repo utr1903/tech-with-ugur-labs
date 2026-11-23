@@ -1,0 +1,24 @@
+# Deleting precious.txt with the Sigkill action. Compare with delete-override.yaml:
+# the two policies are identical except for the action.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: demo-delete-sigkill
+spec:
+  podSelector:
+    matchLabels:
+      app: victim
+  kprobes:
+    - call: sys_unlinkat
+      syscall: true
+      args:
+        - index: 1
+          type: string
+      selectors:
+        - matchArgs:
+            - index: 1
+              operator: Postfix
+              values:
+                - precious.txt
+          matchActions:
+            - action: Sigkill
