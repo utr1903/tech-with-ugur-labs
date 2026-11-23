@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from app.behaviour.cases import CASES, Case, delete_outcome, is_alert
+from app.behaviour.cases import (
+    CASES,
+    Case,
+    delete_outcome,
+    is_alert,
+    ran_as_intended,
+)
 from app.events.model import Event
 
 
@@ -65,3 +71,26 @@ def test_alert_requires_the_cases_policy_and_pod() -> None:
     assert not is_alert(
         _event(policy="demo-lineage", function="__x64_sys_execve"), case
     )
+
+
+def test_negative_case_fails_when_its_script_did_not_run() -> None:
+    admin = _case("admin")
+    assert ran_as_intended(admin, "uid=0(root)", 0, set())[0]
+    assert not ran_as_intended(admin, "", 0, set())[0]
+    assert not ran_as_intended(admin, "uid=0(root)", 1, set())[0]
+
+
+def test_read_cases_must_see_the_file_open_event() -> None:
+    read = _case("read-only")
+    assert ran_as_intended(read, "", 0, {"security_file_open"})[0]
+    assert not ran_as_intended(read, "", 0, set())[0]
+    both = _case("read-then-connect")
+    assert not ran_as_intended(both, "CONNECTED", 0, set())[0]
+    assert not ran_as_intended(both, "", 0, {"security_file_open"})[0]
+    assert ran_as_intended(both, "CONNECTED", 0, {"security_file_open"})[0]
+
+
+def test_connect_only_must_report_the_connection() -> None:
+    case = _case("connect-only")
+    assert ran_as_intended(case, "CONNECTED\n", 0, set())[0]
+    assert not ran_as_intended(case, "", 0, set())[0]

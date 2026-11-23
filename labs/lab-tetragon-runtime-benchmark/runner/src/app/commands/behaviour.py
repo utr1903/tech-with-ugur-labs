@@ -7,7 +7,7 @@ from collections.abc import Sequence
 from datetime import timedelta
 from pathlib import Path
 
-from app.behaviour.cases import CASES, Case, delete_outcome, is_alert
+from app.behaviour.cases import CASES, Case, delete_outcome, is_alert, ran_as_intended
 from app.behaviour.verdicts import DemoResult, judge, render_behaviour
 from app.bench.marker import parse_marker
 from app.errors import ExpectationError
@@ -26,7 +26,12 @@ LESSON_DEMO = "sigkill-vs-override"
 
 
 def _observe(
-    case: Case, stream: EventStream, stdout: str, *, window_s: float
+    case: Case,
+    stream: EventStream,
+    stdout: str,
+    returncode: int,
+    *,
+    window_s: float,
 ) -> DemoResult:
     marker = parse_marker(stdout)
     time.sleep(window_s + FLUSH_MARGIN_S)
@@ -41,9 +46,12 @@ def _observe(
     alerted = any(is_alert(e, case) for e in seen)
     functions = sorted({(e.function or "?") for e in seen})
     detail = "policy events: " + (", ".join(functions) if functions else "none")
-    outcome_ok = True
+    outcome_ok, problem = ran_as_intended(case, stdout, returncode, set(functions))
+    if problem:
+        detail = f"{problem}; {detail}"
     if case.name == LESSON_DEMO:
-        outcome_ok, outcome = delete_outcome(case.case, stdout)
+        deleted_ok, outcome = delete_outcome(case.case, stdout)
+        outcome_ok = outcome_ok and deleted_ok
         detail = f"{outcome}; {detail}"
     return DemoResult(
         case.name, case.case, case.expected_alert, alerted, detail, outcome_ok
@@ -65,7 +73,9 @@ def _run_case(
                 root / "behaviour" / case.script,
                 log=log,
             )
-            result = _observe(case, stream, acted.stdout, window_s=window_s)
+            result = _observe(
+                case, stream, acted.stdout, acted.returncode, window_s=window_s
+            )
         finally:
             delete_behaviour_policies(log=log)
     except Exception:

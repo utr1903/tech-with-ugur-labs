@@ -22,7 +22,7 @@ class DemoResult:
     expected_alert: bool
     alerted: bool
     detail: str
-    outcome_ok: bool = True
+    outcome_ok: bool
 
 
 def _failure(result: DemoResult) -> str | None:

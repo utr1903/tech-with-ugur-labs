@@ -141,3 +141,35 @@ def delete_outcome(case: str, stdout: str) -> tuple[bool, str]:
     if case == "sigkill":
         return rc == SIGKILL_RC and not present, detail
     return rc != 0 and rc != SIGKILL_RC and present, detail
+
+
+# What must be visible for a case to count as having really run: text in the
+# script's output, and a policy event of that function. A negative case (no
+# alert) proves nothing unless its action demonstrably happened.
+_MUST_STDOUT = {
+    "rce": "uid=",
+    "admin": "uid=",
+    "connect-only": "CONNECTED",
+    "read-then-connect": "CONNECTED",
+    "sigkill": "RM_RC=",
+    "override": "RM_RC=",
+}
+_MUST_FUNCTION = {
+    "read-only": "security_file_open",
+    "read-then-connect": "security_file_open",
+}
+
+
+def ran_as_intended(
+    case: Case, stdout: str, returncode: int, functions: set[str]
+) -> tuple[bool, str]:
+    """Whether the script succeeded and its action is visible, with the reason."""
+    if returncode != 0:
+        return False, f"script exited {returncode}"
+    needed = _MUST_STDOUT.get(case.case, "")
+    if needed and needed not in stdout:
+        return False, f"script output lacks {needed!r}"
+    wanted = _MUST_FUNCTION.get(case.case, "")
+    if wanted and not any(wanted in f for f in functions):
+        return False, f"no {wanted} policy event seen"
+    return True, ""
