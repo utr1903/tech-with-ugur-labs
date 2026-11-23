@@ -22,8 +22,8 @@ cluster:
 	if [ -n "$$prev" ]; then kubectl config use-context "$$prev" >/dev/null 2>&1 || true; fi; \
 	exit $$rc
 
-# Tetragon installation is added to this target next.
-up: cluster
+up:
+	./scripts/up.sh
 
 bench:
 	cd runner && uv run app bench --runs $(RUNS)
@@ -35,7 +35,7 @@ test:
 	cd runner && uv run ruff check && uv run ruff format --check && uv run mypy && uv run pytest && uv run deptry src
 
 e2e:
-	@echo "e2e is wired up once the scenarios exist" >&2; exit 1
+	@echo "e2e is not available yet" >&2; exit 1
 
 # `kind delete cluster` also switches the current kube context; restore it.
 down:

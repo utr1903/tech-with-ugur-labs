@@ -17,10 +17,8 @@ are blocked.
 ## Quickstart
 
 ```bash
-make up         # kind cluster + Tetragon
+make up         # kind cluster, Tetragon 1.8.0, victim/attacker/webapp pods
 make bench      # benchmark scenarios, RUNS=3 per scenario
 make behaviour  # behaviour demos
 make down       # delete the cluster
 ```
-
-More detail follows as the lab grows.

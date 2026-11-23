@@ -1,0 +1,47 @@
+# Service account with no RBAC; its token is mounted so the token-theft
+# scenario has something to read.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: victim
+  namespace: victim
+automountServiceAccountToken: true
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: victim
+  namespace: victim
+  labels:
+    app: victim
+spec:
+  serviceAccountName: victim
+  automountServiceAccountToken: true
+  containers:
+    - name: victim
+      image: lab/victim:1
+      imagePullPolicy: Never
+      command: ["sleep", "infinity"]
+      securityContext:
+        runAsUser: 0
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: victim-priv
+  namespace: victim
+  labels:
+    app: victim
+    tier: privileged
+spec:
+  serviceAccountName: victim
+  automountServiceAccountToken: true
+  hostPID: true
+  containers:
+    - name: victim
+      image: lab/victim:1
+      imagePullPolicy: Never
+      command: ["sleep", "infinity"]
+      securityContext:
+        privileged: true
+        runAsUser: 0

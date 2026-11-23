@@ -1,0 +1,26 @@
+# Intentionally vulnerable demo app (remote command execution on /run).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: webapp
+  namespace: victim
+  labels:
+    app: webapp
+spec:
+  containers:
+    - name: webapp
+      image: lab/webapp:1
+      imagePullPolicy: Never
+      ports:
+        - containerPort: 8080
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: webapp
+  namespace: victim
+spec:
+  selector:
+    app: webapp
+  ports:
+    - { port: 8080, targetPort: 8080 }
