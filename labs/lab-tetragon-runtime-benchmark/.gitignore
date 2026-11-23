@@ -1,0 +1,9 @@
+results/*
+!results/example-coverage.md
+runner/.venv/
+runner/.env
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.previous-context

@@ -1,0 +1,11 @@
+# Values for the cilium/tetragon chart (pinned version in scripts/up.sh).
+tetragon:
+  # kind nodes are containers, so the agent reads the host /proc from the
+  # extraMount declared in kind-config.yaml.
+  hostProcPath: /procHost
+  # Show capabilities and namespaces in exec and kprobe events.
+  enableProcessCred: true
+  enableProcessNs: true
+  # Show process lineage in events.
+  processAncestors:
+    enabled: "base,kprobe"
