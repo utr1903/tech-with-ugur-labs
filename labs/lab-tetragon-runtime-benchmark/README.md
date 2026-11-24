@@ -29,6 +29,8 @@ Everything stays inside the cluster. No workload has internet egress, the
 "attacker" is a pod in the same cluster, and every fake secret says
 `LAB-CANARY-NOT-A-SECRET`.
 
+> Companion post: [3 of 15 Out of the Box, 15 of 15 Tuned: Benchmarking Tetragon on kind](https://techwithugur.dev/posts/tetragon-runtime-benchmark/)
+
 ## Contents
 - [Prerequisites](#prerequisites)
 - [Run it](#run-it)
