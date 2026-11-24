@@ -1,0 +1,13 @@
+id: "12"
+technique: T1552.001
+name: Read the service-account token
+tactic: Credential Access
+pod: victim
+benign: false
+expected:
+  tuned: detect
+  enforce: block
+requires: [override]
+signals:
+  - kind: kprobe
+    policy: cred-files

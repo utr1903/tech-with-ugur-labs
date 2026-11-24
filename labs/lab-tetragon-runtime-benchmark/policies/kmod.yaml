@@ -1,0 +1,35 @@
+# T1547.006: loading a kernel module from inside a container (rootkits,
+# persistence below the container). finit_module() loads from a file
+# descriptor and init_module() from a memory buffer, so both are hooked.
+# Override makes the syscall return EPERM before the kernel parses the
+# module, which is how the scenario tells "blocked" (EPERM) apart from
+# "reached the kernel loader" (any other result, e.g. ENOEXEC for garbage).
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: kmod
+spec:
+  podSelector:
+    matchLabels:
+      app: victim
+  kprobes:
+    - call: sys_finit_module
+      syscall: true
+      args:
+        - index: 0
+          type: int
+        - index: 2
+          type: int
+      selectors:
+        - matchActions:
+            - action: Override
+              argError: -1
+    - call: sys_init_module
+      syscall: true
+      args:
+        - index: 1
+          type: uint64
+      selectors:
+        - matchActions:
+            - action: Override
+              argError: -1

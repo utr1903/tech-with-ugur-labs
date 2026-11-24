@@ -1,0 +1,17 @@
+id: b3
+technique: benign
+name: Rotate the application log
+tactic: benign
+pod: victim
+benign: true
+expected:
+  tuned: miss
+  enforce: none
+signals:
+  # Any lab-policy kprobe event, or any exec signal an attack uses, is a
+  # false positive.
+  - kind: kprobe
+  - kind: exec
+    binary_prefix: /tmp/
+  - kind: exec
+    binary_regex: '^(/dev/fd/\d+|/memfd:)'

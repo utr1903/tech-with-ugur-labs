@@ -1,0 +1,27 @@
+# T1562.001: loading an eBPF program from a container, which can hide
+# processes, tamper with other security tools or sniff traffic. Arg 0 of
+# bpf() is the command; 5 is BPF_PROG_LOAD. Map lookups and other bpf()
+# commands stay allowed. Override makes the load fail with EPERM.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: bpf
+spec:
+  podSelector:
+    matchLabels:
+      app: victim
+  kprobes:
+    - call: sys_bpf
+      syscall: true
+      args:
+        - index: 0
+          type: int
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: Equal
+              values:
+                - "5"
+          matchActions:
+            - action: Override
+              argError: -1

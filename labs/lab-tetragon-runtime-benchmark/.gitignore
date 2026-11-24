@@ -1,0 +1,9 @@
+results/*
+!results/example-coverage.md
+!results/example-behaviour.md
+runner/.venv/
+runner/.env
+__pycache__/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/

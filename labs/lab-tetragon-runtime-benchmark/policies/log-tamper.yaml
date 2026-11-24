@@ -1,0 +1,26 @@
+# T1070.004: deleting a log to cover tracks. sys_unlinkat arg 1 is the path
+# exactly as the caller passed it. Override makes unlink fail with EPERM, so
+# the file stays. (Sigkill here would kill rm after the file is gone.)
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: log-tamper
+spec:
+  podSelector:
+    matchLabels:
+      app: victim
+  kprobes:
+    - call: sys_unlinkat
+      syscall: true
+      args:
+        - index: 1
+          type: string
+      selectors:
+        - matchArgs:
+            - index: 1
+              operator: Postfix
+              values:
+                - .log
+          matchActions:
+            - action: Override
+              argError: -1

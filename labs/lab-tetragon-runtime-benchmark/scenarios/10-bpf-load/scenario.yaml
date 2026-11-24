@@ -1,0 +1,13 @@
+id: "10"
+technique: T1562.001
+name: Load an eBPF program
+tactic: Defense Evasion
+pod: victim-priv
+benign: false
+expected:
+  tuned: detect
+  enforce: block
+requires: [override]
+signals:
+  - kind: kprobe
+    policy: bpf

@@ -1,0 +1,17 @@
+id: "15"
+technique: T1496
+name: Cryptominer stratum beacon to port 3333
+tactic: Impact
+pod: victim
+benign: false
+expected:
+  tuned: detect
+  enforce: block
+requires: [override]
+signals:
+  - kind: kprobe
+    policy: outbound-connect
+# Happened if the attacker's 3333 listener logged a connection from this pod
+# after the marker (read from the attacker pod's log, not from check.sh).
+check:
+  attacker_sink: 3333

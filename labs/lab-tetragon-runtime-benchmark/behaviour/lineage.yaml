@@ -1,0 +1,35 @@
+# Lineage: alert on a shell only when it descends from the web app's Python
+# process. matchBinaries + followChildren tracks the whole process tree under
+# python3.12, so a shell spawned by the vulnerable /run handler matches while
+# an admin's `kubectl exec ... sh` (not a child of Python) does not.
+# matchBinaries resolves the real binary (/usr/local/bin/python3.12) and sees
+# the caller at execve entry, so the filename argument picks the shell.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: demo-lineage
+spec:
+  podSelector:
+    matchLabels:
+      app: webapp
+  kprobes:
+    - call: sys_execve
+      syscall: true
+      args:
+        - index: 0
+          type: string
+      selectors:
+        - matchBinaries:
+            - operator: In
+              values:
+                - /usr/local/bin/python3.12
+              followChildren: true
+          matchArgs:
+            - index: 0
+              operator: Postfix
+              values:
+                - /sh
+                - /bash
+                - /dash
+          matchActions:
+            - action: Post

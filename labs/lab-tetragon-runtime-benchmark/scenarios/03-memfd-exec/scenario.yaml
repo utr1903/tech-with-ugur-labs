@@ -1,0 +1,14 @@
+id: "03"
+technique: T1620
+name: Fileless exec from a memfd
+tactic: Defense Evasion
+pod: victim
+benign: false
+expected:
+  tuned: detect
+  enforce: block
+signals:
+  - kind: kprobe
+    policy: memfd-exec
+  - kind: exec
+    binary_regex: '^(/dev/fd/\d+|/memfd:)'

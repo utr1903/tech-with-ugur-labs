@@ -1,0 +1,66 @@
+# T1548.001: setting the setuid bit so a copied binary runs as its owner.
+# The planned LSM hook (security_path_chmod) is not built into this kernel
+# (no CONFIG_SECURITY_PATH), so the policy hooks the chmod syscalls instead.
+# Arg 2 is the new mode; Mask 2048 (04000, S_ISUID) matches any mode with the
+# setuid bit. Override makes chmod fail with EPERM.
+# fchmodat2 only exists on Linux 6.6+, so that kprobe is skipped (not a load
+# error) on older kernels.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: setuid
+spec:
+  podSelector:
+    matchLabels:
+      app: victim
+  kprobes:
+    - call: sys_fchmodat
+      syscall: true
+      args:
+        - index: 1
+          type: string
+        - index: 2
+          type: int
+      selectors:
+        - matchArgs:
+            - index: 2
+              operator: Mask
+              values:
+                - "2048"
+          matchActions:
+            - action: Override
+              argError: -1
+    - call: sys_fchmodat2
+      syscall: true
+      ignore:
+        callNotFound: true
+      args:
+        - index: 1
+          type: string
+        - index: 2
+          type: int
+      selectors:
+        - matchArgs:
+            - index: 2
+              operator: Mask
+              values:
+                - "2048"
+          matchActions:
+            - action: Override
+              argError: -1
+    - call: sys_fchmod
+      syscall: true
+      args:
+        - index: 0
+          type: int
+        - index: 1
+          type: int
+      selectors:
+        - matchArgs:
+            - index: 1
+              operator: Mask
+              values:
+                - "2048"
+          matchActions:
+            - action: Override
+              argError: -1

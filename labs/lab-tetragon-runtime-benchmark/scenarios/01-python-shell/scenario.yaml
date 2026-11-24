@@ -1,0 +1,12 @@
+id: "01"
+technique: T1059.004
+name: Shell spawned by a Python process
+tactic: Execution
+pod: victim
+benign: false
+expected:
+  tuned: detect
+  enforce: block
+signals:
+  - kind: kprobe
+    policy: exec-shell

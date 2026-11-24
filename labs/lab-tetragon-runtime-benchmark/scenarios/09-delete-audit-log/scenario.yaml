@@ -1,0 +1,13 @@
+id: "09"
+technique: T1070.004
+name: Delete an application audit log
+tactic: Defense Evasion
+pod: victim
+benign: false
+expected:
+  tuned: detect
+  enforce: block
+requires: [override]
+signals:
+  - kind: kprobe
+    policy: log-tamper

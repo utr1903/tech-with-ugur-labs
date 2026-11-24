@@ -1,0 +1,13 @@
+id: "05"
+technique: T1098.004
+name: Append a key to root's authorized_keys
+tactic: Persistence
+pod: victim
+benign: false
+expected:
+  tuned: detect
+  enforce: block
+requires: [override]
+signals:
+  - kind: kprobe
+    policy: persistence-write

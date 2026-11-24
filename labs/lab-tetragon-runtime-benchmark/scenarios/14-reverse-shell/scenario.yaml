@@ -1,0 +1,17 @@
+id: "14"
+technique: T1571
+name: Reverse shell to the attacker on port 4444
+tactic: Command and Control
+pod: victim
+benign: false
+expected:
+  tuned: detect
+  enforce: block
+requires: [override]
+signals:
+  - kind: kprobe
+    policy: outbound-connect
+# Happened if the attacker's 4444 listener logged a connection from this pod
+# after the marker (read from the attacker pod's log, not from check.sh).
+check:
+  attacker_sink: 4444

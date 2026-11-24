@@ -1,0 +1,13 @@
+id: "11"
+technique: T1003.008
+name: Read /etc/shadow
+tactic: Credential Access
+pod: victim
+benign: false
+expected:
+  tuned: detect
+  enforce: block
+requires: [override]
+signals:
+  - kind: kprobe
+    policy: cred-files

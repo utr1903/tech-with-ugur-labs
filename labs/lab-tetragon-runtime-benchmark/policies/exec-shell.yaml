@@ -1,0 +1,35 @@
+# T1059.004: a shell started by a Python process (or any of its children).
+# At sys_execve entry the calling process is still Python, so the policy
+# matches the caller with matchBinaries and the target with the filename arg.
+# followChildren keeps the match for every descendant of the Python process.
+# Sigkill stops the exec before the shell runs a single instruction.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: exec-shell
+spec:
+  podSelector:
+    matchLabels:
+      app: victim
+  kprobes:
+    - call: sys_execve
+      syscall: true
+      args:
+        - index: 0
+          type: string
+      selectors:
+        - matchBinaries:
+            - operator: In
+              values:
+                - /usr/bin/python3.12
+                - /usr/local/bin/python3.12
+              followChildren: true
+          matchArgs:
+            - index: 0
+              operator: Postfix
+              values:
+                - /sh
+                - /bash
+                - /dash
+          matchActions:
+            - action: Sigkill

@@ -1,0 +1,45 @@
+# Stateful sequence: alert on an outbound connect only after the credential
+# file was read. Reading /etc/lab/credentials sets the state `cred_read` to 1
+# (and, because the selector has no NoPost, also posts an event). tcp_connect
+# posts only while the state equals 1. The state is global to the policy, not
+# per pod or per process: measured on Tetragon v1.8.0.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: demo-stateful-exfil
+spec:
+  podSelector:
+    matchLabels:
+      app: victim
+  state:
+    - name: cred_read
+  kprobes:
+    - call: security_file_open
+      syscall: false
+      args:
+        - index: 0
+          type: file
+      selectors:
+        - matchArgs:
+            - index: 0
+              operator: Equal
+              values:
+                - /etc/lab/credentials
+          matchActions:
+            - action: UpdateState
+              state:
+                name: cred_read
+                operator: Set
+                value: "1"
+    - call: tcp_connect
+      syscall: false
+      args:
+        - index: 0
+          type: sock
+      selectors:
+        - matchStates:
+            - name: cred_read
+              operator: Equal
+              value: "1"
+          matchActions:
+            - action: Post

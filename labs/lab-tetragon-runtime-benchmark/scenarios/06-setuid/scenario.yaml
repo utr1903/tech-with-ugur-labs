@@ -1,0 +1,13 @@
+id: "06"
+technique: T1548.001
+name: Set the setuid bit on a copied binary
+tactic: Privilege Escalation
+pod: victim
+benign: false
+expected:
+  tuned: detect
+  enforce: block
+requires: [override]
+signals:
+  - kind: kprobe
+    policy: setuid

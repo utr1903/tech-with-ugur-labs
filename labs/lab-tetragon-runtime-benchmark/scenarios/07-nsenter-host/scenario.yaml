@@ -1,0 +1,16 @@
+id: "07"
+technique: T1611
+name: Enter the host's mount namespace with nsenter
+tactic: Privilege Escalation
+pod: victim-priv
+benign: false
+expected:
+  tuned: detect
+  enforce: block
+requires: [override]
+signals:
+  - kind: kprobe
+    policy: ns-escape
+  # A default install still sees nsenter start, from its exec event.
+  - kind: exec
+    binary_regex: '/nsenter$'

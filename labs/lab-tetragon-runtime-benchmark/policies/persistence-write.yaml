@@ -1,0 +1,48 @@
+# T1053.003 / T1098.004: planting a cron job or an SSH key.
+# security_file_open sees the resolved path of every open. The second arg
+# (args[1]) reads the same struct file's f_mode through BTF, so only opens for writing
+# (FMODE_WRITE = 0x2) match; reading the files stays allowed.
+# Override makes open() fail with EPERM. With O_CREAT the kernel has already
+# created an empty file by then, so "blocked" means the payload never lands.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: persistence-write
+spec:
+  podSelector:
+    matchLabels:
+      app: victim
+  kprobes:
+    - call: security_file_open
+      syscall: false
+      args:
+        - index: 0
+          type: file
+        - index: 0
+          type: uint32
+          resolve: f_mode
+      selectors:
+        - matchArgs:
+            - args: [0]
+              operator: Prefix
+              values:
+                - /etc/cron.d/
+            - args: [1]
+              operator: Mask
+              values:
+                - "2"
+          matchActions:
+            - action: Override
+              argError: -1
+        - matchArgs:
+            - args: [0]
+              operator: Equal
+              values:
+                - /root/.ssh/authorized_keys
+            - args: [1]
+              operator: Mask
+              values:
+                - "2"
+          matchActions:
+            - action: Override
+              argError: -1
