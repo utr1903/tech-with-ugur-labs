@@ -1,0 +1,29 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: nightly-report, namespace: batch }
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: nightly-report, namespace: batch }
+spec:
+  schedule: "0 2 * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          serviceAccountName: nightly-report
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          containers:
+            - name: nightly-report
+              image: lab-ai-soc/tenants:local
+              imagePullPolicy: IfNotPresent
+              args: ["nightly-report"]
+              env:
+                - { name: LOG_LEVEL, value: info }
+                - { name: DB_HOST, value: postgres.payments.svc }
+                - { name: DB_NAME, value: payments }
+                - { name: DB_USER, value: report_reader }
+                # Fake, self-labelling credential for a fake database.
+                - { name: DB_PASSWORD, value: LAB-FAKE-report-pw }

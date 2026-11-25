@@ -1,11 +1,12 @@
 SHELL := /bin/bash
 KIND_CLUSTER ?= ai-soc
 
-.PHONY: help cluster infra down
+.PHONY: help cluster infra tenants down
 
 help:
 	@echo "make cluster  create the $(KIND_CLUSTER) kind cluster (audit logging on)"
 	@echo "make infra    cluster + Tetragon, Loki, Fluent Bit and Alertmanager"
+	@echo "make tenants  build and deploy the mock tenant workloads"
 	@echo "make down     delete the $(KIND_CLUSTER) cluster"
 
 # `kind create cluster` silently switches the reader's current kube context.
@@ -22,6 +23,9 @@ cluster:
 
 infra: cluster
 	./scripts/up-infra.sh
+
+tenants:
+	./scripts/up-tenants.sh
 
 # `kind delete cluster` also switches the current kube context; restore it.
 down:

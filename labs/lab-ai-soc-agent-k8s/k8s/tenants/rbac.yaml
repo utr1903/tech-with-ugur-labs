@@ -1,0 +1,56 @@
+# The storefront service account can read pods and secrets in every
+# namespace: far more than a web frontend needs, and what a compromised
+# storefront pod abuses.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: storefront-reader }
+rules:
+  - apiGroups: [""]
+    resources: [pods, secrets]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: { name: storefront-reader }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: storefront-reader }
+subjects: [{ kind: ServiceAccount, name: storefront, namespace: storefront }]
+---
+# DELIBERATELY OVER-PRIVILEGED: a CI deployer that may create cluster role
+# bindings, plus bind/escalate on clusterroles, can grant itself
+# cluster-admin. This is the classic CI misconfiguration the lab attacks.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: ci-deployer }
+rules:
+  - apiGroups: [""]
+    resources: [namespaces, serviceaccounts]
+    verbs: [create, get, list]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [clusterrolebindings, rolebindings]
+    verbs: [create, get, list]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [clusterroles]
+    verbs: [bind, escalate]
+  - apiGroups: [apps]
+    resources: [daemonsets, deployments]
+    verbs: [create, get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: { name: ci-deployer }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: ci-deployer }
+subjects: [{ kind: ServiceAccount, name: ci-runner, namespace: ci }]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata: { name: ci-secret-reader, namespace: ci }
+rules:
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata: { name: ci-secret-reader, namespace: ci }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: Role, name: ci-secret-reader }
+subjects: [{ kind: ServiceAccount, name: ci-runner, namespace: ci }]

@@ -1,0 +1,39 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: ci-runner, namespace: ci }
+---
+# Long-lived token for the CI service account. This is the classic way CI
+# credentials end up lying around, and the thing the attack goes after.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: ci-runner-token
+  namespace: ci
+  annotations: { kubernetes.io/service-account.name: ci-runner }
+type: kubernetes.io/service-account-token
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: ci-runner, namespace: ci, labels: { app: ci-runner } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: ci-runner } }
+  template:
+    metadata: { labels: { app: ci-runner } }
+    spec:
+      serviceAccountName: ci-runner
+      containers:
+        - name: ci-runner
+          image: lab-ai-soc/tenants:local
+          imagePullPolicy: IfNotPresent
+          args: ["ci-runner"]
+          env:
+            - { name: LOG_LEVEL, value: info }
+            - { name: DB_HOST, value: postgres.payments.svc }
+            - { name: DB_NAME, value: payments }
+            - { name: DB_USER, value: ci_migrator }
+            # Deliberately a literal in the manifest (a common CI mistake).
+            - { name: DB_PASSWORD, value: LAB-FAKE-ci-migrator-pw }
+          resources:
+            requests: { cpu: 10m, memory: 64Mi }
+            limits: { memory: 192Mi }

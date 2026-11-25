@@ -1,0 +1,88 @@
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: payments-api, namespace: payments }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: payments-api, namespace: payments, labels: { app: payments-api } }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: payments-api } }
+  template:
+    metadata: { labels: { app: payments-api } }
+    spec:
+      serviceAccountName: payments-api
+      automountServiceAccountToken: false
+      containers:
+        - name: payments-api
+          image: lab-ai-soc/tenants:local
+          imagePullPolicy: IfNotPresent
+          args: ["payments-api"]
+          ports: [{ containerPort: 8080 }]
+          env:
+            - { name: LOG_LEVEL, value: info }
+            - { name: PORT, value: "8080" }
+            - { name: DB_HOST, value: postgres.payments.svc }
+            - { name: DB_NAME, value: payments }
+            - { name: DB_USER, value: payments_app }
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: postgres-users, key: payments_app_password }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8080 }
+          resources:
+            requests: { cpu: 20m, memory: 64Mi }
+            limits: { memory: 192Mi }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: payments-api, namespace: payments }
+spec:
+  selector: { app: payments-api }
+  ports: [{ port: 80, targetPort: 8080 }]
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata: { name: postgres, namespace: payments, labels: { app: postgres } }
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector: { matchLabels: { app: postgres } }
+  template:
+    metadata: { labels: { app: postgres } }
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: postgres
+          image: postgres:17.7@sha256:2006493727bd5277eece187319af1ef82b4cf82cf4fc1ed00da0775b646ac2a4
+          # Statement and connection logging feed the detection rules later.
+          args: ["-c", "log_statement=all", "-c", "log_connections=on"]
+          ports: [{ containerPort: 5432 }]
+          env:
+            - { name: POSTGRES_DB, value: payments }
+            - { name: PGDATA, value: /var/lib/postgresql/data/pgdata }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: postgres-users, key: postgres_password }
+            - name: PAYMENTS_APP_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: postgres-users, key: payments_app_password }
+          readinessProbe:
+            exec: { command: ["pg_isready", "-U", "postgres", "-d", "payments"] }
+            periodSeconds: 3
+          volumeMounts:
+            - { name: data, mountPath: /var/lib/postgresql/data }
+            - { name: init, mountPath: /docker-entrypoint-initdb.d }
+          resources:
+            requests: { cpu: 50m, memory: 128Mi }
+            limits: { memory: 384Mi }
+      volumes:
+        - { name: data, emptyDir: {} }
+        - { name: init, configMap: { name: postgres-init } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: postgres, namespace: payments }
+spec:
+  selector: { app: postgres }
+  ports: [{ port: 5432, targetPort: 5432 }]
