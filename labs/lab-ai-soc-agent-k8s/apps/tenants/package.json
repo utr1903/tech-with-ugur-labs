@@ -17,16 +17,16 @@
     "knip": "knip"
   },
   "dependencies": {
-    "pg": "8.16.3",
-    "pino": "10.3.1"
+    "pg": "8.23.1",
+    "pino": "10.4.0"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.13",
+    "@biomejs/biome": "2.6.9",
     "@types/node": "22.19.1",
     "@types/pg": "8.15.6",
-    "knip": "6.35.1",
-    "tsx": "4.23.13",
+    "knip": "6.48.0",
+    "tsx": "4.23.15",
     "typescript": "5.9.3",
-    "vitest": "5.0.0"
+    "vitest": "5.1.2"
   }
 }
