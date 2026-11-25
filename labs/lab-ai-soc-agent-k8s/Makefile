@@ -1,13 +1,14 @@
 SHELL := /bin/bash
 KIND_CLUSTER ?= ai-soc
 
-.PHONY: help cluster infra tenants down
+.PHONY: help cluster infra tenants outside down
 
 help:
 	@echo "make cluster  create the $(KIND_CLUSTER) kind cluster (audit logging on)"
 	@echo "make infra    cluster + Tetragon, Loki, Fluent Bit and Alertmanager"
 	@echo "make tenants  build and deploy the mock tenant workloads"
-	@echo "make down     delete the $(KIND_CLUSTER) cluster"
+	@echo "make outside   start the attacker sinks and normal-user traffic (Docker Compose)"
+	@echo "make down     stop the outside containers and delete the $(KIND_CLUSTER) cluster"
 
 # `kind create cluster` silently switches the reader's current kube context.
 # Remember it, create-or-skip, then restore it - all in one shell invocation
@@ -27,8 +28,12 @@ infra: cluster
 tenants:
 	./scripts/up-tenants.sh
 
+outside:
+	docker compose up -d --build
+
 # `kind delete cluster` also switches the current kube context; restore it.
 down:
+	@docker compose down --remove-orphans || true
 	@prev="$$(kubectl config current-context 2>/dev/null || true)"; \
 	kind delete cluster --name $(KIND_CLUSTER); rc=$$?; \
 	if [ -n "$$prev" ]; then kubectl config use-context "$$prev" >/dev/null 2>&1 || true; fi; \

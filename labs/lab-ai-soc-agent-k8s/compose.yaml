@@ -1,0 +1,29 @@
+# Attacker infrastructure and normal-user traffic, living on the kind Docker
+# network OUTSIDE the cluster. Nothing in the cluster knows these exist; the
+# agent only ever sees source IPs and egress destinations.
+name: ai-soc-outside
+
+networks:
+  kind:
+    external: true
+
+services:
+  attacker:
+    build: ./apps/outside
+    command: ["sinks"]
+    networks: [kind]
+    volumes:
+      - ./scenarios:/scenarios:ro
+    environment:
+      LOG_LEVEL: info
+      SCENARIOS_DIR: /scenarios
+    restart: unless-stopped
+
+  loadgen:
+    build: ./apps/outside
+    command: ["loadgen"]
+    networks: [kind]
+    environment:
+      LOG_LEVEL: info
+      TARGET: http://ai-soc-worker:30080
+    restart: unless-stopped
