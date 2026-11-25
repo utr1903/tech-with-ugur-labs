@@ -19,7 +19,7 @@ export const DESTRUCTIVE: ReadonlySet<ActionKind> = new Set<ActionKind>([
   "rotate_secret",
 ]);
 
-type ActionTarget = {
+export type ActionTarget = {
   namespace?: string;
   name: string;
   resource?:
