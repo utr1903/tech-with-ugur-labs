@@ -44,4 +44,13 @@ describe("createDeduper", () => {
     const { d } = setup();
     expect(d.filterNew([alert("a"), alert("a")]).fresh).toHaveLength(1);
   });
+
+  it("forget removes only entries still pointing at that report", () => {
+    const { d } = setup();
+    d.remember(["a", "b"], "inv-1");
+    d.remember(["b"], "inv-2");
+    d.forget(["a", "b"], "inv-1");
+    expect(d.filterNew([alert("a")]).fresh).toHaveLength(1);
+    expect(d.filterNew([alert("b")]).fresh).toHaveLength(0);
+  });
 });

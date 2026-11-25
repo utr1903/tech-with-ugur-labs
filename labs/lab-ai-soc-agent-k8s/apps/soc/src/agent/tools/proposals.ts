@@ -7,7 +7,9 @@ import type { InvestigationState, ToolDeps } from "./types.js";
 const NOTE =
   "Recorded. Nothing executes until you submit the verdict; the responder applies policy.";
 
-const RULES = `Nothing executes now: this only records a proposal, which takes effect after you submit your verdict and only if the responder's policy allows it. Targets in kube-system, soc, observability and other platform namespaces are refused.`;
+const MAX_PROPOSALS = 10;
+
+const RULES = `Nothing executes now: this only records a proposal, which takes effect after you submit your verdict and only if the responder's policy allows it. Targets in kube-system, soc, observability and other platform namespaces are refused. At most ${MAX_PROPOSALS} proposals per investigation.`;
 
 const BASE_FIELDS = {
   name: z.string().min(1).max(253).describe("Exact name of the target object."),
@@ -101,6 +103,12 @@ function record(state: InvestigationState, kind: ActionKind, a: Args): string {
     throw new ToolFailure(
       "namespace_required",
       `${kind} needs a namespace for this target.`,
+    );
+  }
+  if (state.proposals.length >= MAX_PROPOSALS) {
+    throw new ToolFailure(
+      "proposal_limit",
+      `At most ${MAX_PROPOSALS} proposals per investigation; submit the verdict with the most important ones.`,
     );
   }
   const target: ActionTarget = { name: a.name };

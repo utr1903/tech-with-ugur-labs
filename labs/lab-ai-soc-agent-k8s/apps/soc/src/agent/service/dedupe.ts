@@ -42,6 +42,12 @@ export function createDeduper(windowMs: number, now: () => number) {
     remember(fps: string[], reportId: string): void {
       for (const fp of fps) seen.set(fp, { at: now(), reportId });
     },
+    /** Re-opens fingerprints a failed report claimed; newer claims stay. */
+    forget(fps: string[], reportId: string): void {
+      for (const fp of fps) {
+        if (seen.get(fp)?.reportId === reportId) seen.delete(fp);
+      }
+    },
   };
 }
 

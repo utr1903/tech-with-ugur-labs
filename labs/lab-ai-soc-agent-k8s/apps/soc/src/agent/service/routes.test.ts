@@ -22,7 +22,7 @@ const hook = (...fps: string[]) => ({
   })),
 });
 
-async function setup() {
+async function setup(failRuns = false) {
   const store = createReportStore(await mkdtemp(join(tmpdir(), "soc-app-")));
   const inputs: RunInput[] = [];
   const queue = createQueue();
@@ -35,6 +35,7 @@ async function setup() {
     now: () => new Date(),
     run: async (input) => {
       inputs.push(input);
+      if (failRuns) throw new Error("sdk down");
       return loopResult();
     },
     responder: { send: async () => [] },
@@ -120,6 +121,15 @@ describe("agent routes", () => {
       await app.request("/reports", { headers: AUTH })
     ).json()) as { reports: { id: string }[] };
     expect(list.reports.map((r) => r.id)).toContain(reportId);
+  });
+
+  it("re-opens alerts whose investigation failed", async () => {
+    const { post, inputs, queue } = await setup(true);
+    await post("/investigate", hook("a"));
+    await vi.waitFor(() => expect(queue.size()).toBe(0));
+    const again = await post("/investigate", hook("a"));
+    expect(((await again.json()) as { accepted: boolean }).accepted).toBe(true);
+    await vi.waitFor(() => expect(inputs).toHaveLength(2));
   });
 
   it("404s on an unknown report", async () => {

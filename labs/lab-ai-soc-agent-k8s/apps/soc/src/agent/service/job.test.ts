@@ -83,6 +83,14 @@ describe("runJob", () => {
     );
   });
 
+  it("passes 10 proposals through to the responder intact", async () => {
+    const ps = Array.from({ length: 10 }, (_, n) => proposal(`p${n + 1}`));
+    const { go, sent } = await setup(async () => loopResult({ proposals: ps }));
+    await go("investigate");
+    expect(sent[0]?.items[0]?.verdict.proposal_ids).toHaveLength(10);
+    expect(sent[0]?.items[0]?.proposals).toEqual(ps);
+  });
+
   it("sends nothing when there are no verdicts", async () => {
     const { go, store, sent } = await setup(async () =>
       loopResult({ verdicts: [] }),

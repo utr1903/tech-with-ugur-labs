@@ -103,4 +103,32 @@ describe("proposal tools", () => {
     expect(byName.revoke_binding).toContain("always needs a human");
     expect(byName.rotate_secret).toContain("always needs a human");
   });
+
+  it("rejects the 11th proposal and records nothing", async () => {
+    const { state, by } = tools();
+    for (let n = 1; n <= 10; n++) {
+      await by("quarantine_pod").run({
+        namespace: "storefront",
+        name: `web-${n}`,
+        reason: "beaconing to unknown host",
+      });
+    }
+    const out = JSON.parse(
+      asText(
+        await by("quarantine_pod").run({
+          namespace: "storefront",
+          name: "web-11",
+          reason: "beaconing to unknown host",
+        }),
+      ),
+    );
+    expect(out.error.code).toBe("proposal_limit");
+    expect(out.error.message).toContain("At most 10 proposals");
+    expect(state.proposals).toHaveLength(10);
+  });
+
+  it("mentions the limit in every description", () => {
+    for (const t of tools().list)
+      expect(descriptionOf(t)).toContain("10 proposals");
+  });
 });

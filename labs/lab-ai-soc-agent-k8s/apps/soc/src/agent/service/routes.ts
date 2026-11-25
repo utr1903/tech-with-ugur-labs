@@ -1,10 +1,9 @@
 import { type Context, Hono, type Next } from "hono";
 import { z } from "zod";
-import type { Logger } from "../../logger.js";
 import { bearerMatches } from "../../shared/auth.js";
 import { parseAlertmanagerPayload } from "./alertmanager.js";
 import type { Deduper } from "./dedupe.js";
-import { type JobDeps, runJob } from "./job.js";
+import { type Job, type JobDeps, runJob } from "./job.js";
 import type { Queue } from "./queue.js";
 import { renderMarkdown } from "./render.js";
 import { newReportId } from "./reports.js";
@@ -28,11 +27,19 @@ function requireToken(expected: string) {
   };
 }
 
-function enqueue(deps: AgentDeps, job: Parameters<typeof runJob>[1]): void {
+function enqueue(deps: AgentDeps, job: Job): void {
+  const jobDeps = {
+    ...deps,
+    onError: (j: Job) =>
+      deps.deduper.forget(
+        j.alerts.map((a) => a.fingerprint),
+        j.id,
+      ),
+  };
   deps.queue
-    .enqueue(() => runJob(deps, job))
+    .enqueue(() => runJob(jobDeps, job))
     .catch((err) => {
-      (deps.logger as Logger).error({ err, reportId: job.id }, "Job failed.");
+      deps.logger.error({ err, reportId: job.id }, "Job failed.");
     });
 }
 

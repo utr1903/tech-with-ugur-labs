@@ -14,6 +14,8 @@ export type JobDeps = {
   responder: ResponderClient;
   store: ReportStore;
   now: () => Date;
+  /** Called when a job ends in an error report, e.g. to re-open its alerts. */
+  onError?: (job: Job) => void;
 };
 
 export type Job = {
@@ -112,6 +114,7 @@ export async function runJob(deps: JobDeps, job: Job): Promise<void> {
   const createdAt = deps.now().toISOString();
   logger.info({ reportId: job.id, mode: job.mode }, "Running job...");
   const result = await investigate(deps, job);
+  if (result.stopReason === "error") deps.onError?.(job);
   const outcomes =
     result.stopReason === "error" ? [] : await sendActions(deps, job, result);
   const report: Report = {
