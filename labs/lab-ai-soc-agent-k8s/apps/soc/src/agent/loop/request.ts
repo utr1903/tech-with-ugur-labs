@@ -17,6 +17,8 @@ export type ToolRunnerParams = BetaToolRunnerParams;
 /** A runner is iterable; the real SDK runner also exposes its history. */
 export type Runner = AsyncIterable<BetaMessage> & {
   readonly params?: { readonly messages: BetaMessageParam[] };
+  /** Runs (once, cached) the tool calls of the latest reply. */
+  generateToolResponse?: () => Promise<unknown>;
 };
 export type RunnerFactory = (params: ToolRunnerParams) => Runner;
 

@@ -1,16 +1,12 @@
-import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { describe, expect, it } from "vitest";
 import { makeDeps } from "../tools/test-support.js";
-import { type RunnerFactory, runInvestigation } from "./investigate.js";
-
-type Block =
-  | { type: "text"; text: string }
-  | { type: "tool_use"; id: string; name: string; input: unknown };
-type Step = {
-  blocks: Block[];
-  stop_reason?: string;
-  usage?: Partial<Record<string, number>>;
-};
+import {
+  type Block,
+  fakeFactory,
+  historyProblems,
+  type Step,
+} from "./fake-runner.js";
+import { runInvestigation } from "./investigate.js";
 
 const VERDICT = {
   verdict: "malicious",
@@ -25,54 +21,13 @@ const VERDICT = {
   proposal_ids: [],
 };
 
-function message(step: Step, n: number): BetaMessage {
-  return {
-    id: `msg_${n}`,
-    type: "message",
-    role: "assistant",
-    model: "claude-opus-5-5",
-    content: step.blocks,
-    stop_reason: step.stop_reason ?? "end_turn",
-    stop_details: null,
-    usage: { input_tokens: 100, output_tokens: 50, ...step.usage },
-  } as unknown as BetaMessage;
-}
-
-type RunnableLike = { name?: string; run?: (input: unknown) => unknown };
-
-async function playTools(
-  params: Parameters<RunnerFactory>[0],
-  blocks: Block[],
-) {
-  const tools = params.tools as RunnableLike[];
-  for (const b of blocks) {
-    if (b.type !== "tool_use") continue;
-    await tools.find((t) => t.name === b.name)?.run?.(b.input);
-  }
-}
-
-/** Fake runner: each step is one model turn; tool_use blocks run the real tools. */
-function fakeFactory(scripts: Step[][]) {
-  const calls: { params: Parameters<RunnerFactory>[0] }[] = [];
-  const factory: RunnerFactory = (params) => {
-    const steps = scripts[calls.length] ?? [];
-    calls.push({ params });
-    return {
-      async *[Symbol.asyncIterator]() {
-        let n = 0;
-        for (const step of steps) {
-          await playTools(params, step.blocks);
-          yield message(step, n++);
-        }
-      },
-    };
-  };
-  return { factory, calls };
-}
-
 function run(
   scripts: Step[][],
-  extra: { tokenBudget?: number; mode?: "investigate" | "hunt" } = {},
+  extra: {
+    tokenBudget?: number;
+    mode?: "investigate" | "hunt";
+    maxIterations?: number;
+  } = {},
 ) {
   const { factory, calls } = fakeFactory(scripts);
   const result = runInvestigation(
@@ -81,7 +36,7 @@ function run(
       ...makeDeps(),
       createRunner: factory,
       tokenBudget: extra.tokenBudget ?? 400000,
-      maxIterations: 25,
+      maxIterations: extra.maxIterations ?? 25,
     },
   );
   return { result, calls };
@@ -92,6 +47,13 @@ const submit: Block = {
   id: "t1",
   name: "submit_verdict",
   input: VERDICT,
+};
+
+const ctx: Block = {
+  type: "tool_use",
+  id: "c1",
+  name: "get_alert_context",
+  input: {},
 };
 
 describe("runInvestigation", () => {
@@ -137,10 +99,7 @@ describe("runInvestigation", () => {
   });
 
   it("stops at the token budget and reports inconclusive", async () => {
-    const turn: Step = {
-      blocks: [{ type: "text", text: "thinking" }],
-      stop_reason: "tool_use",
-    };
+    const turn: Step = { blocks: [ctx], stop_reason: "tool_use" };
     const { result } = run([[turn, turn, turn, turn]], { tokenBudget: 250 });
     const r = await result;
     expect(r.budgetExhausted).toBe(true);
@@ -198,5 +157,53 @@ describe("runInvestigation", () => {
     const r = await result;
     expect(calls).toHaveLength(1);
     expect(r.verdicts).toHaveLength(1);
+  });
+
+  it("counts a verdict submitted on the turn that crosses the budget", async () => {
+    const { result, calls } = run(
+      [[{ blocks: [submit], stop_reason: "tool_use" }, { blocks: [ctx] }]],
+      { tokenBudget: 100 },
+    );
+    const r = await result;
+    expect(r.budgetExhausted).toBe(true);
+    expect(r.usage.iterations).toBe(1);
+    expect(r.verdicts).toHaveLength(1);
+    expect(r.verdicts[0]?.verdict).toBe("malicious");
+    expect(calls).toHaveLength(1);
+  });
+
+  it("sends one valid reminder after a max_iterations stop", async () => {
+    const useCtx = (id: string): Step => ({
+      blocks: [{ ...ctx, id }],
+      stop_reason: "tool_use",
+    });
+    const { result, calls } = run(
+      [
+        [useCtx("a"), useCtx("b"), useCtx("c"), useCtx("d")],
+        [{ blocks: [{ type: "text", text: "still nothing" }] }],
+      ],
+      { maxIterations: 2 },
+    );
+    const r = await result;
+    expect(calls).toHaveLength(2);
+    const sent = calls[1]?.params.messages ?? [];
+    expect(historyProblems(sent)).toEqual([]);
+    expect(sent.map((m) => m.role)).toEqual([
+      "user",
+      "assistant",
+      "user",
+      "assistant",
+      "user",
+    ]);
+    expect(JSON.stringify(sent.at(-1))).toContain("Call submit_verdict now.");
+    expect(r.verdicts[0]?.verdict).toBe("inconclusive");
+  });
+
+  it("skips the reminder when the history ends in an unanswered tool_use", async () => {
+    const cut: Step = { blocks: [ctx], stop_reason: "max_tokens" };
+    const { result, calls } = run([[cut]]);
+    const r = await result;
+    expect(calls).toHaveLength(1);
+    expect(r.verdicts[0]?.verdict).toBe("inconclusive");
   });
 });

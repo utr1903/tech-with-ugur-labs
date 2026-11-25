@@ -44,6 +44,11 @@ export async function consume(
     if (usage.input_tokens + usage.output_tokens > tokenBudget) {
       budgetExhausted = true;
       logger.warn({ tokenBudget, usage }, "Token budget exhausted.");
+      // The SDK runs a reply's tools only when asked for the next turn, so
+      // run this turn's tools now (a verdict made on it must count), then
+      // stop without another model request.
+      if (last.stop_reason === "tool_use")
+        await runner.generateToolResponse?.();
       await it.return?.();
       break;
     }

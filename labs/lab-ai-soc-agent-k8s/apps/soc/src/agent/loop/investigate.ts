@@ -55,17 +55,42 @@ function whyNoVerdict(c: Consumed): string {
   return "The model finished without submitting a verdict.";
 }
 
-/** History to continue from: the first runner's messages plus its last reply. */
+function endsInToolUse(m: BetaMessageParam | undefined): boolean {
+  return (
+    m?.role === "assistant" &&
+    Array.isArray(m.content) &&
+    m.content.at(-1)?.type === "tool_use"
+  );
+}
+
+/**
+ * The messages for the reminder request, or undefined when none is valid.
+ * With the SDK's history (which ends in the answered tool_result turn after
+ * max_iterations, or in the final assistant reply) the reminder is added to
+ * keep strict role alternation; without it we rebuild task + last reply.
+ */
 function reminderMessages(
   first: BetaMessageParam,
   c: Consumed,
   history: BetaMessageParam[] | undefined,
-): BetaMessageParam[] {
-  const messages = [...(history ?? [first])];
-  if (c.last && messages.at(-1)?.role !== "assistant") {
-    messages.push({ role: "assistant", content: c.last.content });
+): BetaMessageParam[] | undefined {
+  const reminder = { type: "text" as const, text: REMINDER };
+  const messages = history
+    ? [...history]
+    : [first, { role: "assistant" as const, content: c.last?.content ?? [] }];
+  const tail = messages.at(-1);
+  if (!tail || endsInToolUse(tail)) return undefined;
+  if (tail.role === "assistant") {
+    return [...messages, { role: "user", content: [reminder] }];
   }
-  return [...messages, { role: "user", content: REMINDER }];
+  const blocks =
+    typeof tail.content === "string"
+      ? [{ type: "text" as const, text: tail.content }]
+      : (tail.content ?? []);
+  return [
+    ...messages.slice(0, -1),
+    { role: "user", content: [...blocks, reminder] },
+  ];
 }
 
 export async function runInvestigation(
@@ -104,17 +129,25 @@ export async function runInvestigation(
     !refused &&
     !done.budgetExhausted
   ) {
-    logger.warn({}, "No verdict submitted; sending one reminder.");
-    const reminder = deps.createRunner(
-      buildParams({
-        system,
-        tools,
-        messages: reminderMessages(first, done, runner.params?.messages),
-        maxIterations: REMINDER_ITERATIONS,
-      }),
-    );
-    const again = await consume(reminder, done.usage, deps.tokenBudget, logger);
-    done = { ...again, last: again.last ?? done.last };
+    const messages = reminderMessages(first, done, runner.params?.messages);
+    if (messages) {
+      logger.warn({}, "No verdict submitted; sending one reminder.");
+      const reminder = deps.createRunner(
+        buildParams({
+          system,
+          tools,
+          messages,
+          maxIterations: REMINDER_ITERATIONS,
+        }),
+      );
+      const again = await consume(
+        reminder,
+        done.usage,
+        deps.tokenBudget,
+        logger,
+      );
+      done = { ...again, last: again.last ?? done.last };
+    }
   }
 
   if (state.verdicts.length === 0) {
