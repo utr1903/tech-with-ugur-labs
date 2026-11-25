@@ -14,11 +14,16 @@ export function buildAlertContext(deps: ToolDeps) {
     description: DESCRIPTION,
     inputSchema: z.object({}),
     run: (args) =>
-      runLogged(deps.logger, "get_alert_context", args, async () =>
-        wrapUntrusted(
-          "get_alert_context",
-          JSON.stringify({ alerts: deps.alerts }),
-        ),
+      runLogged(
+        deps.logger,
+        "get_alert_context",
+        args,
+        async () =>
+          wrapUntrusted(
+            "get_alert_context",
+            JSON.stringify({ alerts: deps.alerts }),
+          ),
+        { wrapErrors: true },
       ),
   });
 }

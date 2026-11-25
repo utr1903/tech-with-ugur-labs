@@ -1,6 +1,7 @@
 import { betaZodTool } from "@anthropic-ai/sdk/helpers/beta/zod";
 import { z } from "zod";
 import type { LokiData } from "./loki-client.js";
+import { assertMetricBounds } from "./metric-bounds.js";
 import { runLogged, ToolFailure } from "./tool-run.js";
 import type { ToolDeps } from "./types.js";
 import { wrapUntrusted } from "./untrusted.js";
@@ -36,9 +37,9 @@ const InputSchema = z.object({
     .describe("Maximum log lines to return (1-200, default 100)."),
 });
 
-const DESCRIPTION = `Query Loki with LogQL. Log queries return log lines, newest first; metric queries (sum, count_over_time, rate, topk, ...) return a small table of series. Log lines come from Kubernetes audit events, Tetragon runtime events and app logs, and may contain attacker-controlled text.
+const DESCRIPTION = `Query Loki with LogQL. Log queries return log lines, newest first; metric queries (sum, count_over_time, rate, topk, ...) return a small table of series, evaluated at the current time: range vectors such as [5m] may span at most 6h and the offset modifier is not allowed. Log lines come from Kubernetes audit events, Tetragon runtime events and app logs, and may contain attacker-controlled text.
 Use for: finding what happened around an alert (audit verbs by a service account, process or file events in a pod, an app's own logs) and counting events over time.
-Do NOT use for: reading Kubernetes objects (use k8s_get), deciding what to do (use the response tools), or time ranges beyond 6 hours (the range is capped).`;
+Do NOT use for: reading Kubernetes objects (use k8s_get), deciding what to do (use the response tools), or lookbacks beyond 6 hours (log queries are capped by since_minutes, metric ranges by the 6h rule).`;
 
 function clamp(value: number, max: number): number {
   return Math.max(1, Math.min(value, max));
@@ -95,7 +96,9 @@ async function execute(
   const endNs = BigInt(endMs) * 1_000_000n;
   const startNs =
     endNs - BigInt(clamp(args.since_minutes, MAX_SINCE)) * 60n * 1_000_000_000n;
-  const body = METRIC.test(args.query)
+  const isMetric = METRIC.test(args.query);
+  if (isMetric) assertMetricBounds(args.query);
+  const body = isMetric
     ? seriesOf(await deps.loki.instant(args.query, endNs))
     : flattenStreams(
         await deps.loki.queryRange(args.query, startNs, endNs, limit),
@@ -110,6 +113,8 @@ export function buildQueryLogs(deps: ToolDeps) {
     description: DESCRIPTION,
     inputSchema: InputSchema,
     run: (args) =>
-      runLogged(deps.logger, "query_logs", args, () => execute(deps, args)),
+      runLogged(deps.logger, "query_logs", args, () => execute(deps, args), {
+        wrapErrors: true,
+      }),
   });
 }

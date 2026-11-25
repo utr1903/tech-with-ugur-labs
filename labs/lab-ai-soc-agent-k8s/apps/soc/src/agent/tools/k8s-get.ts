@@ -106,6 +106,8 @@ export function buildK8sGet(deps: ToolDeps) {
     description: DESCRIPTION,
     inputSchema: InputSchema,
     run: (args) =>
-      runLogged(deps.logger, "k8s_get", args, () => execute(deps, args)),
+      runLogged(deps.logger, "k8s_get", args, () => execute(deps, args), {
+        wrapErrors: true,
+      }),
   });
 }
