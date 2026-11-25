@@ -1,0 +1,43 @@
+apiVersion: audit.k8s.io/v1
+kind: Policy
+omitStages: ["RequestReceived"]
+rules:
+  # Drop the noise: kubelets, control-plane components, leader leases,
+  # events and health endpoints.
+  - level: None
+    userGroups: ["system:nodes"]
+  - level: None
+    users:
+      - system:kube-proxy
+      - system:kube-scheduler
+      - system:kube-controller-manager
+      - system:apiserver
+  - level: None
+    resources:
+      - {group: "coordination.k8s.io", resources: ["leases"]}
+      - {group: "", resources: ["events"]}
+      - {group: "events.k8s.io", resources: ["events"]}
+  - level: None
+    nonResourceURLs: ["/healthz*", "/livez*", "/readyz*", "/version", "/metrics"]
+  # Never record secret or configmap contents.
+  - level: Metadata
+    resources:
+      - {group: "", resources: ["secrets", "configmaps"]}
+  # Full detail for the changes that matter most. kubectl exec arrives as
+  # a websocket "get", so exec is matched for every verb.
+  - level: RequestResponse
+    resources:
+      - {group: "", resources: ["pods/exec"]}
+  - level: RequestResponse
+    resources:
+      - {group: "rbac.authorization.k8s.io", resources: ["clusterrolebindings", "rolebindings", "clusterroles", "roles"]}
+      - {group: "", resources: ["serviceaccounts/token"]}
+    verbs: ["create", "update", "patch", "delete"]
+  # Workload writes: keep the request body.
+  - level: Request
+    resources:
+      - {group: "apps", resources: ["deployments", "daemonsets", "statefulsets"]}
+      - {group: "batch", resources: ["cronjobs", "jobs"]}
+      - {group: "", resources: ["pods"]}
+    verbs: ["create", "update", "patch", "delete"]
+  - level: Metadata

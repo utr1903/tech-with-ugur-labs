@@ -1,0 +1,13 @@
+# Values for the cilium/tetragon chart (pinned in scripts/up-infra.sh).
+tetragon:
+  # kind nodes are containers, so the agent reads the node's /proc from the
+  # extraMount declared in kind-config.yaml.
+  hostProcPath: /procHost
+  enableProcessCred: true
+  enableProcessNs: true
+  # Show process lineage in events (parent binary tells an admin exec from
+  # a shell spawned by the web server).
+  processAncestors:
+    enabled: "base,kprobe"
+  # Export every namespace; the default denylist hides kube-system events.
+  exportAllowList: ""
