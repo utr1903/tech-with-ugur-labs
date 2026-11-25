@@ -1,13 +1,14 @@
 SHELL := /bin/bash
 KIND_CLUSTER ?= ai-soc
 
-.PHONY: help cluster infra tenants outside down
+.PHONY: help cluster infra tenants outside detection down
 
 help:
 	@echo "make cluster  create the $(KIND_CLUSTER) kind cluster (audit logging on)"
 	@echo "make infra    cluster + Tetragon, Loki, Fluent Bit and Alertmanager"
 	@echo "make tenants  build and deploy the mock tenant workloads"
 	@echo "make outside   start the attacker sinks and normal-user traffic (Docker Compose)"
+	@echo "make detection  apply the Tetragon policies and Loki alert rules"
 	@echo "make down     stop the outside containers and delete the $(KIND_CLUSTER) cluster"
 
 # `kind create cluster` silently switches the reader's current kube context.
@@ -30,6 +31,9 @@ tenants:
 
 outside:
 	docker compose up -d --build
+
+detection:
+	./scripts/up-detection.sh
 
 # `kind delete cluster` also switches the current kube context; restore it.
 down:

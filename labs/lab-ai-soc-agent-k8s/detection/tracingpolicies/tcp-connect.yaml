@@ -1,0 +1,16 @@
+# Observe-only: record every outgoing TCP connection with its real
+# destination address and port. tcp_connect fires when the process calls
+# connect(), before kube-proxy rewrites a Service address, so a pod talking
+# to a Service shows the Service IP (10.96.x.x) and a pod talking to the
+# internet shows the real outside address.
+apiVersion: cilium.io/v1alpha1
+kind: TracingPolicy
+metadata:
+  name: tcp-connect
+spec:
+  kprobes:
+    - call: tcp_connect
+      syscall: false
+      args:
+        - index: 0
+          type: sock

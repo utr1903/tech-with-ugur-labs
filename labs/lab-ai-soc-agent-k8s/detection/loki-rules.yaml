@@ -1,0 +1,192 @@
+# Detection rules for the Loki ruler. The ruler evaluates each expression
+# every 15 s and sends firing alerts to Alertmanager. Every rule counts
+# matching log lines in a 2-minute window and fires on the first one
+# (`for: 0m`), so an alert stays up for about two minutes after the event.
+#
+# Tetragon lines are parsed with `| json`; the field expressions name the
+# path inside the event. The `namespace` label on every alert is the
+# Kubernetes namespace where it happened.
+#
+# Each rule says what it catches and which harmless activity ("the twin")
+# also trips it. Telling the two apart is the agent's job.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: loki-alert-rules
+  namespace: observability
+data:
+  rules.yaml: |
+    groups:
+      - name: soc-detections
+        interval: 15s
+        rules:
+          # Catches: a shell started by another shell inside the storefront
+          # (remote code execution through the app, or someone using
+          # `kubectl exec`) that runs anything but curl.
+          # Twin: an admin debugging with `kubectl exec ... -- sh -c ...`.
+          # Normal link previews also run `sh -c curl`, hence the curl filter.
+          - alert: UnexpectedProcessInStorefront
+            expr: |
+              sum by (namespace, pod) (
+                count_over_time(
+                  {source="runtime"} |= "\"process_exec\""
+                    | json namespace="process_exec.process.pod.namespace",
+                           pod="process_exec.process.pod.name",
+                           binary="process_exec.process.binary",
+                           parent="process_exec.parent.binary"
+                    | namespace="storefront"
+                    | parent =~ ".*/(sh|dash|bash)"
+                    | binary !~ ".*/curl"
+                  [2m]
+                )
+              ) > 0
+            for: 0m
+            labels:
+              severity: high
+            annotations:
+              summary: Unexpected process started by a shell in the storefront
+              description: >-
+                A shell inside the storefront pod started a program other
+                than curl. The storefront only ever runs curl for link
+                previews, so this is either someone using kubectl exec or
+                an attacker running commands through the web app.
+
+          # Catches: any read of the pod's service account token, the
+          # credential used to talk to the Kubernetes API.
+          # Twin: an admin or a debugging session reading the token on
+          # purpose. None of the tenant apps read it.
+          - alert: ServiceAccountTokenRead
+            expr: |
+              sum by (namespace, pod) (
+                count_over_time(
+                  {source="runtime"} |= "\"policy_name\":\"sa-token-read\""
+                    | json namespace="process_kprobe.process.pod.namespace",
+                           pod="process_kprobe.process.pod.name"
+                    | namespace =~ "storefront|payments|batch|ci"
+                  [2m]
+                )
+              ) > 0
+            for: 0m
+            labels:
+              severity: medium
+            annotations:
+              summary: A process read the service account token
+              description: >-
+                A process in this pod opened the service account token
+                file. None of the tenant apps need it, so something is
+                probably about to call the Kubernetes API with the pod's
+                identity.
+
+          # Catches: a tenant service account calling the API to read
+          # secrets or pods. These apps never talk to the API themselves.
+          # Twin: an admin impersonating the account (kubectl --as) to
+          # test its permissions.
+          # The namespace comes from the account name, because a
+          # cluster-wide request carries no namespace of its own.
+          - alert: TenantServiceAccountApiAccess
+            expr: |
+              sum by (namespace) (
+                count_over_time(
+                  {source="audit"} |~ "\"username\":\"system:serviceaccount:(storefront|payments|batch):"
+                    | regexp "\"username\":\"system:serviceaccount:(?P<namespace>[^:\"]+):"
+                    | json resource="objectRef.resource"
+                    | resource =~ "secrets|pods"
+                  [2m]
+                )
+              ) > 0
+            for: 0m
+            labels:
+              severity: high
+            annotations:
+              summary: A tenant service account read secrets or pods through the API
+              description: >-
+                The Kubernetes API audit log shows a workload service
+                account from the storefront, payments or batch namespace
+                reading secrets or pods. These apps never call the API, so
+                someone is using a stolen token.
+
+          # Catches: a connection to the Postgres port from a namespace
+          # other than payments (the database owner), batch (the nightly
+          # report) and ci (the runner checks the database every minute
+          # with its migration account).
+          # Twin: a developer connecting to the database for legitimate
+          # maintenance.
+          - alert: CrossNamespaceDbConnect
+            expr: |
+              sum by (namespace, pod) (
+                count_over_time(
+                  {source="runtime"} |= "\"function_name\":\"tcp_connect\""
+                    | json namespace="process_kprobe.process.pod.namespace",
+                           pod="process_kprobe.process.pod.name",
+                           dport="process_kprobe.args[0].sock_arg.dport"
+                    | dport = "5432"
+                    | namespace !~ "payments|batch|ci"
+                  [2m]
+                )
+              ) > 0
+            for: 0m
+            labels:
+              severity: high
+            annotations:
+              summary: A workload outside payments, batch and ci connected to Postgres
+              description: >-
+                A pod in a namespace that has no business with the
+                payments database opened a connection to Postgres
+                (port 5432). Only payments, batch and ci do that normally.
+
+          # Catches: a database statement that reads the customers table
+          # with no WHERE clause, or copies the whole table out.
+          # Twin: the nightly report in the batch namespace does exactly
+          # this on purpose.
+          # Postgres logs plain queries as "statement:" and parameterised
+          # ones as "execute ...:", so both are matched.
+          - alert: BulkCustomerRead
+            expr: |
+              sum by (namespace) (
+                count_over_time(
+                  {source="db"}
+                    |~ "(?i)(statement|execute [^:]*): (.*select .* from customers|copy .*customers)"
+                    !~ "(?i)where"
+                  [2m]
+                )
+              ) > 0
+            for: 0m
+            labels:
+              severity: high
+            annotations:
+              summary: The whole customers table was read
+              description: >-
+                A database statement read every row of the customers
+                table, which holds names, emails and card numbers. Normal
+                application queries always look up one customer by id.
+
+          # Catches: a connection from a tenant namespace to an address
+          # outside the pod and service ranges (10.244.x.x and 10.96.x.x),
+          # other than Postgres or DNS. Only the four known tenant
+          # namespaces are watched, so a brand-new namespace is a blind
+          # spot on purpose.
+          # Twin: a legitimate call to an external service.
+          - alert: UnexpectedEgress
+            expr: |
+              sum by (namespace, pod) (
+                count_over_time(
+                  {source="runtime"} |= "\"function_name\":\"tcp_connect\""
+                    | json namespace="process_kprobe.process.pod.namespace",
+                           pod="process_kprobe.process.pod.name",
+                           daddr="process_kprobe.args[0].sock_arg.daddr",
+                           dport="process_kprobe.args[0].sock_arg.dport"
+                    | namespace =~ "storefront|payments|batch|ci"
+                    | daddr !~ "10\\.(244|96)\\..*"
+                    | dport !~ "5432|53"
+                  [2m]
+                )
+              ) > 0
+            for: 0m
+            labels:
+              severity: medium
+            annotations:
+              summary: A tenant opened a connection to an outside address
+              description: >-
+                A pod in one of the tenant namespaces connected to an
+                address outside the cluster (not a pod, a service,
+                Postgres or DNS).

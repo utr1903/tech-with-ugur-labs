@@ -9,5 +9,14 @@ tetragon:
   # a shell spawned by the web server).
   processAncestors:
     enabled: "base,kprobe"
-  # Export every namespace; the default denylist hides kube-system events.
+  # An empty allowlist lifts the chart's event-type filter, so every event
+  # type is exported. Which namespaces are exported is decided by the
+  # denylist below, not by this setting.
   exportAllowList: ""
+  # Keep the chart's default entries (probe health checks; host processes
+  # "", cilium, kube-system) and also drop the cluster's own plumbing so the
+  # logs only describe workloads. Any other namespace, including one an
+  # attacker creates, is still recorded.
+  exportDenyList: |-
+    {"health_check":true}
+    {"namespace":["", "cilium", "kube-system", "observability", "soc", "local-path-storage"]}
