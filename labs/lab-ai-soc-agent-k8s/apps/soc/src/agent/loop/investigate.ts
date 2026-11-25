@@ -16,7 +16,7 @@ import {
 } from "./request.js";
 import { emptyUsage, type Usage } from "./usage.js";
 
-export type { RunInput, RunnerFactory } from "./request.js";
+export type { RunInput } from "./request.js";
 
 export type LoopResult = {
   verdicts: Verdict[];

@@ -6,7 +6,6 @@ import { buildQueryLogs } from "./query-logs.js";
 import { buildSubmitVerdict } from "./submit-verdict.js";
 import type { InvestigationState, ToolDeps } from "./types.js";
 
-export type { AlertContext, InvestigationState, ToolDeps } from "./types.js";
 export type { BetaRunnableTool };
 
 /** Read tools first, then the four proposal tools, then the verdict. */
