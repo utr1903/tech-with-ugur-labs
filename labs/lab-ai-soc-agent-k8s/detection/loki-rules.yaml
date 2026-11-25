@@ -111,6 +111,8 @@ data:
           # with its migration account).
           # Twin: a developer connecting to the database for legitimate
           # maintenance.
+          # Blind spot: ci is excluded because ci-runner talks to Postgres
+          # legitimately, so a compromised ci pod is invisible to this rule.
           - alert: CrossNamespaceDbConnect
             expr: |
               sum by (namespace, pod) (
@@ -138,6 +140,8 @@ data:
           # with no WHERE clause, or copies the whole table out.
           # Twin: the nightly report in the batch namespace does exactly
           # this on purpose.
+          # Blind spot: the rule looks for a missing WHERE, so a trivial
+          # `WHERE true` still slips past it.
           # Postgres logs plain queries as "statement:" and parameterised
           # ones as "execute ...:", so both are matched.
           - alert: BulkCustomerRead
@@ -146,7 +150,7 @@ data:
                 count_over_time(
                   {source="db"}
                     |~ "(?i)(statement|execute [^:]*): (.*select .* from customers|copy .*customers)"
-                    !~ "(?i)where"
+                    !~ "(?i)from\\s+customers\\s+where"
                   [2m]
                 )
               ) > 0
