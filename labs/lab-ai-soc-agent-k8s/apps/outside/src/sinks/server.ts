@@ -1,4 +1,3 @@
-import { createHash } from "node:crypto";
 import {
   createServer,
   type IncomingMessage,
@@ -6,10 +5,17 @@ import {
   type ServerResponse,
 } from "node:http";
 import type { Logger } from "../logger.js";
-import { HitStore } from "./hits.js";
+import type { HitStore } from "./hits.js";
 import { loadStage } from "./stage.js";
+import { DEFAULT_MAX_UPLOAD_BYTES, summarizeUpload } from "./upload.js";
 
-export type SinkOptions = { scenariosDir: string; attackerIp: string };
+export type SinkOptions = {
+  scenariosDir: string;
+  attackerIp: string;
+  /** Shared by every listener so /hits is the same on :8080 and :8443. */
+  store: HitStore;
+  maxUploadBytes?: number;
+};
 
 function send(
   res: ServerResponse,
@@ -21,12 +27,6 @@ function send(
   res.end(body);
 }
 
-async function readBody(req: IncomingMessage): Promise<Buffer> {
-  const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
-  return Buffer.concat(chunks);
-}
-
 function srcIp(req: IncomingMessage): string {
   return (req.socket.remoteAddress ?? "").replace(/^::ffff:/, "");
 }
@@ -35,7 +35,6 @@ type Ctx = {
   req: IncomingMessage;
   res: ServerResponse;
   url: URL;
-  store: HitStore;
   logger: Logger;
   opts: SinkOptions;
 };
@@ -46,14 +45,26 @@ const notFound = (res: ServerResponse): void =>
   send(res, 404, JSON.stringify({ error: "not found" }));
 
 function record(c: Ctx, event: string, fields: Record<string, unknown>): void {
-  c.store.add(event, fields);
+  c.opts.store.add(event, fields);
   c.logger.info({ event, ...fields }, `Receiving ${event} succeeded.`);
 }
 
 async function upload(c: Ctx): Promise<void> {
-  const body = await readBody(c.req);
-  const sha256 = createHash("sha256").update(body).digest("hex");
-  record(c, "exfil", { bytes: body.length, srcIp: srcIp(c.req), sha256 });
+  const summary = await summarizeUpload(
+    c.req,
+    c.opts.maxUploadBytes ?? DEFAULT_MAX_UPLOAD_BYTES,
+  );
+  if (summary === null) {
+    c.logger.warn(
+      { srcIp: srcIp(c.req) },
+      "Receiving exfil rejected: too large.",
+    );
+    c.res.setHeader("connection", "close");
+    send(c.res, 413, JSON.stringify({ error: "too large" }));
+    c.res.on("finish", () => c.req.destroy());
+    return;
+  }
+  record(c, "exfil", { ...summary, srcIp: srcIp(c.req) });
   ok(c.res);
 }
 
@@ -67,7 +78,7 @@ function beacon(c: Ctx): void {
 
 function hits(c: Ctx): void {
   const since = Number(c.url.searchParams.get("since") ?? 0) || 0;
-  send(c.res, 200, JSON.stringify(c.store.since(since)));
+  send(c.res, 200, JSON.stringify(c.opts.store.since(since)));
 }
 
 async function stage(c: Ctx): Promise<void> {
@@ -93,11 +104,10 @@ async function route(c: Ctx): Promise<void> {
 
 /** One handler serves both the :8080 sinks and the :8443 beacon listener. */
 export function createSinkServer(logger: Logger, opts: SinkOptions): Server {
-  const store = new HitStore();
   return createServer(async (req, res) => {
     const url = new URL(req.url ?? "/", "http://sink");
     try {
-      await route({ req, res, url, store, logger, opts });
+      await route({ req, res, url, logger, opts });
     } catch (err) {
       logger.error({ err, path: url.pathname }, "Handling request failed.");
       send(res, 500, JSON.stringify({ error: "internal" }));

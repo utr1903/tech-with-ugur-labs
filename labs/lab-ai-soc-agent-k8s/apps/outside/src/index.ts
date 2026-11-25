@@ -1,6 +1,7 @@
 import { networkInterfaces } from "node:os";
 import { runLoadgen } from "./loadgen/loop.js";
 import { createLogger, installGlobalErrorHandlers } from "./logger.js";
+import { HitStore } from "./sinks/hits.js";
 import { createSinkServer } from "./sinks/server.js";
 
 const role = process.argv[2];
@@ -22,8 +23,9 @@ async function main(): Promise<void> {
     case "sinks": {
       const attackerIp = ownIp();
       const scenariosDir = process.env.SCENARIOS_DIR ?? "/scenarios";
+      const store = new HitStore();
       for (const port of [8080, 8443]) {
-        createSinkServer(logger, { scenariosDir, attackerIp }).listen(
+        createSinkServer(logger, { scenariosDir, attackerIp, store }).listen(
           port,
           () => logger.info({ port, attackerIp }, "Starting sinks succeeded."),
         );

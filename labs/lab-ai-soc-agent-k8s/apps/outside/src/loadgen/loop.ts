@@ -24,7 +24,9 @@ export async function runLoadgen(
     const { path } = pickRequest(Math.random);
     try {
       logger.info({ path }, "Requesting storefront...");
-      const res = await fetch(`${target}${path}`);
+      const res = await fetch(`${target}${path}`, {
+        signal: AbortSignal.timeout(5000),
+      });
       await res.arrayBuffer();
       logger.info(
         { path, status: res.status },
