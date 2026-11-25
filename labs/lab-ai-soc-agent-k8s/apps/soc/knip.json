@@ -1,5 +1,9 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
-  "entry": ["src/agent/tools/index.ts"],
+  "entry": [
+    "src/agent/tools/index.ts",
+    "src/agent/loop/investigate.ts",
+    "src/agent/loop/client.ts"
+  ],
   "project": ["src/**/*.ts"]
 }
