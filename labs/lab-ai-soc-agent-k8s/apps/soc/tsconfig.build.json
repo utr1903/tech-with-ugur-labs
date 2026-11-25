@@ -1,0 +1,8 @@
+{
+  "extends": "./tsconfig.json",
+  "exclude": [
+    "src/**/*.test.ts",
+    "src/responder/fixtures.ts",
+    "src/responder/fake-apis.ts"
+  ]
+}
