@@ -31,8 +31,12 @@ rules:
   - level: RequestResponse
     resources:
       - {group: "rbac.authorization.k8s.io", resources: ["clusterrolebindings", "rolebindings", "clusterroles", "roles"]}
-      - {group: "", resources: ["serviceaccounts/token"]}
     verbs: ["create", "update", "patch", "delete"]
+  # Token requests stay at Metadata: the response body holds a real minted
+  # token that would otherwise flow into the logs.
+  - level: Metadata
+    resources:
+      - {group: "", resources: ["serviceaccounts/token"]}
   # Workload writes: keep the request body.
   - level: Request
     resources:

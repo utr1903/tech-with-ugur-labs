@@ -53,9 +53,12 @@ check() {
 
 loki_start
 kc create namespace "$NS" --dry-run=client -o yaml | kc apply -f - >/dev/null
-kc -n "$NS" delete pod "$POD" --ignore-not-found >/dev/null
-kc -n "$NS" run "$POD" --image="$IMAGE" --restart=Never --command -- sleep 3600 >/dev/null
-kc -n "$NS" wait --for=condition=Ready "pod/$POD" --timeout=180s >/dev/null
+if ! { kc -n "$NS" delete pod "$POD" --ignore-not-found >/dev/null &&
+  kc -n "$NS" run "$POD" --image="$IMAGE" --restart=Never --command -- sleep 3600 >/dev/null &&
+  kc -n "$NS" wait --for=condition=Ready "pod/$POD" --timeout=180s >/dev/null; }; then
+  printf '{"check":"setup","result":"fail","nonce":"%s"}\n' "$NONCE"
+  exit 1
+fi
 
 kc -n "$NS" exec "$POD" -- sh -c "echo LAB-CANARY-EXEC-${NONCE}" >/dev/null
 kc -n "$NS" exec "$POD" -- sh -c "echo LAB-CANARY-APP-${NONCE} > /proc/1/fd/1"
@@ -63,7 +66,7 @@ kc -n "$NS" exec "$POD" -- sh -c "echo LAB-CANARY-APP-${NONCE} > /proc/1/fd/1"
 check runtime "{source=\"runtime\"} |= \"LAB-CANARY-EXEC-${NONCE}\""
 check app "{source=\"app\", namespace=\"${NS}\"} |= \"LAB-CANARY-APP-${NONCE}\""
 # The audit event names the target in requestURI/objectRef, not as "pods/exec".
-check audit "{source=\"audit\"} |= \"\\\"subresource\\\":\\\"exec\\\"\" |= \"pods/${POD}/exec\""
+check audit "{source=\"audit\"} |= \"\\\"subresource\\\":\\\"exec\\\"\" |= \"pods/${POD}/exec\" |= \"LAB-CANARY-EXEC-${NONCE}\""
 
 if $WITH_DB; then
   kc -n payments exec postgres-0 -- psql -U postgres -c "select 'LAB-CANARY-DB-${NONCE}'" >/dev/null

@@ -11,11 +11,6 @@ LOKI_VERSION="7.7.0"
 FLUENT_BIT_VERSION="0.58.3"
 ALERTMANAGER_VERSION="2.5.2"
 
-hc repo add cilium https://helm.cilium.io/ --force-update >/dev/null
-hc repo add grafana https://grafana.github.io/helm-charts --force-update >/dev/null
-hc repo add fluent https://fluent.github.io/helm-charts --force-update >/dev/null
-hc repo add prometheus-community https://prometheus-community.github.io/helm-charts --force-update >/dev/null
-
 kc create namespace observability --dry-run=client -o yaml | kc apply -f - >/dev/null
 
 # Alertmanager reads the webhook bearer token from this Secret. The value
@@ -34,14 +29,14 @@ if ! kc -n observability get configmap loki-alert-rules >/dev/null 2>&1; then
   log info "created empty rules configmap" name=loki-alert-rules
 fi
 
-hc upgrade --install tetragon cilium/tetragon --version "$TETRAGON_VERSION" \
+hc upgrade --install tetragon tetragon --repo https://helm.cilium.io/ --version "$TETRAGON_VERSION" \
   -n kube-system -f infra/tetragon-values.yaml --wait --timeout 8m
-hc upgrade --install loki grafana/loki --version "$LOKI_VERSION" \
+hc upgrade --install loki loki --repo https://grafana.github.io/helm-charts --version "$LOKI_VERSION" \
   -n observability -f infra/loki-values.yaml --wait --timeout 8m
-hc upgrade --install alertmanager prometheus-community/alertmanager \
-  --version "$ALERTMANAGER_VERSION" \
+hc upgrade --install alertmanager alertmanager \
+  --repo https://prometheus-community.github.io/helm-charts --version "$ALERTMANAGER_VERSION" \
   -n observability -f infra/alertmanager-values.yaml --wait --timeout 8m
-hc upgrade --install fluent-bit fluent/fluent-bit --version "$FLUENT_BIT_VERSION" \
+hc upgrade --install fluent-bit fluent-bit --repo https://fluent.github.io/helm-charts --version "$FLUENT_BIT_VERSION" \
   -n observability -f infra/fluent-bit-values.yaml --wait --timeout 8m
 
 kc -n kube-system rollout status ds/tetragon --timeout=300s
