@@ -14,6 +14,7 @@ from app.truth.store import (
     load_kev_truth,
     load_msft_truth,
     msft_truth_to_json,
+    same_content,
     write_truth,
 )
 
@@ -80,3 +81,23 @@ def test_load_malformed_file_raises(tmp_path: Path) -> None:
         load_kev_truth(path)
     with pytest.raises(TruthError):
         load_msft_truth(path)
+
+
+def test_ignored_key_difference_is_not_a_change(tmp_path: Path, log: Logger) -> None:
+    path = tmp_path / "kev.json"
+    write_truth(path, kev_truth_to_json(_kev()), log=log)
+    before = path.read_bytes()
+    newer = kev_truth_to_json(
+        KevTruth("2026-10-01", "2026-10-31", "2099.01.01", _kev().entries)
+    )
+
+    assert same_content(path, newer, ignore=("catalog_version",)) is True
+    assert same_content(path, newer) is False
+    assert write_truth(path, newer, log=log, ignore=("catalog_version",)) is False
+    assert path.read_bytes() == before
+
+
+def test_write_leaves_no_temp_file(tmp_path: Path, log: Logger) -> None:
+    write_truth(tmp_path / "kev.json", kev_truth_to_json(_kev()), log=log)
+
+    assert [p.name for p in tmp_path.iterdir()] == ["kev.json"]

@@ -48,21 +48,48 @@ def render_truth(payload: Mapping[str, object]) -> str:
     return json.dumps(payload, indent=2, sort_keys=True) + "\n"
 
 
-def write_truth(path: Path, payload: Mapping[str, object], *, log: Logger) -> bool:
-    """Writes the payload; returns True when the file content changed."""
-    text = render_truth(payload)
+def same_content(
+    path: Path, payload: Mapping[str, object], *, ignore: tuple[str, ...] = ()
+) -> bool:
+    """True when the file holds `payload`, disregarding the top-level `ignore` keys."""
+    try:
+        stored = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return False
+    if not isinstance(stored, dict):
+        return False
+    return _without(stored, ignore) == _without(payload, ignore)
+
+
+def write_truth(
+    path: Path,
+    payload: Mapping[str, object],
+    *,
+    log: Logger,
+    ignore: tuple[str, ...] = (),
+) -> bool:
+    """Writes the payload atomically; returns True when the file was rewritten.
+
+    A file that differs only in the `ignore` keys is left untouched.
+    """
     try:
         log.info("Writing answer key...", path=str(path))
-        changed = not path.exists() or path.read_text(encoding="utf-8") != text
+        changed = not same_content(path, payload, ignore=ignore)
         if changed:
             path.parent.mkdir(parents=True, exist_ok=True)
-            path.write_text(text, encoding="utf-8")
+            temp = path.with_name(f"{path.name}.tmp")
+            temp.write_text(render_truth(payload), encoding="utf-8")
+            temp.replace(path)
     except OSError as err:
         log.exception("Writing answer key failed.", path=str(path))
         raise TruthError(f"cannot write {path}: {err}") from err
     else:
         log.info("Writing answer key succeeded.", path=str(path), changed=changed)
         return changed
+
+
+def _without(data: Mapping[str, object], ignore: tuple[str, ...]) -> dict[str, object]:
+    return {key: value for key, value in data.items() if key not in ignore}
 
 
 def load_kev_truth(path: Path) -> KevTruth:

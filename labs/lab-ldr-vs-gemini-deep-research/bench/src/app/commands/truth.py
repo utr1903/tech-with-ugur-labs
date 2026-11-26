@@ -16,8 +16,9 @@ from app.truth.fetch import KEV_FEED_URL, MSFT_FACTS_URL, fetch_json
 from app.truth.kev import KEV_WINDOW, build_kev_truth
 from app.truth.store import (
     kev_truth_to_json,
+    load_kev_truth,
     msft_truth_to_json,
-    render_truth,
+    same_content,
     write_truth,
 )
 
@@ -48,15 +49,18 @@ def run(args: argparse.Namespace, *, log: Logger) -> None:
     }
 
     if args.check:
-        differing = [n for n, p in keys.items() if _differs(truth_dir / n, p)]
+        differing = [n for n, p in keys.items() if not _matches(truth_dir, n, p)]
         for name in keys:
             write_line(f"{name}: {'DIFFERS' if name in differing else 'matches'}")
         if differing:
             raise TruthError(f"committed answer keys differ: {', '.join(differing)}")
     else:
         for name, payload in keys.items():
-            changed = write_truth(truth_dir / name, payload, log=log)
+            changed = write_truth(
+                truth_dir / name, payload, log=log, ignore=_ignored(name)
+            )
             write_line(f"{name}: {'written' if changed else 'unchanged'}")
+    _note_catalog(truth_dir / KEV_FILE, kev.catalog_version)
 
     write_line(f"KEV entries: {len(kev.entries)}")
     for quarter in msft.quarters:
@@ -64,11 +68,22 @@ def run(args: argparse.Namespace, *, log: Logger) -> None:
         write_line(f"{quarter.quarter_end}{flag}")
 
 
-def _differs(path: Path, payload: dict[str, object]) -> bool:
+def _ignored(name: str) -> tuple[str, ...]:
+    """The catalog version moves with every CISA update; entries are frozen by date."""
+    return ("catalog_version",) if name == KEV_FILE else ()
+
+
+def _matches(truth_dir: Path, name: str, payload: dict[str, object]) -> bool:
+    return same_content(truth_dir / name, payload, ignore=_ignored(name))
+
+
+def _note_catalog(path: Path, current: str) -> None:
     try:
-        return path.read_text(encoding="utf-8") != render_truth(payload)
-    except OSError:
-        return True
+        frozen = load_kev_truth(path).catalog_version
+    except TruthError:
+        return
+    if frozen != current:
+        write_line(f"{KEV_FILE}: frozen from catalog {frozen}; feed is now {current}")
 
 
 def _user_agent() -> str:
