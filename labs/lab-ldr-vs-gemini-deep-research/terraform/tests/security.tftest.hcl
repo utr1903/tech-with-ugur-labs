@@ -92,9 +92,23 @@ run "ssh_is_the_only_ingress" {
   assert {
     condition = !anytrue([
       for f in fileset(path.module, "*.tf") :
-      can(regex("aws_security_group_rule", file("${path.module}/${f}")))
+      can(regex("(?m)^\\s*resource\\s+\"aws_security_group_rule\"", file("${path.module}/${f}")))
     ])
     error_message = "No aws_security_group_rule resources."
+  }
+  assert {
+    condition = !anytrue([
+      for f in fileset(path.module, "*.tf") :
+      can(regex("(?m)^\\s*dynamic\\s+\"ingress\"", file("${path.module}/${f}")))
+    ])
+    error_message = "No dynamic ingress blocks on security groups."
+  }
+  assert {
+    condition = !anytrue([
+      for f in fileset(path.module, "*.tf") :
+      can(regex("(?m)^\\s*resource\\s+\"aws_network_acl(_rule|_association)?\"", file("${path.module}/${f}")))
+    ])
+    error_message = "No network ACL resources: the default NACL stays untouched."
   }
 }
 
