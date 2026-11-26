@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import argparse
+import sys
+import threading
 
 import pytest
 
@@ -35,7 +37,18 @@ def test_parser_rejects_unknown_question() -> None:
         build_parser().parse_args(["research", "--question", "q3-nope"])
 
 
+@pytest.mark.parametrize("value", ["0", "-1", "abc"])
+def test_parser_rejects_non_positive_runs(value: str) -> None:
+    for command in ("research", "frontier"):
+        with pytest.raises(SystemExit):
+            build_parser().parse_args([command, "--runs", value])
+
+
 def test_lab_error_maps_to_exit_1(monkeypatch: pytest.MonkeyPatch) -> None:
+    # main() installs process-wide error hooks; restore them afterwards.
+    monkeypatch.setattr(sys, "excepthook", sys.excepthook)
+    monkeypatch.setattr(threading, "excepthook", threading.excepthook)
+
     def fail(args: argparse.Namespace, *, log: Logger) -> None:
         log.info("Simulating a broken run file.", command=args.command)
         raise RunStoreError("broken run file")

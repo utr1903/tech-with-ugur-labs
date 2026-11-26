@@ -46,6 +46,32 @@ def test_save_then_load_round_trip(tmp_path: Path, log: Logger) -> None:
     assert load_runs(tmp_path, log=log) == (record,)
 
 
+def test_save_leaves_no_temporary_file(tmp_path: Path, log: Logger) -> None:
+    path = save_run(tmp_path, _record(), overwrite=False, log=log)
+    save_run(tmp_path, _record(), overwrite=True, log=log)
+
+    assert sorted(p.name for p in path.parent.iterdir()) == ["run-1.json"]
+
+
+def test_failed_write_keeps_the_previous_file(
+    tmp_path: Path, log: Logger, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    path = save_run(tmp_path, _record(), overwrite=False, log=log)
+    before = path.read_text(encoding="utf-8")
+
+    def broken(*_: object) -> Path:
+        raise OSError("disk full")
+
+    monkeypatch.setattr(Path, "replace", broken)
+    newer = RunRecord(**{**_record().__dict__, "report": "new"})
+
+    with pytest.raises(RunStoreError):
+        save_run(tmp_path, newer, overwrite=True, log=log)
+
+    assert path.read_text(encoding="utf-8") == before
+    assert [p.name for p in path.parent.iterdir()] == ["run-1.json"]
+
+
 def test_file_is_stable_and_unescaped(tmp_path: Path, log: Logger) -> None:
     path = save_run(tmp_path, _record(), overwrite=False, log=log)
 

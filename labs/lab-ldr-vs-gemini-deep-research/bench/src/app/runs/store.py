@@ -46,13 +46,24 @@ def save_run(
         text = json.dumps(
             record_to_json(record), indent=2, sort_keys=True, ensure_ascii=False
         )
-        path.write_text(text + "\n", encoding="utf-8")
+        _write_atomically(path, text + "\n")
     except OSError as err:
         log.exception("Saving run failed.", path=str(path))
         raise RunStoreError(f"cannot write {path}: {err}") from err
     else:
         log.info("Saving run succeeded.", path=str(path))
         return path
+
+
+def _write_atomically(path: Path, text: str) -> None:
+    """Writes beside the target, then renames, so readers never see half a file."""
+    temporary = path.with_name(f"{path.name}.tmp")
+    try:
+        temporary.write_text(text, encoding="utf-8")
+        temporary.replace(path)
+    except OSError:
+        temporary.unlink(missing_ok=True)
+        raise
 
 
 def load_runs(results_dir: Path, *, log: Logger) -> tuple[RunRecord, ...]:

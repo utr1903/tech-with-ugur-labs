@@ -17,9 +17,19 @@ QUESTIONS = ("q1-kev", "q2-msft", "all")
 DEFAULT_RUNS = 3
 
 
+def _positive_int(value: str) -> int:
+    try:
+        number = int(value)
+    except ValueError as err:
+        raise argparse.ArgumentTypeError(f"{value!r} is not an integer") from err
+    if number < 1:
+        raise argparse.ArgumentTypeError(f"must be at least 1, got {number}")
+    return number
+
+
 def _add_research_options(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--question", choices=QUESTIONS, default="all")
-    parser.add_argument("--runs", type=int, default=DEFAULT_RUNS)
+    parser.add_argument("--runs", type=_positive_int, default=DEFAULT_RUNS)
     parser.add_argument("--overwrite", action="store_true")
 
 
