@@ -1,0 +1,6 @@
+# Copy to terraform.tfvars and set your own public address as a /32.
+# Look it up with: curl -s https://checkip.amazonaws.com
+allowed_ssh_cidr = "203.0.113.7/32"
+
+# Optional overrides:
+# availability_zone = "eu-central-1b"
