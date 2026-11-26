@@ -38,3 +38,21 @@ def test_unparseable_cell_is_none_but_row_kept() -> None:
 
 def test_missing_quarters_key_is_format_failure() -> None:
     assert parse_msft_answer(_report('{"other": []}')) is None
+
+
+def test_non_finite_and_underscored_cells_are_none() -> None:
+    body = (
+        '{"quarters": [{"quarter_end": "2024-12-31", "revenue_usd_millions": "nan",'
+        ' "net_income_usd_millions": "inf", "diluted_eps_usd": "3_2"}]}'
+    )
+    rows = parse_msft_answer(_report(body))
+    assert rows == (QuarterRow("2024-12-31", None, None, None),)
+
+
+def test_json_nan_literal_is_none() -> None:
+    body = (
+        '{"quarters": [{"quarter_end": "2024-12-31", "revenue_usd_millions": NaN,'
+        ' "net_income_usd_millions": Infinity, "diluted_eps_usd": 3.23}]}'
+    )
+    rows = parse_msft_answer(_report(body))
+    assert rows == (QuarterRow("2024-12-31", None, None, 3.23),)

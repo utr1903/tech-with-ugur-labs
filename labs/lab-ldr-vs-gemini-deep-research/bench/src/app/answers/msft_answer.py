@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 
 from app.answers.extract import extract_last_json_block
@@ -47,11 +48,17 @@ def _to_number(value: object) -> float | None:
     if isinstance(value, bool):
         return None
     if isinstance(value, (int, float)):
-        return float(value)
+        return _finite(float(value))
     if isinstance(value, str):
         cleaned = value.replace("$", "").replace(",", "").replace(" ", "")
+        if "_" in cleaned:
+            return None
         try:
-            return float(cleaned)
+            return _finite(float(cleaned))
         except ValueError:
             return None
     return None
+
+
+def _finite(number: float) -> float | None:
+    return number if math.isfinite(number) else None
