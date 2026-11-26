@@ -12,6 +12,7 @@ from dataclasses import dataclass
 
 import httpx
 
+from app.envvars import number_from_env
 from app.errors import ConfigError, LdrError
 from app.logging_setup import Logger
 
@@ -42,19 +43,9 @@ def ldr_settings_from_env(env: Mapping[str, str]) -> LdrSettings:
         username=env.get("LDR_LAB_USERNAME", "lab"),
         password=password,
         model=env.get("LDR_MODEL", "qwen3.6-27b"),
-        poll_seconds=_number(env, "LDR_POLL_SECONDS", 10.0),
-        timeout_seconds=_number(env, "LDR_TIMEOUT_MINUTES", 60.0) * 60,
+        poll_seconds=number_from_env(env, "LDR_POLL_SECONDS", 10.0),
+        timeout_seconds=number_from_env(env, "LDR_TIMEOUT_MINUTES", 60.0) * 60,
     )
-
-
-def _number(env: Mapping[str, str], name: str, default: float) -> float:
-    raw = env.get(name)
-    if raw is None or not raw.strip():
-        return default
-    try:
-        return float(raw)
-    except ValueError as err:
-        raise ConfigError(f"{name} must be a number, got {raw!r}") from err
 
 
 class LdrSession:

@@ -17,8 +17,8 @@ from app.ldr.session import LdrSession, ldr_settings_from_env
 from app.logging_setup import Logger
 from app.output import write_line
 from app.questions.catalog import select_questions
-from app.runs.record import RunRecord
-from app.runs.store import next_run_numbers, save_run
+from app.runs.batch import choose_run_numbers, summary_line
+from app.runs.store import save_run
 
 _DEFAULT_RESULTS_DIR = "/work/results"
 _REQUEST_TIMEOUT_SECONDS = 60
@@ -44,7 +44,14 @@ def run(
         session = LdrSession(client, settings)
         session.login(log=log)
         for question in questions:
-            numbers = _run_numbers(results_dir, question.id, args, log=log)
+            numbers = choose_run_numbers(
+                results_dir,
+                "ldr",
+                question.id,
+                runs=args.runs,
+                overwrite=args.overwrite,
+                log=log,
+            )
             for number in numbers:
                 record = run_ldr_question(
                     session,
@@ -57,23 +64,7 @@ def run(
                     price_per_hour=price,
                 )
                 save_run(results_dir, record, overwrite=args.overwrite, log=log)
-                write_line(_summary(record))
-
-
-def _run_numbers(
-    results_dir: Path, qid: str, args: argparse.Namespace, *, log: Logger
-) -> tuple[int, ...]:
-    if args.overwrite:
-        log.info("Overwriting from run 1.", question_id=qid)
-        return tuple(range(1, args.runs + 1))
-    return next_run_numbers(results_dir, "ldr", qid, args.runs)
-
-
-def _summary(record: RunRecord) -> str:
-    head = f"{record.question_id} run {record.run}: {record.status}"
-    if record.status == "completed":
-        return f"{head} in {record.wall_seconds:.0f} s, {len(record.sources)} sources"
-    return f"{head} after {record.wall_seconds:.0f} s"
+                write_line(summary_line(record))
 
 
 def _price(raw: str | None) -> float:
