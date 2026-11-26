@@ -33,7 +33,7 @@ variable "allowed_ssh_cidr" {
   description = "Your own public IP as a /32 (for example 203.0.113.7/32). The only address allowed to reach SSH. No default: a wrong default would be unsafe in public."
 
   validation {
-    condition     = can(cidrhost(var.allowed_ssh_cidr, 0)) && endswith(var.allowed_ssh_cidr, "/32")
+    condition     = can(cidrhost(var.allowed_ssh_cidr, 0)) && can(regex("^\\d{1,3}(\\.\\d{1,3}){3}/32$", var.allowed_ssh_cidr))
     error_message = "allowed_ssh_cidr must be a single IPv4 address in /32 form, such as 203.0.113.7/32."
   }
 }

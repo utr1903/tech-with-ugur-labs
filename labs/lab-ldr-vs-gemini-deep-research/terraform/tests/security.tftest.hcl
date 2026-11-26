@@ -45,8 +45,11 @@ run "vm_holds_no_credentials_and_no_key" {
     error_message = "The lab creates no IAM instance profile, role, user or access key."
   }
   assert {
-    condition     = !can(regex("(?m)^\\s*(iam_instance_profile|key_name)\\s*=", file("${path.module}/05_vm.tf")))
-    error_message = "The VM sets neither iam_instance_profile nor key_name."
+    condition = !anytrue([
+      for f in fileset(path.module, "*.tf") :
+      can(regex("(?m)^\\s*(iam_instance_profile|key_name)\\s*=", file("${path.module}/${f}")))
+    ])
+    error_message = "No resource sets iam_instance_profile or key_name."
   }
 }
 
@@ -67,6 +70,34 @@ run "ssh_only_from_your_own_address" {
   }
 }
 
+# The named rule above could be joined by another one, so scan every file:
+# exactly one ingress rule exists, and no other ingress mechanism is used.
+run "ssh_is_the_only_ingress" {
+  command = plan
+
+  assert {
+    condition = sum([
+      for f in fileset(path.module, "*.tf") :
+      length(regexall("(?m)^\\s*resource\\s+\"aws_vpc_security_group_ingress_rule\"", file("${path.module}/${f}")))
+    ]) == 1
+    error_message = "Exactly one ingress rule may exist: SSH from your /32."
+  }
+  assert {
+    condition = !anytrue([
+      for f in fileset(path.module, "*.tf") :
+      can(regex("(?m)^\\s*ingress\\s*\\{", file("${path.module}/${f}")))
+    ])
+    error_message = "No inline ingress blocks on security groups."
+  }
+  assert {
+    condition = !anytrue([
+      for f in fileset(path.module, "*.tf") :
+      can(regex("aws_security_group_rule", file("${path.module}/${f}")))
+    ])
+    error_message = "No aws_security_group_rule resources."
+  }
+}
+
 run "open_ssh_range_is_rejected" {
   command = plan
 
@@ -82,6 +113,16 @@ run "wider_than_one_address_is_rejected" {
 
   variables {
     allowed_ssh_cidr = "203.0.113.0/24"
+  }
+
+  expect_failures = [var.allowed_ssh_cidr]
+}
+
+run "ipv6_range_is_rejected" {
+  command = plan
+
+  variables {
+    allowed_ssh_cidr = "2001:db8::1/32"
   }
 
   expect_failures = [var.allowed_ssh_cidr]
