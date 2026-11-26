@@ -1,6 +1,6 @@
 import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import { describe, expect, it } from "vitest";
-import { addUsage, emptyUsage } from "./usage.js";
+import { addUsage, budgetTokens, emptyUsage } from "./usage.js";
 
 function msg(usage: Record<string, number | null | undefined>): BetaMessage {
   return { usage } as unknown as BetaMessage;
@@ -46,5 +46,19 @@ describe("addUsage", () => {
       cache_creation_input_tokens: 0,
       iterations: 1,
     });
+  });
+});
+
+describe("budgetTokens", () => {
+  it("counts fresh input, cache writes and output but not cache reads", () => {
+    expect(
+      budgetTokens({
+        input_tokens: 10,
+        output_tokens: 20,
+        cache_read_input_tokens: 99999,
+        cache_creation_input_tokens: 30,
+        iterations: 3,
+      }),
+    ).toBe(60);
   });
 });

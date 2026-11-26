@@ -24,8 +24,9 @@ esac
 
 TOKEN="$(kc -n soc get secret soc-tokens -o "jsonpath={.data.${KEY}}" | base64 -d)"
 LOCAL="$(PF_TTL=30 scripts/port-forward.sh "$SVC" "$PORT")"
-args=(-fsS -m 60 -X "$METHOD" -H "Authorization: Bearer ${TOKEN}")
+# The bearer header is read from stdin (-H @-) so the token is never on argv.
+args=(-fsS -m 60 -X "$METHOD" -H @-)
 if [[ -n "$BODY" ]]; then
   args+=(-H "Content-Type: application/json" -d "$BODY")
 fi
-curl "${args[@]}" "http://127.0.0.1:${LOCAL}${URL_PATH}"
+curl "${args[@]}" "http://127.0.0.1:${LOCAL}${URL_PATH}" <<<"Authorization: Bearer ${TOKEN}"

@@ -15,7 +15,8 @@ AM_PORT="$(PF_TTL=400 scripts/port-forward.sh alertmanager 9093 observability)"
 AGENT_PORT="$(PF_TTL=400 scripts/port-forward.sh soc-agent 8080)"
 TOKEN="$(kc -n soc get secret soc-tokens -o 'jsonpath={.data.agent-token}' | base64 -d)"
 
-agent_get() { curl -fsS -m 20 -H "Authorization: Bearer ${TOKEN}" "http://127.0.0.1:${AGENT_PORT}$1"; }
+# The header comes from stdin (-H @-) so the token is never on argv.
+agent_get() { curl -fsS -m 20 -H @- "http://127.0.0.1:${AGENT_PORT}$1" <<<"Authorization: Bearer ${TOKEN}"; }
 report_ids() { agent_get /reports | python3 -c 'import json,sys; print("\n".join(sorted(r["id"] for r in json.load(sys.stdin)["reports"])))'; }
 
 before="$(report_ids)"

@@ -2,12 +2,15 @@
 # and only in the few ways its actions need.
 #
 # Trade-off, stated plainly: Kubernetes RBAC cannot say "any namespace except
-# kube-system", so these rules are cluster-wide. The guard for system
-# namespaces is the deny-list in the responder code (policy.ts), which
-# rejects every proposal that targets kube-system, soc, observability and
-# friends before anything reaches the API. RBAC still caps the damage if that
-# code were bypassed: there is no delete on pods, namespaces or secrets, no
-# create on workloads, and no permission to create or bind roles.
+# kube-system", so these rules are cluster-wide. What RBAC itself caps: no
+# patch or create on workloads (only their /scale subresource, so a pod
+# template can never be edited), no delete on pods, namespaces or secrets, no
+# create of roles or bindings, no escalate/bind. What is fenced ONLY by the
+# deny-list in the responder code (policy.ts, which rejects kube-system, soc,
+# observability and friends before anything reaches the API): cluster-wide
+# `update secrets`, `delete` of (cluster)rolebindings, `patch` of pod labels
+# and `create` of NetworkPolicies. If that code were bypassed those four
+# would work in any namespace.
 apiVersion: v1
 kind: ServiceAccount
 metadata: { name: soc-responder, namespace: soc }
@@ -27,7 +30,10 @@ rules:
     verbs: [get, create]
   # scale_to_zero
   - apiGroups: [apps]
-    resources: [deployments, statefulsets, deployments/scale, statefulsets/scale]
+    resources: [deployments, statefulsets]
+    verbs: [get]
+  - apiGroups: [apps]
+    resources: [deployments/scale, statefulsets/scale]
     verbs: [get, patch]
   # revoke_binding (never creates or edits a binding)
   - apiGroups: [rbac.authorization.k8s.io]

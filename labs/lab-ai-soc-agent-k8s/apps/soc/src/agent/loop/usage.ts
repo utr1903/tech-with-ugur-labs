@@ -18,6 +18,15 @@ export function emptyUsage(): Usage {
   };
 }
 
+/**
+ * Tokens that count against the investigation budget: fresh input, tokens
+ * written to the prompt cache and output. Cache reads are excluded: with
+ * caching, uncached input is near zero and re-reading history is cheap.
+ */
+export function budgetTokens(u: Usage): number {
+  return u.input_tokens + u.cache_creation_input_tokens + u.output_tokens;
+}
+
 /** Adds one model turn to the running totals; missing or null counts are 0. */
 export function addUsage(a: Usage, m: BetaMessage): Usage {
   const u = m.usage;

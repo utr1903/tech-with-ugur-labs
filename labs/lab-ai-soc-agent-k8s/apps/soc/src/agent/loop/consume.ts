@@ -1,7 +1,7 @@
 import type { BetaMessage } from "@anthropic-ai/sdk/resources/beta/messages/messages";
 import type { Logger } from "../../logger.js";
 import type { Runner } from "./request.js";
-import { addUsage, type Usage } from "./usage.js";
+import { addUsage, budgetTokens, type Usage } from "./usage.js";
 
 export type Consumed = {
   usage: Usage;
@@ -41,7 +41,7 @@ export async function consume(
       { turn, stop_reason: last.stop_reason, usage },
       "Model turn succeeded.",
     );
-    if (usage.input_tokens + usage.output_tokens > tokenBudget) {
+    if (budgetTokens(usage) > tokenBudget) {
       budgetExhausted = true;
       logger.warn({ tokenBudget, usage }, "Token budget exhausted.");
       // The SDK runs a reply's tools only when asked for the next turn, so

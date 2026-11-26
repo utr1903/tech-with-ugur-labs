@@ -26,17 +26,21 @@ fi
 # The namespace must exist before its secrets do.
 kc apply -f k8s/soc/namespace.yaml >/dev/null
 
-kc -n soc create secret generic anthropic \
-  --from-literal=api-key="$ANTHROPIC_API_KEY" \
-  --dry-run=client -o yaml | kc apply -f - >/dev/null
+# Secret values go to kubectl on stdin (a YAML manifest built by the shell
+# builtin printf), never on a command line, where `ps` could show them.
+apply_secret() { # <namespace> <name> <key> <value>
+  printf 'apiVersion: v1\nkind: Secret\nmetadata:\n  name: %s\n  namespace: %s\nstringData:\n  %s: "%s"\n' \
+    "$2" "$1" "$3" "$4" | kc apply -f - >/dev/null
+}
+
+apply_secret soc anthropic api-key "$ANTHROPIC_API_KEY"
 unset ANTHROPIC_API_KEY
 log info "applied secret" name=anthropic
 
 if ! kc -n soc get secret soc-tokens >/dev/null 2>&1; then
-  kc -n soc create secret generic soc-tokens \
-    --from-literal=agent-token="$(openssl rand -hex 32)" \
-    --from-literal=responder-token="$(openssl rand -hex 32)" \
-    --from-literal=admin-token="$(openssl rand -hex 32)" >/dev/null
+  printf 'apiVersion: v1\nkind: Secret\nmetadata:\n  name: soc-tokens\n  namespace: soc\nstringData:\n  agent-token: "%s"\n  responder-token: "%s"\n  admin-token: "%s"\n' \
+    "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" "$(openssl rand -hex 32)" |
+    kc create -f - >/dev/null
   log info "created secret" name=soc-tokens
 fi
 
@@ -49,9 +53,9 @@ want="$(secret_field soc soc-tokens agent-token)"
 have="$(secret_field observability agent-webhook-token token)"
 if [[ "$want" != "$have" ]]; then
   kc create namespace observability --dry-run=client -o yaml | kc apply -f - >/dev/null
-  kc -n observability create secret generic agent-webhook-token \
-    --from-literal=token="$(printf '%s' "$want" | base64 -d)" \
-    --dry-run=client -o yaml | kc apply -f - >/dev/null
+  # `want` is already base64, so it goes in as `data`.
+  printf 'apiVersion: v1\nkind: Secret\nmetadata:\n  name: agent-webhook-token\n  namespace: observability\ndata:\n  token: "%s"\n' \
+    "$want" | kc apply -f - >/dev/null
   log info "updated secret" name=agent-webhook-token
   # A Secret volume refreshes slowly; restart so the new value is used now.
   if kc -n observability get sts alertmanager >/dev/null 2>&1; then

@@ -99,6 +99,28 @@ describe("runInvestigation", () => {
     expect(p.cache_control).toEqual({ type: "ephemeral" });
   });
 
+  it("does not count cache reads against the budget", async () => {
+    const turn: Step = {
+      blocks: [ctx],
+      stop_reason: "tool_use",
+      usage: { cache_read_input_tokens: 1000000 },
+    };
+    const { result } = run([[turn, { blocks: [submit] }]], {
+      tokenBudget: 400,
+    });
+    expect((await result).budgetExhausted).toBe(false);
+  });
+
+  it("counts cache writes against the budget", async () => {
+    const turn: Step = {
+      blocks: [ctx],
+      stop_reason: "tool_use",
+      usage: { cache_creation_input_tokens: 500 },
+    };
+    const { result } = run([[turn, turn, turn]], { tokenBudget: 250 });
+    expect((await result).budgetExhausted).toBe(true);
+  });
+
   it("stops at the token budget and reports inconclusive", async () => {
     const turn: Step = { blocks: [ctx], stop_reason: "tool_use" };
     const { result } = run([[turn, turn, turn, turn]], { tokenBudget: 250 });
