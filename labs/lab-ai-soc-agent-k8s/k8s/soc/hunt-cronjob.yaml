@@ -5,6 +5,10 @@ apiVersion: batch/v1
 kind: CronJob
 metadata: { name: soc-hunt, namespace: soc }
 spec:
+  # Suspended by default: scheduled hunts are paid model runs. Turn them on
+  # with `make hunt-schedule-on`, off with `make hunt-schedule-off`; `make hunt`
+  # runs one hunt on demand.
+  suspend: true
   schedule: "*/30 * * * *"
   concurrencyPolicy: Forbid
   successfulJobsHistoryLimit: 1

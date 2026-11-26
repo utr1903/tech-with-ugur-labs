@@ -1,7 +1,7 @@
 SHELL := /bin/bash
 KIND_CLUSTER ?= ai-soc
 
-.PHONY: help cluster infra tenants outside detection secrets soc canaries up approvals approve deny reports hunt test down
+.PHONY: help cluster infra tenants outside detection secrets soc canaries up approvals approve deny reports hunt hunt-schedule-on hunt-schedule-off test down
 
 help:
 	@echo "make cluster  create the $(KIND_CLUSTER) kind cluster (audit logging on)"
@@ -15,6 +15,7 @@ help:
 	@echo "make approvals / approve ID=.. / deny ID=..  list and resolve pending actions"
 	@echo "make reports  copy the agent reports to ./reports"
 	@echo "make hunt     ask the agent for a proactive hunt (paid) and print the report id"
+	@echo "make hunt-schedule-on / hunt-schedule-off  enable or suspend the 30 minute scheduled hunt (off by default)"
 	@echo "make test     lint, typecheck, unit tests and knip in every package"
 	@echo "make down     stop the outside containers and delete the $(KIND_CLUSTER) cluster"
 
@@ -72,6 +73,9 @@ reports:
 	@mkdir -p reports
 	@pod="$$(kubectl --context kind-$(KIND_CLUSTER) -n soc get pod -l app=soc-agent -o jsonpath='{.items[0].metadata.name}')"; \
 	kubectl --context kind-$(KIND_CLUSTER) -n soc cp "$$pod:/data/reports" reports >/dev/null && ls reports
+
+hunt-schedule-on hunt-schedule-off:
+	@kubectl --context kind-$(KIND_CLUSTER) -n soc patch cronjob soc-hunt -p '{"spec":{"suspend":$(if $(filter hunt-schedule-off,$@),true,false)}}'
 
 hunt:
 	@./scripts/soc-call.sh agent agent-token POST /hunt '{}'; echo

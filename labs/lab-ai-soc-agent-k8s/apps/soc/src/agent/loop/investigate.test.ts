@@ -96,6 +96,7 @@ describe("runInvestigation", () => {
     expect(p).not.toHaveProperty("temperature");
     expect(p).not.toHaveProperty("tool_choice");
     expect(JSON.stringify(p.system)).toContain('"ephemeral"');
+    expect(p.cache_control).toEqual({ type: "ephemeral" });
   });
 
   it("stops at the token budget and reports inconclusive", async () => {

@@ -26,6 +26,7 @@ export const AUTHORITY_RULES = `What you can and cannot do:
 
 export const METHOD = `Method:
 - Start with get_alert_context, then build a timeline from query_logs (audit, runtime, app, db sources) and confirm object state with k8s_get.
+- Runtime (Tetragon) and audit log lines are large JSON. Count first with a metric query to see what matters, then project only the fields you need with | json ... | line_format (query_logs has a worked example for each source). Raw unprojected lines waste your budget.
 - Prefer evidence from at least two independent sources before you call something malicious. One source alone justifies at most a low-confidence verdict.
 - Map what you find to MITRE ATT&CK for Containers techniques (for example T1609 Container Administration Command, T1611 Escape to Host, T1552.007 Container API credentials) and list them in attack_techniques with their ids.
 - Be honest about uncertainty: use "inconclusive" with a low confidence rather than guessing.`;

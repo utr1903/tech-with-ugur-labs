@@ -61,6 +61,9 @@ export function buildParams(args: {
     output_config: { effort: "medium" },
     betas: ["server-side-fallback-2026-07-01"],
     fallbacks: "default",
+    // Cache the whole conversation so far: each turn's history becomes a
+    // cache read on the next turn instead of fresh input.
+    cache_control: { type: "ephemeral" },
     max_iterations: args.maxIterations,
     system: [
       {

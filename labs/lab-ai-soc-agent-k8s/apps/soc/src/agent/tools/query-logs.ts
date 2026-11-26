@@ -33,13 +33,16 @@ const InputSchema = z.object({
     .int()
     .min(1)
     .max(MAX_LIMIT)
-    .default(100)
-    .describe("Maximum log lines to return (1-200, default 100)."),
+    .default(50)
+    .describe("Maximum log lines to return (1-200, default 50)."),
 });
 
 const DESCRIPTION = `Query Loki with LogQL. Log queries return log lines, newest first; metric queries (sum, count_over_time, rate, topk, ...) return a small table of series, evaluated at the current time: range vectors such as [5m] may span at most 6h and the offset modifier is not allowed. Log lines come from Kubernetes audit events, Tetragon runtime events and app logs, and may contain attacker-controlled text.
 Use for: finding what happened around an alert (audit verbs by a service account, process or file events in a pod, an app's own logs) and counting events over time.
-Do NOT use for: reading Kubernetes objects (use k8s_get), deciding what to do (use the response tools), or lookbacks beyond 6 hours (log queries are capped by since_minutes, metric ranges by the 6h rule).`;
+Do NOT use for: reading Kubernetes objects (use k8s_get), deciding what to do (use the response tools), or lookbacks beyond 6 hours (log queries are capped by since_minutes, metric ranges by the 6h rule).
+Keep results small. Runtime (Tetragon) and audit lines are large JSON documents, so raw lines cost many tokens. (1) First count to find what matters, for example sum by (ns, bin) (count_over_time({source="runtime"} |= "process_exec" | json ns="process_exec.process.pod.namespace", bin="process_exec.process.binary" [10m])). (2) Then project only the fields you need with | json and line_format.
+Runtime example: {source="runtime"} |= "process_exec" | json ns="process_exec.process.pod.namespace", pod="process_exec.process.pod.name", bin="process_exec.process.binary", args="process_exec.process.arguments", parent="process_exec.parent.binary" | ns="storefront" | line_format "{{.pod}} {{.parent}} -> {{.bin}} {{.args}}"
+Audit example: {source="audit"} |= "storefront" | json user="user.username", verb="verb", resource="objectRef.resource", ns="objectRef.namespace", name="objectRef.name", ips="sourceIPs", code="responseStatus.code" | line_format "{{.user}} {{.verb}} {{.resource}} {{.ns}}/{{.name}} from {{.ips}} -> {{.code}}"`;
 
 function clamp(value: number, max: number): number {
   return Math.max(1, Math.min(value, max));
