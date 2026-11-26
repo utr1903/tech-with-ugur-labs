@@ -25,10 +25,11 @@ case "${1:-}" in
     exit 1
     ;;
   close)
-    if "$vm_ssh" tunnel-close 2>/dev/null; then
+    if "$vm_ssh" tunnel-status >/dev/null 2>&1; then
+      "$vm_ssh" tunnel-close || { echo "tunnel: closing the tunnel failed." >&2; exit 1; }
       echo "The tunnel is closed."
     else
-      echo "The tunnel was not open."
+      echo "The tunnel is not open."
     fi
     ;;
   status)

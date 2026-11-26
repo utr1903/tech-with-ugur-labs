@@ -51,6 +51,8 @@ poll_console_host_key() {
 step "Reading the VM's SSH host key from its console output"
 mkdir -p "$ssh_dir"
 : >"$ssh_dir/known_hosts"
+# The accept-new marker must not outlive a failed bootstrap.
+trap 'rm -f "$ssh_dir/accept-new"' EXIT
 rm -f "$ssh_dir/accept-new"
 poll_console_host_key
 if [ -n "$host_keys" ]; then

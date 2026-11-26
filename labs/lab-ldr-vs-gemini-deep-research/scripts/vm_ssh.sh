@@ -26,7 +26,12 @@ esac
 
 lab_dir="$(cd "$(dirname "$0")/.." && pwd)"
 ssh_dir="$lab_dir/.ssh"
-sock="$ssh_dir/tunnel.sock"
+# A short, stable path used by open, check and exit alike. The lab's own
+# directory can be too deep: Unix socket paths are limited to about 104
+# bytes on macOS, and OpenSSH first binds "<path>.<16 random characters>".
+sock_dir="${TMPDIR:-/tmp}"
+sock_dir="${sock_dir%/}"
+sock="$sock_dir/ldr-$(printf '%s' "$lab_dir" | shasum | cut -c1-12).sock"
 mkdir -p "$ssh_dir"
 
 # The tunnel's control socket is only ever asked, never given a key.
@@ -50,10 +55,9 @@ public_ip="${LAB_PUBLIC_IP:-$(tf_output public_ip)}"
 [ -n "$instance_id" ] && [ -n "$public_ip" ] || { echo "vm_ssh: no instance id or public IP; is the lab deployed?" >&2; exit 1; }
 
 if [ "$mode" = "tunnel-open" ]; then
-  # Unix socket paths are limited to about 104 bytes on macOS.
-  if [ "${#sock}" -gt 90 ]; then
+  if [ "${#sock}" -gt 86 ]; then
     echo "vm_ssh: tunnel-open: the socket path is too long (${#sock} characters): $sock" >&2
-    echo "Move the lab to a shorter directory path." >&2
+    echo "Set TMPDIR to a shorter directory and retry." >&2
     exit 1
   fi
   # A leftover socket from a dead master blocks a new one.
@@ -110,7 +114,7 @@ case "$mode" in
     dest="${*: -1}"
     # .env on the VM is written by bootstrap, never deleted by a sync.
     rsync -az --delete --exclude .DS_Store --exclude .env \
-      -e "ssh -F $work_dir/config" "${@:1:$#-1}" "lab:$dest" || status=$?
+      -e "ssh -F \"$work_dir/config\"" "${@:1:$#-1}" "lab:$dest" || status=$?
     ;;
   tunnel-open)
     # The master authenticates once, then lives on without the key.
