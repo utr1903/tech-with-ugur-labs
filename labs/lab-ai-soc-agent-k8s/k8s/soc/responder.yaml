@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata: { name: soc-responder-state, namespace: soc }
+spec:
+  accessModes: [ReadWriteOnce]
+  resources: { requests: { storage: 1Gi } }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: soc-responder, namespace: soc, labels: { app: soc-responder } }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: soc-responder } }
+  template:
+    metadata: { labels: { app: soc-responder } }
+    spec:
+      serviceAccountName: soc-responder
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        fsGroup: 10001
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: responder
+          image: lab-ai-soc/soc:local
+          imagePullPolicy: IfNotPresent
+          args: ["responder"]
+          ports: [{ containerPort: 8081 }]
+          env:
+            - { name: LOG_LEVEL, value: info }
+            - { name: PORT, value: "8081" }
+            - { name: STATE_DIR, value: /data/state }
+            - name: RESPONDER_TOKEN
+              valueFrom: { secretKeyRef: { name: soc-tokens, key: responder-token } }
+            # Only the responder can resolve approvals; the model key is
+            # not mounted here.
+            - name: ADMIN_TOKEN
+              valueFrom: { secretKeyRef: { name: soc-tokens, key: admin-token } }
+          readinessProbe:
+            httpGet: { path: /healthz, port: 8081 }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: [ALL] }
+          volumeMounts:
+            - { name: state, mountPath: /data/state }
+            - { name: tmp, mountPath: /tmp }
+          resources:
+            requests: { cpu: 20m, memory: 96Mi }
+            limits: { memory: 256Mi }
+      volumes:
+        - name: state
+          persistentVolumeClaim: { claimName: soc-responder-state }
+        - name: tmp
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata: { name: soc-responder, namespace: soc }
+spec:
+  selector: { app: soc-responder }
+  ports: [{ port: 8081, targetPort: 8081 }]

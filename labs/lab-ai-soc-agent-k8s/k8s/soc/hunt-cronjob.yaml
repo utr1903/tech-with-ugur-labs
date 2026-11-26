@@ -1,0 +1,45 @@
+# Proactive hunt: every 30 minutes ask the agent to review recent telemetry.
+# The job only holds the agent token (no model key, no responder or admin
+# token) and has no Kubernetes credentials.
+apiVersion: batch/v1
+kind: CronJob
+metadata: { name: soc-hunt, namespace: soc }
+spec:
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 1
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      activeDeadlineSeconds: 120
+      template:
+        metadata: { labels: { app: soc-hunt } }
+        spec:
+          restartPolicy: Never
+          automountServiceAccountToken: false
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            seccompProfile: { type: RuntimeDefault }
+          containers:
+            - name: hunt
+              image: curlimages/curl:8.17.0@sha256:935d9100e9ba842cdb060de42472c7ca90cfe9a7c96e4dacb55e79e560b3ff40
+              command: ["sh", "-c"]
+              args:
+                - >-
+                  curl -fsS -m 30 -X POST
+                  -H "Authorization: Bearer ${AGENT_TOKEN}"
+                  -H "Content-Type: application/json" -d '{}'
+                  http://soc-agent.soc.svc:8080/hunt
+              env:
+                - name: AGENT_TOKEN
+                  valueFrom: { secretKeyRef: { name: soc-tokens, key: agent-token } }
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities: { drop: [ALL] }
+              resources:
+                requests: { cpu: 10m, memory: 16Mi }
+                limits: { memory: 64Mi }

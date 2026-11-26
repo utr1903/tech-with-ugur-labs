@@ -1,0 +1,46 @@
+# Identity of the responder: the only component that can change the cluster,
+# and only in the few ways its actions need.
+#
+# Trade-off, stated plainly: Kubernetes RBAC cannot say "any namespace except
+# kube-system", so these rules are cluster-wide. The guard for system
+# namespaces is the deny-list in the responder code (policy.ts), which
+# rejects every proposal that targets kube-system, soc, observability and
+# friends before anything reaches the API. RBAC still caps the damage if that
+# code were bypassed: there is no delete on pods, namespaces or secrets, no
+# create on workloads, and no permission to create or bind roles.
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: soc-responder, namespace: soc }
+automountServiceAccountToken: true
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: soc-responder }
+rules:
+  # quarantine_pod: label the pod
+  - apiGroups: [""]
+    resources: [pods]
+    verbs: [get, patch]
+  # quarantine_pod: create the deny-all policy once per namespace
+  - apiGroups: [networking.k8s.io]
+    resources: [networkpolicies]
+    verbs: [get, create]
+  # scale_to_zero
+  - apiGroups: [apps]
+    resources: [deployments, statefulsets, deployments/scale, statefulsets/scale]
+    verbs: [get, patch]
+  # revoke_binding (never creates or edits a binding)
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [rolebindings, clusterrolebindings]
+    verbs: [get, delete]
+  # rotate_secret, and the secret names/keys endpoint (metadata only)
+  - apiGroups: [""]
+    resources: [secrets]
+    verbs: [get, list, update]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: { name: soc-responder }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: soc-responder }
+subjects:
+  - { kind: ServiceAccount, name: soc-responder, namespace: soc }

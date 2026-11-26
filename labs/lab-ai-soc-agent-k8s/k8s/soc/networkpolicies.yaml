@@ -1,0 +1,91 @@
+# Locked-down network for the soc namespace. scripts/up-soc.sh replaces the
+# two placeholders with addresses read from the running cluster:
+#   __API_SERVER_NODE_IP__  control-plane node (kube-apiserver listens on :6443)
+#   __API_SERVER_SVC_IP__   the "kubernetes" Service ClusterIP (:443)
+# Both are allowed because which one a client's packets match depends on
+# where in the datapath the policy is evaluated.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: default-deny, namespace: soc }
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: soc-agent, namespace: soc }
+spec:
+  podSelector: { matchLabels: { app: soc-agent } }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # Alertmanager webhook and the hunt CronJob
+    - from:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: observability } }
+          podSelector: { matchLabels: { app.kubernetes.io/name: alertmanager } }
+        - podSelector: { matchLabels: { app: soc-hunt } }
+      ports: [{ port: 8080, protocol: TCP }]
+  egress:
+    - to:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: kube-system } }
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    - to:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: observability } }
+          podSelector: { matchLabels: { app.kubernetes.io/name: loki } }
+      ports: [{ port: 3100, protocol: TCP }]
+    - to:
+        - podSelector: { matchLabels: { app: soc-responder } }
+      ports: [{ port: 8081, protocol: TCP }]
+    - to:
+        - ipBlock: { cidr: __API_SERVER_NODE_IP__/32 }
+      ports: [{ port: 6443, protocol: TCP }]
+    - to:
+        - ipBlock: { cidr: __API_SERVER_SVC_IP__/32 }
+      ports: [{ port: 443, protocol: TCP }]
+    # The model API: any public address on 443, no private ranges (which
+    # also keeps the attacker sink on the Docker network out of reach).
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16]
+      ports: [{ port: 443, protocol: TCP }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: soc-responder, namespace: soc }
+spec:
+  podSelector: { matchLabels: { app: soc-responder } }
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector: { matchLabels: { app: soc-agent } }
+      ports: [{ port: 8081, protocol: TCP }]
+  egress:
+    - to:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: kube-system } }
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    - to:
+        - ipBlock: { cidr: __API_SERVER_NODE_IP__/32 }
+      ports: [{ port: 6443, protocol: TCP }]
+    - to:
+        - ipBlock: { cidr: __API_SERVER_SVC_IP__/32 }
+      ports: [{ port: 443, protocol: TCP }]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata: { name: soc-hunt, namespace: soc }
+spec:
+  podSelector: { matchLabels: { app: soc-hunt } }
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector: { matchLabels: { kubernetes.io/metadata.name: kube-system } }
+      ports:
+        - { port: 53, protocol: UDP }
+        - { port: 53, protocol: TCP }
+    - to:
+        - podSelector: { matchLabels: { app: soc-agent } }
+      ports: [{ port: 8080, protocol: TCP }]

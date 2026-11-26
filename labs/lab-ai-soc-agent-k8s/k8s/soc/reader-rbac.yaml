@@ -1,0 +1,34 @@
+# Identity of the agent: it can LOOK at the cluster and nothing else.
+# No secrets (the responder serves secret names and key names only) and no
+# write verb anywhere. Everything it learns, it learns read-only.
+apiVersion: v1
+kind: ServiceAccount
+metadata: { name: soc-reader, namespace: soc }
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata: { name: soc-reader }
+rules:
+  - apiGroups: [""]
+    resources: [pods, services, serviceaccounts, events, namespaces]
+    verbs: [get, list]
+  - apiGroups: [apps]
+    resources: [deployments, replicasets, daemonsets, statefulsets]
+    verbs: [get, list]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list]
+  - apiGroups: [networking.k8s.io]
+    resources: [networkpolicies]
+    verbs: [get, list]
+  - apiGroups: [rbac.authorization.k8s.io]
+    resources: [roles, rolebindings, clusterroles, clusterrolebindings]
+    verbs: [get, list]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata: { name: soc-reader }
+roleRef: { apiGroup: rbac.authorization.k8s.io, kind: ClusterRole, name: soc-reader }
+subjects:
+  - { kind: ServiceAccount, name: soc-reader, namespace: soc }
