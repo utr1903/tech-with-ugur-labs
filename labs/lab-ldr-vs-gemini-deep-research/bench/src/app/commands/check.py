@@ -55,7 +55,14 @@ def _reachable(client: httpx.Client, settings: LdrSettings) -> None:
 
 
 def _model_listed(client: httpx.Client, url: str, settings: LdrSettings) -> None:
-    models = client.get(url).raise_for_status().json().get("data", [])
+    response = client.get(url).raise_for_status()
+    try:
+        body = response.json()
+    except ValueError as err:
+        raise ConfigError(f"{url} did not return JSON") from err
+    models = body.get("data") if isinstance(body, dict) else None
+    if not isinstance(models, list):
+        raise ConfigError(f"{url} did not return a model list")
     served = [str(m.get("id")) for m in models if isinstance(m, dict)]
     if settings.model not in served:
         raise ConfigError(f"{settings.model} is not served; found {served}")

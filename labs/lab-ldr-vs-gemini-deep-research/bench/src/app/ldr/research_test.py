@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import json
 from collections.abc import Callable
-from datetime import date
 
 import httpx
 import pytest
@@ -11,16 +10,12 @@ from app.errors import LdrError
 from app.ldr.research import (
     fetch_duration,
     fetch_report,
-    run_ldr_question,
     start_research,
+    terminate_research,
     wait_for_research,
 )
 from app.ldr.session import LdrSession, LdrSettings
 from app.logging_setup import Logger, get_logger
-from app.questions.catalog import get_question
-from app.runs.record import RunRecord
-
-_TODAY = date(2026, 11, 20)
 
 
 class FakeClock:
@@ -139,94 +134,91 @@ def test_wait_returns_terminal_failures(
     assert status == terminal
 
 
-def test_fetch_report_dedupes_sources_in_order(log: Logger) -> None:
-    report = fetch_report(_session(_service([])), "r1", log=log)
+def test_fetch_report_dedupes_sources_in_order(log: Logger, clock: FakeClock) -> None:
+    report = fetch_report(_session(_service([])), "r1", sleep=clock.sleep, log=log)
 
     assert report.content == "# Report"
     assert report.sources == ("https://a", "https://b")
     assert report.metadata == {"strategy": "source-based"}
 
 
-def test_fetch_duration(log: Logger) -> None:
-    assert fetch_duration(_session(_service([])), "r1", log=log) == 812.0
+def test_fetch_duration(log: Logger, clock: FakeClock) -> None:
+    session = _session(_service([]))
+
+    assert fetch_duration(session, "r1", sleep=clock.sleep, log=log) == 812.0
 
 
-def test_fetch_duration_missing_is_none(log: Logger) -> None:
+def test_fetch_duration_missing_is_none(log: Logger, clock: FakeClock) -> None:
     session = _session(lambda _: httpx.Response(200, json={"metadata": {}}))
 
-    assert fetch_duration(session, "r1", log=log) is None
+    assert fetch_duration(session, "r1", sleep=clock.sleep, log=log) is None
 
 
-def _run_question(session: LdrSession, clock: FakeClock, log: Logger) -> RunRecord:
-    return run_ldr_question(
-        session,
-        get_question("q1-kev"),
-        run=2,
-        today=_TODAY,
-        clock=clock,
-        sleep=clock.sleep,
-        log=log,
+def flaky(
+    inner: Callable[[httpx.Request], httpx.Response], failures: dict[str, int]
+) -> Callable[[httpx.Request], httpx.Response]:
+    """Answers 500 the first `failures[path]` times a path is requested."""
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        path = request.url.path
+        if failures.get(path, 0) > 0:
+            failures[path] -= 1
+            return httpx.Response(500)
+        return inner(request)
+
+    return handler
+
+
+def test_one_failed_poll_does_not_stop_the_wait(log: Logger, clock: FakeClock) -> None:
+    handler = flaky(
+        _service(["in_progress", "completed"]), {"/api/research/r1/status": 1}
     )
 
-
-def test_completed_run_record(log: Logger, clock: FakeClock) -> None:
-    session = _session(_service(["in_progress", "completed"]))
-
-    record = _run_question(session, clock, log)
-
-    assert (record.tool, record.question_id, record.run) == ("ldr", "q1-kev", 2)
-    assert record.status == "completed"
-    assert record.report == "# Report"
-    assert record.sources == ("https://a", "https://b")
-    assert record.wall_seconds == 10.0
-    assert record.cost_usd == pytest.approx(10.0 / 3600 * 2.8035)
-    assert record.meta == {
-        "research_id": "r1",
-        "model": "qwen3.6-27b",
-        "ldr_version": "2.0.4",
-        "strategy": "source-based",
-        "ldr_duration_seconds": 812.0,
-    }
-
-
-def test_price_override(log: Logger, clock: FakeClock) -> None:
-    session = _session(_service(["completed"]))
-
-    record = run_ldr_question(
-        session,
-        get_question("q1-kev"),
-        run=1,
-        today=_TODAY,
-        clock=clock,
-        sleep=clock.sleep,
-        log=log,
-        price_per_hour=3600.0,
+    status = wait_for_research(
+        _session(handler), "r1", clock=clock, sleep=clock.sleep, log=log
     )
 
-    assert record.cost_usd == pytest.approx(record.wall_seconds)
+    assert status == "completed"
 
 
-def test_failed_run_keeps_going_with_empty_report(
+def test_five_consecutive_poll_failures_raise(log: Logger, clock: FakeClock) -> None:
+    handler = flaky(_service([]), {"/api/research/r1/status": 99})
+
+    with pytest.raises(LdrError):
+        wait_for_research(
+            _session(handler), "r1", clock=clock, sleep=clock.sleep, log=log
+        )
+
+
+def test_fetch_report_retries_a_transient_failure(
     log: Logger, clock: FakeClock
 ) -> None:
-    record = _run_question(_session(_service(["failed"])), clock, log)
+    handler = flaky(_service([]), {"/api/report/r1": 2})
 
-    assert record.status == "failed"
-    assert record.report == ""
-    assert record.sources == ()
-    assert record.meta["research_id"] == "r1"
+    report = fetch_report(_session(handler), "r1", sleep=clock.sleep, log=log)
 
-
-def test_suspended_run_is_recorded_as_failed(log: Logger, clock: FakeClock) -> None:
-    record = _run_question(_session(_service(["suspended"])), clock, log)
-
-    assert record.status == "failed"
-    assert record.meta["ldr_status"] == "suspended"
+    assert report.content == "# Report"
 
 
-def test_timed_out_run_has_timeout_status(log: Logger, clock: FakeClock) -> None:
-    record = _run_question(_session(_service(["in_progress"] * 50)), clock, log)
+def test_fetch_duration_gives_up_quietly(log: Logger, clock: FakeClock) -> None:
+    handler = flaky(_service([]), {"/history/report/r1": 99})
 
-    assert record.status == "timeout"
-    assert record.report == ""
-    assert record.wall_seconds >= 100.0
+    assert fetch_duration(_session(handler), "r1", sleep=clock.sleep, log=log) is None
+
+
+def test_terminate_posts_with_csrf(log: Logger) -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"status": "success"})
+
+    assert terminate_research(_session(handler), "r1", log=log) is True
+    assert (seen[0].method, seen[0].url.path) == ("POST", "/api/terminate/r1")
+    assert seen[0].headers["X-CSRFToken"] == "api-tok"
+
+
+def test_terminate_failure_is_swallowed(log: Logger) -> None:
+    session = _session(lambda _: httpx.Response(500))
+
+    assert terminate_research(session, "r1", log=log) is False

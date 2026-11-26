@@ -12,7 +12,7 @@ from pathlib import Path
 import httpx
 
 from app.errors import ConfigError
-from app.ldr.research import INSTANCE_PRICE_USD_PER_HOUR, run_ldr_question
+from app.ldr.runner import INSTANCE_PRICE_USD_PER_HOUR, run_ldr_question
 from app.ldr.session import LdrSession, ldr_settings_from_env
 from app.logging_setup import Logger
 from app.output import write_line

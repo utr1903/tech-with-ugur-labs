@@ -17,7 +17,7 @@ from app.logging_setup import Logger
 
 _INPUT_TAG = re.compile(r'<input\b[^>]*name="csrf_token"[^>]*>')
 _VALUE_ATTR = re.compile(r'value="([^"]+)"')
-_LOGIN_OK = (302, 303)
+_REDIRECTS = (302, 303)
 
 
 @dataclass(frozen=True)
@@ -75,8 +75,8 @@ class LdrSession:
         try:
             log.info("Logging in to LDR...", base_url=self.settings.base_url)
             self._authenticate(log)
-            self.csrf_token = str(self.get_json("/auth/csrf-token")["csrf_token"])
-        except (LdrError, KeyError):
+            self.csrf_token = self._fetch_csrf_token()
+        except LdrError:
             log.exception("Logging in to LDR failed.", base_url=self.settings.base_url)
             raise
         else:
@@ -87,8 +87,12 @@ class LdrSession:
             return
         log.info("Login refused, registering the lab user...")
         self._register()
-        if not self._try_login():
-            raise LdrError("login failed again after registering the user")
+
+    def _fetch_csrf_token(self) -> str:
+        token = self.get_json("/auth/csrf-token").get("csrf_token")
+        if not token:
+            raise LdrError("no csrf_token in /auth/csrf-token reply")
+        return str(token)
 
     def get_json(self, path: str) -> dict[str, object]:
         """GETs a JSON object from the service."""
@@ -114,15 +118,17 @@ class LdrSession:
         return {str(k): v for k, v in data.items()}
 
     def _try_login(self) -> bool:
+        """True once logged in; a 302 on the login page means we already are."""
         form = {"username": self.settings.username, "password": self.settings.password}
         response = self._post_form("/auth/login", form)
-        if response.status_code in _LOGIN_OK:
+        if response is None or response.status_code in _REDIRECTS:
             return True
         if response.status_code in (200, 400, 401):
             return False
         raise LdrError(f"POST /auth/login returned {response.status_code}")
 
     def _register(self) -> None:
+        """Creates the lab user; a successful registration also logs it in."""
         form = {
             "username": self.settings.username,
             "password": self.settings.password,
@@ -130,11 +136,24 @@ class LdrSession:
             "acknowledge": "true",
         }
         response = self._post_form("/auth/register", form)
-        if response.status_code not in _LOGIN_OK:
-            raise LdrError(f"POST /auth/register returned {response.status_code}")
+        if response is None:
+            raise LdrError("registrations are disabled on this LDR instance")
+        if response.status_code in _REDIRECTS:
+            if response.headers.get("location", "").startswith("/auth/login"):
+                raise LdrError("registrations are disabled on this LDR instance")
+            return
+        if response.status_code == 400:
+            raise LdrError(
+                "login refused and registration rejected (400): "
+                "wrong LDR_LAB_PASSWORD? the user may already exist"
+            )
+        raise LdrError(f"POST /auth/register returned {response.status_code}")
 
-    def _post_form(self, path: str, form: Mapping[str, str]) -> httpx.Response:
+    def _post_form(self, path: str, form: Mapping[str, str]) -> httpx.Response | None:
+        """Posts a form with its scraped CSRF token; None if the page redirected."""
         page = self._request("GET", path)
+        if page.status_code in _REDIRECTS:
+            return None
         if page.status_code != 200:
             raise LdrError(f"GET {path} returned {page.status_code}")
         token = _scrape_csrf(page.text, path)

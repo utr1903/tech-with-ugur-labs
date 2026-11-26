@@ -91,33 +91,94 @@ def test_login_success_stores_csrf_token(log: Logger) -> None:
     assert ("GET", "/auth/register") not in seen
 
 
-def test_login_failure_registers_then_logs_in(log: Logger) -> None:
-    logins = 0
-    forms: list[str] = []
+class FakeLdr:
+    """Emulates the service's cookie behaviour: once logged in, GET /auth/login
+    redirects home instead of showing the form."""
 
-    def handler(request: httpx.Request) -> httpx.Response:
-        nonlocal logins
+    def __init__(
+        self, *, user_exists: bool = False, registrations: bool = True
+    ) -> None:
+        self.logged_in = False
+        self.user_exists = user_exists
+        self.registrations = registrations
+        self.calls: list[tuple[str, str]] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
         path = request.url.path
-        if request.method == "GET" and path in ("/auth/login", "/auth/register"):
+        self.calls.append((request.method, path))
+        if path == "/auth/csrf-token":
+            return httpx.Response(200, json={"csrf_token": "api-tok"})
+        if request.method == "GET":
+            if path == "/auth/login" and self.logged_in:
+                return httpx.Response(302, headers={"location": "/"})
             return httpx.Response(200, text=_FORM.format(n=path))
         if path == "/auth/login":
-            logins += 1
-            if logins == 1:
-                return httpx.Response(401, text="bad credentials")
-            return httpx.Response(302, headers={"location": "/"})
-        if path == "/auth/register":
-            forms.append(request.content.decode())
-            return httpx.Response(302, headers={"location": "/"})
-        return httpx.Response(200, json={"csrf_token": "api-tok"})
+            self.logged_in = self.user_exists
+            return self._redirect("/") if self.user_exists else httpx.Response(401)
+        if not self.registrations:
+            return self._redirect("/auth/login")
+        if self.user_exists:
+            return httpx.Response(400, text="exists")
+        self.logged_in = True
+        return self._redirect("/")
 
-    session = _session(httpx.MockTransport(handler))
+    @staticmethod
+    def _redirect(location: str) -> httpx.Response:
+        return httpx.Response(302, headers={"location": location})
+
+
+def test_first_run_registers_and_skips_second_login(log: Logger) -> None:
+    service = FakeLdr()
+    session = _session(httpx.MockTransport(service))
 
     session.login(log=log)
 
-    assert logins == 2
-    assert "confirm_password=secret-pw" in forms[0]
-    assert "acknowledge=true" in forms[0]
     assert session.csrf_token == "api-tok"
+    assert service.calls.count(("POST", "/auth/login")) == 1
+    assert ("GET", "/auth/login") in service.calls
+
+
+def test_already_logged_in_login_page_redirect_counts_as_success(
+    log: Logger,
+) -> None:
+    service = FakeLdr(user_exists=True)
+    service.logged_in = True
+    session = _session(httpx.MockTransport(service))
+
+    session.login(log=log)
+
+    assert session.csrf_token == "api-tok"
+    assert ("POST", "/auth/login") not in service.calls
+
+
+def test_registrations_disabled_is_not_success(log: Logger) -> None:
+    session = _session(httpx.MockTransport(FakeLdr(registrations=False)))
+
+    with pytest.raises(LdrError, match="disabled"):
+        session.login(log=log)
+
+
+def test_wrong_password_for_existing_user_is_explained(log: Logger) -> None:
+    service = FakeLdr(user_exists=True)
+    service.user_exists = True
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.method == "POST" and request.url.path == "/auth/login":
+            return httpx.Response(401)
+        return service(request)
+
+    with pytest.raises(LdrError, match=r"wrong LDR_LAB_PASSWORD\?"):
+        _session(httpx.MockTransport(handler)).login(log=log)
+
+
+def test_missing_csrf_token_in_reply_is_ldr_error(log: Logger) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/auth/csrf-token":
+            return httpx.Response(200, json={})
+        return FakeLdr()(request)
+
+    with pytest.raises(LdrError, match="no csrf_token in /auth/csrf-token reply"):
+        _session(httpx.MockTransport(handler)).login(log=log)
 
 
 def test_login_that_keeps_failing_raises_with_status(log: Logger) -> None:

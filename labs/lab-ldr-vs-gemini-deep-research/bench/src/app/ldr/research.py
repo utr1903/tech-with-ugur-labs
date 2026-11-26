@@ -4,18 +4,16 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
-from datetime import UTC, date, datetime
 
 from app.errors import LdrError
 from app.ldr.session import LdrSession
 from app.logging_setup import Logger
-from app.questions.catalog import Question, build_prompt
-from app.runs.record import RunRecord
 
-INSTANCE_PRICE_USD_PER_HOUR = 2.8035
-DEFAULT_LDR_VERSION = "2.0.4"
 _STARTED = ("success", "queued")
 _FAILED = ("failed", "error", "cancelled")
+_MAX_POLL_FAILURES = 5
+_FETCH_ATTEMPTS = 3
+_FETCH_RETRY_SECONDS = 5.0
 
 
 @dataclass(frozen=True)
@@ -62,11 +60,21 @@ def wait_for_research(
     Returns `completed`, `failed`, `suspended` or `timeout`.
     """
     deadline = clock() + session.settings.timeout_seconds
+    failures = 0
     try:
         log.info("Waiting for research...", research_id=research_id)
         while True:
-            reply = session.get_json(f"/api/research/{research_id}/status")
-            status = _terminal(str(reply.get("status")))
+            try:
+                reply = session.get_json(f"/api/research/{research_id}/status")
+            except LdrError as err:
+                failures += 1
+                if failures >= _MAX_POLL_FAILURES:
+                    raise
+                log.warning("Status poll failed.", failures=failures, error=str(err))
+                status = None
+            else:
+                failures = 0
+                status = _terminal(str(reply.get("status")))
             if status is not None:
                 break
             if clock() >= deadline:
@@ -87,11 +95,44 @@ def _terminal(status: str) -> str | None:
     return "failed" if status in _FAILED else None
 
 
-def fetch_report(session: LdrSession, research_id: str, *, log: Logger) -> LdrReport:
+def terminate_research(session: LdrSession, research_id: str, *, log: Logger) -> bool:
+    """Best-effort stop of a research that must not keep running; never raises."""
+    try:
+        log.info("Terminating research...", research_id=research_id)
+        session.post_json(f"/api/terminate/{research_id}", {})
+    except LdrError:
+        log.exception("Terminating research failed.", research_id=research_id)
+        return False
+    else:
+        log.info("Terminating research succeeded.", research_id=research_id)
+        return True
+
+
+def _retrying[T](
+    call: Callable[[], T], *, sleep: Callable[[float], None], log: Logger
+) -> T:
+    for attempt in range(1, _FETCH_ATTEMPTS):
+        try:
+            return call()
+        except LdrError as err:
+            log.warning("Fetch failed, retrying.", attempt=attempt, error=str(err))
+            sleep(_FETCH_RETRY_SECONDS)
+    return call()
+
+
+def fetch_report(
+    session: LdrSession,
+    research_id: str,
+    *,
+    sleep: Callable[[float], None],
+    log: Logger,
+) -> LdrReport:
     """Downloads the finished report and its sources."""
     try:
         log.info("Fetching report...", research_id=research_id)
-        data = session.get_json(f"/api/report/{research_id}")
+        data = _retrying(
+            lambda: session.get_json(f"/api/report/{research_id}"), sleep=sleep, log=log
+        )
         report = LdrReport(
             content=str(data.get("content") or ""),
             sources=_urls(data.get("sources")),
@@ -106,16 +147,24 @@ def fetch_report(session: LdrSession, research_id: str, *, log: Logger) -> LdrRe
 
 
 def fetch_duration(
-    session: LdrSession, research_id: str, *, log: Logger
+    session: LdrSession,
+    research_id: str,
+    *,
+    sleep: Callable[[float], None],
+    log: Logger,
 ) -> float | None:
-    """LDR's own duration for the research in seconds, if it recorded one."""
+    """LDR's own duration for the research in seconds; None if unavailable."""
     try:
         log.info("Fetching duration...", research_id=research_id)
-        data = session.get_json(f"/history/report/{research_id}")
+        data = _retrying(
+            lambda: session.get_json(f"/history/report/{research_id}"),
+            sleep=sleep,
+            log=log,
+        )
         duration = _object(data.get("metadata")).get("duration")
     except LdrError:
         log.exception("Fetching duration failed.", research_id=research_id)
-        raise
+        return None
     else:
         log.info("Fetching duration succeeded.", duration=duration)
         return float(duration) if isinstance(duration, int | float) else None
@@ -131,56 +180,3 @@ def _urls(value: object) -> tuple[str, ...]:
     entries = value if isinstance(value, list) else []
     urls = (_object(e).get("url") for e in entries)
     return tuple(dict.fromkeys(str(u) for u in urls if u))
-
-
-def run_ldr_question(
-    session: LdrSession,
-    question: Question,
-    *,
-    run: int,
-    today: date,
-    clock: Callable[[], float],
-    sleep: Callable[[float], None],
-    log: Logger,
-    price_per_hour: float = INSTANCE_PRICE_USD_PER_HOUR,
-) -> RunRecord:
-    """Runs one question; a failed or timed-out research still yields a record."""
-    log = log.bind(question_id=question.id, run=run)
-    started_at = datetime.now(UTC).isoformat(timespec="seconds")
-    began = clock()
-    research_id = start_research(session, build_prompt(question, today=today), log=log)
-    status = wait_for_research(session, research_id, clock=clock, sleep=sleep, log=log)
-    wall = clock() - began
-    meta: dict[str, object] = {
-        "research_id": research_id,
-        "model": session.settings.model,
-        "ldr_version": DEFAULT_LDR_VERSION,
-    }
-    report = LdrReport(content="", sources=(), metadata={})
-    if status == "completed":
-        report = fetch_report(session, research_id, log=log)
-        meta.update(_report_meta(report))
-        meta["ldr_duration_seconds"] = fetch_duration(session, research_id, log=log)
-    else:
-        meta["ldr_status"] = status
-    return RunRecord(
-        tool="ldr",
-        question_id=question.id,
-        run=run,
-        started_at=started_at,
-        wall_seconds=wall,
-        status=status if status in ("completed", "timeout") else "failed",
-        report=report.content,
-        sources=report.sources,
-        usage={},
-        cost_usd=wall / 3600 * price_per_hour,
-        meta=meta,
-    )
-
-
-def _report_meta(report: LdrReport) -> dict[str, object]:
-    meta: dict[str, object] = {}
-    for key in ("ldr_version", "strategy"):
-        if key in report.metadata:
-            meta[key] = report.metadata[key]
-    return meta

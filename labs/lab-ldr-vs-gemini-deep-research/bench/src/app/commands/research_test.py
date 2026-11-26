@@ -176,3 +176,21 @@ def test_bad_price_env_is_config_error(
 
     with pytest.raises(ConfigError, match="INSTANCE_PRICE_USD_PER_HOUR"):
         _run(_args(), log, _service())
+
+
+def test_collection_failure_is_recorded_and_next_run_continues(
+    tmp_path: Path, log: Logger, capsys: pytest.CaptureFixture[str]
+) -> None:
+    inner = _service()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/research/r1/status":
+            return httpx.Response(500)
+        return inner(request)
+
+    _run(_args("q1-kev", 2), log, handler)
+
+    records = load_runs(tmp_path, log=log)
+    assert [(r.run, r.status) for r in records] == [(1, "failed"), (2, "completed")]
+    assert "error" in records[0].meta
+    assert "q1-kev run 2: completed" in "\n".join(_output(capsys))

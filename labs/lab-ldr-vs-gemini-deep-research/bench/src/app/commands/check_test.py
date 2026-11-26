@@ -91,3 +91,28 @@ def test_login_failure_is_reported(
         _check(log, _handler(login_status=500))
 
     assert "FAIL" in _output(capsys)[2]
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        httpx.Response(200, text="<html>not json</html>"),
+        httpx.Response(200, json=["a"]),
+        httpx.Response(200, json={"data": "nope"}),
+        httpx.Response(200, json={"data": ["str", 3]}),
+    ],
+)
+def test_malformed_model_reply_fails_instead_of_crashing(
+    log: Logger, capsys: pytest.CaptureFixture[str], body: httpx.Response
+) -> None:
+    inner = _handler()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "host.docker.internal":
+            return body
+        return inner(request)
+
+    with pytest.raises(ConfigError, match="model"):
+        _check(log, handler)
+
+    assert [line.split()[0] for line in _output(capsys)] == ["ok", "FAIL", "ok"]
