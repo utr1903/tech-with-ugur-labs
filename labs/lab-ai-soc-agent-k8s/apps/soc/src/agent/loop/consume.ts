@@ -11,8 +11,8 @@ export type Consumed = {
 
 /**
  * Drains one runner turn by turn. Logs every model turn (start, success,
- * failure) and stops as soon as cumulative input+output tokens exceed the
- * budget, so a runaway loop cannot spend without bound.
+ * failure) and stops as soon as cumulative budgetTokens (input + cache_creation +
+ * output, not cache reads) exceed the budget, so a runaway loop cannot spend without bound.
  */
 export async function consume(
   runner: Runner,

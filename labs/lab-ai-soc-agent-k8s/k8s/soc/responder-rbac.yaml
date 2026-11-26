@@ -5,12 +5,14 @@
 # kube-system", so these rules are cluster-wide. What RBAC itself caps: no
 # patch or create on workloads (only their /scale subresource, so a pod
 # template can never be edited), no delete on pods, namespaces or secrets, no
-# create of roles or bindings, no escalate/bind. What is fenced ONLY by the
-# deny-list in the responder code (policy.ts, which rejects kube-system, soc,
+# create of roles or bindings, no escalate/bind. RBAC grants `patch` on pods,
+# but responder-admission.yaml limits it to labels (spec and annotations
+# cannot change), so no image swap. What is fenced ONLY by the deny-list in
+# the responder code (policy.ts, which rejects kube-system, soc,
 # observability and friends before anything reaches the API): cluster-wide
-# `update secrets`, `delete` of (cluster)rolebindings, `patch` of pod labels
-# and `create` of NetworkPolicies. If that code were bypassed those four
-# would work in any namespace.
+# `update secrets`, `delete` of (cluster)rolebindings and `create` of
+# NetworkPolicies. If that code were bypassed those would work in any
+# namespace.
 apiVersion: v1
 kind: ServiceAccount
 metadata: { name: soc-responder, namespace: soc }

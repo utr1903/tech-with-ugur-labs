@@ -33,7 +33,8 @@ log info "api server addresses" node="$NODE_IP" service="$SVC_IP"
 
 kc apply -f k8s/soc/namespace.yaml \
   -f k8s/soc/reader-rbac.yaml \
-  -f k8s/soc/responder-rbac.yaml >/dev/null
+  -f k8s/soc/responder-rbac.yaml \
+  -f k8s/soc/responder-admission.yaml >/dev/null
 sed -e "s#__API_SERVER_NODE_IP__#${NODE_IP}#g" -e "s#__API_SERVER_SVC_IP__#${SVC_IP}#g" \
   k8s/soc/networkpolicies.yaml | kc apply -f - >/dev/null
 kc apply -f k8s/soc/responder.yaml \

@@ -1,0 +1,32 @@
+# RBAC cannot say "patch pods, but only their labels". This admission policy
+# does: when the request comes from the responder's ServiceAccount, an UPDATE
+# of a pod is allowed only if the pod spec and annotations are unchanged, so
+# the responder can label a pod for quarantine but cannot swap its image or
+# edit anything that runs.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata: { name: soc-responder-pod-labels-only }
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["UPDATE"]
+        resources: ["pods"]
+  matchConditions:
+    - name: from-soc-responder
+      expression: request.userInfo.username == "system:serviceaccount:soc:soc-responder"
+  validations:
+    - expression: >-
+        object.spec == oldObject.spec &&
+        (has(object.metadata.annotations) ? object.metadata.annotations : {}) ==
+        (has(oldObject.metadata.annotations) ? oldObject.metadata.annotations : {})
+      message: "soc-responder may only change pod labels"
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata: { name: soc-responder-pod-labels-only }
+spec:
+  policyName: soc-responder-pod-labels-only
+  validationActions: [Deny]
