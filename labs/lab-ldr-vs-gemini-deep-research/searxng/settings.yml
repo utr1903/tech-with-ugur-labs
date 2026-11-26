@@ -1,0 +1,12 @@
+# Search backend for Local Deep Research. Only the loopback network and the
+# compose network reach it, so the bot limiter is off. The secret key comes
+# from the SEARXNG_SECRET environment variable.
+use_default_settings: true
+
+server:
+  limiter: false
+
+search:
+  formats:
+    - html
+    - json
