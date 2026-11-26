@@ -30,7 +30,7 @@ def _handler(*, model: str = "qwen3.6-27b", login_status: int = 302) -> Handler:
         if host == "host.docker.internal":
             return httpx.Response(200, json={"data": [{"id": model}]})
         if path == "/" and request.method == "GET":
-            return httpx.Response(200, text="home")
+            return httpx.Response(302, headers={"location": "/auth/login"})
         if path.startswith("/auth/") and request.method == "GET":
             if path == "/auth/csrf-token":
                 return httpx.Response(200, json={"csrf_token": "t"})

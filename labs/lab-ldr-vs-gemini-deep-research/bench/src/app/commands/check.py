@@ -8,7 +8,7 @@ from collections.abc import Callable
 
 import httpx
 
-from app.errors import ConfigError, LabError
+from app.errors import ConfigError, LabError, LdrError
 from app.ldr.session import LdrSession, LdrSettings, ldr_settings_from_env
 from app.logging_setup import Logger
 from app.output import write_line
@@ -51,7 +51,10 @@ def _report(name: str, check: Callable[[], None], log: Logger) -> bool:
 
 
 def _reachable(client: httpx.Client, settings: LdrSettings) -> None:
-    client.get(f"{settings.base_url}/").raise_for_status()
+    """The home page redirects to the login form, so any non-error status is up."""
+    response = client.get(f"{settings.base_url}/")
+    if response.status_code >= 400:
+        raise LdrError(f"GET / returned {response.status_code}")
 
 
 def _model_listed(client: httpx.Client, url: str, settings: LdrSettings) -> None:

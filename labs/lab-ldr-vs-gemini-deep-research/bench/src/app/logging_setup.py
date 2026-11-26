@@ -14,6 +14,8 @@ import structlog
 type Logger = structlog.typing.FilteringBoundLogger
 
 _DEFAULT_LEVEL = "info"
+# Local variables hold passwords and API keys; keep them out of the logs.
+_TRACEBACKS = structlog.tracebacks.ExceptionDictTransformer(show_locals=False)
 
 
 def get_logger(**initial_values: object) -> Logger:
@@ -35,7 +37,7 @@ def configure_logging(*, app_name: str) -> Logger:
         processors=[
             structlog.processors.add_log_level,
             structlog.processors.TimeStamper(fmt="iso", utc=True),
-            structlog.processors.dict_tracebacks,
+            structlog.processors.ExceptionRenderer(_TRACEBACKS),
             structlog.processors.JSONRenderer(),
         ],
         wrapper_class=structlog.make_filtering_bound_logger(level),
