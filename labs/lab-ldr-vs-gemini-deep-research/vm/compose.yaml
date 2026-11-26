@@ -1,0 +1,40 @@
+# The model server on the GPU VM: one vLLM container, reachable only on the
+# VM's loopback. The laptop reaches it through an SSH tunnel.
+name: ldr-vm
+
+services:
+  vllm:
+    image: vllm/vllm-openai:v0.34.0@sha256:cf5b2fdd087eb4f6d261736967cc5cde974bd22ff4df50365f8fa419b6b4c484
+    entrypoint: ["sh", "-c"]
+    command:
+      - >-
+        exec vllm serve "$$MODEL_ID"
+        --revision "$$MODEL_REVISION"
+        --served-model-name "$$SERVED_MODEL_NAME"
+        --max-model-len "$$MAX_MODEL_LEN"
+        --gpu-memory-utilization "$$GPU_MEMORY_UTILIZATION"
+        --max-num-seqs "$$MAX_NUM_SEQS"
+        --reasoning-parser qwen3
+        --enable-auto-tool-choice --tool-call-parser qwen3_coder
+        --language-model-only
+        --host 0.0.0.0 --port 8000
+        $$SERVE_EXTRA_ARGS
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      HF_HOME: /hf-cache
+    volumes:
+      - /opt/dlami/nvme/hf-cache:/hf-cache
+    # Loopback only: the public address never answers on this port.
+    ports:
+      - "127.0.0.1:8000:8000"
+    shm_size: 16gb
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    restart: unless-stopped

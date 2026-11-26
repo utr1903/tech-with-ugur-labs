@@ -6,7 +6,7 @@ resource "aws_instance" "vm" {
   subnet_id                   = aws_subnet.public.id
   vpc_security_group_ids      = [aws_security_group.vm.id]
   associate_public_ip_address = true
-  user_data                   = try(file("${path.module}/../vm/host/boot.sh"), "")
+  user_data                   = file("${path.module}/../vm/host/boot.sh")
   user_data_replace_on_change = true
 
   metadata_options {
