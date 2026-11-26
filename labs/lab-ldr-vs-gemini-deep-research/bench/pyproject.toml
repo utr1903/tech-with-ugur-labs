@@ -3,6 +3,7 @@ name = "app"
 version = "0.0.0"
 requires-python = "==3.12.*"
 dependencies = [
+    "httpx==0.28.1",
     "structlog==26.1.0",
 ]
 

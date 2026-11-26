@@ -1,0 +1,61 @@
+{
+  "cik": "0000789019",
+  "quarters": [
+    {
+      "derived": false,
+      "diluted_eps_usd": 3.23,
+      "net_income_usd_millions": 24108.0,
+      "quarter_end": "2024-12-31",
+      "revenue_usd_millions": 69632.0
+    },
+    {
+      "derived": false,
+      "diluted_eps_usd": 3.46,
+      "net_income_usd_millions": 25824.0,
+      "quarter_end": "2025-03-31",
+      "revenue_usd_millions": 70066.0
+    },
+    {
+      "derived": true,
+      "diluted_eps_usd": 3.65,
+      "net_income_usd_millions": 27233.0,
+      "quarter_end": "2025-06-30",
+      "revenue_usd_millions": 76441.0
+    },
+    {
+      "derived": false,
+      "diluted_eps_usd": 3.72,
+      "net_income_usd_millions": 27747.0,
+      "quarter_end": "2025-09-30",
+      "revenue_usd_millions": 77673.0
+    },
+    {
+      "derived": false,
+      "diluted_eps_usd": 5.16,
+      "net_income_usd_millions": 38458.0,
+      "quarter_end": "2025-12-31",
+      "revenue_usd_millions": 81273.0
+    },
+    {
+      "derived": false,
+      "diluted_eps_usd": 4.27,
+      "net_income_usd_millions": 31778.0,
+      "quarter_end": "2026-03-31",
+      "revenue_usd_millions": 82886.0
+    },
+    {
+      "derived": true,
+      "diluted_eps_usd": 4.81,
+      "net_income_usd_millions": 35766.0,
+      "quarter_end": "2026-06-30",
+      "revenue_usd_millions": 90007.0
+    },
+    {
+      "derived": false,
+      "diluted_eps_usd": 4.92,
+      "net_income_usd_millions": 36629.0,
+      "quarter_end": "2026-09-30",
+      "revenue_usd_millions": 92279.0
+    }
+  ]
+}
