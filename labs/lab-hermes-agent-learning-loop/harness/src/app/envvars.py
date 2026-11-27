@@ -9,6 +9,7 @@ from pathlib import Path
 from app.errors import ConfigError
 
 MIN_KEY_LENGTH = 16
+DEFAULT_MODEL = "google/gemma-4-26b-a4b-it-maas"
 
 
 @dataclass(frozen=True)
@@ -22,6 +23,7 @@ class Settings:
     out_dir: Path
     hermes_home: Path
     adc_file: Path
+    hermes_model: str = DEFAULT_MODEL
 
 
 def load_settings(env: Mapping[str, str]) -> Settings:
@@ -39,4 +41,5 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         out_dir=Path(env.get("OUT_DIR", "/lab/out")),
         hermes_home=Path(env.get("HERMES_HOME_RO", "/hermes-home")),
         adc_file=Path(env.get("ADC_FILE_RO", "/adc/adc.json")),
+        hermes_model=env.get("HERMES_MODEL", DEFAULT_MODEL),
     )

@@ -11,6 +11,7 @@ import re
 import sys
 from collections.abc import Callable
 
+from app.commands import check as check_command
 from app.commands import fixtures as fixtures_command
 from app.commands import run as run_command
 from app.envvars import load_settings
@@ -51,8 +52,24 @@ def _run(args: argparse.Namespace, log: Logger) -> None:
     )
 
 
+def _check(args: argparse.Namespace, log: Logger) -> None:
+    settings = load_settings(os.environ)
+    client = HermesClient(settings.hermes_url, settings.api_key, log=log)
+    check_command.run(
+        settings,
+        client,
+        home_name=args.home,
+        expected_model=settings.hermes_model,
+        log=log,
+    )
+
+
 # Later commands register themselves here as they are implemented.
-HANDLERS: dict[str, Handler] = {"fixtures": _fixtures, "run": _run}
+HANDLERS: dict[str, Handler] = {
+    "fixtures": _fixtures,
+    "check": _check,
+    "run": _run,
+}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -63,6 +80,8 @@ def build_parser() -> argparse.ArgumentParser:
         subparser = subparsers.add_parser(name)
         if name == "fixtures":
             subparser.add_argument("--check", action="store_true")
+        if name == "check":
+            subparser.add_argument("--home", required=True)
         if name == "run":
             subparser.add_argument("--cell", required=True, choices=run_command.CELLS)
             subparser.add_argument("--week", required=True)

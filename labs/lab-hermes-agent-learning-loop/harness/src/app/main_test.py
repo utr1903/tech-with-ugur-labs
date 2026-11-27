@@ -12,7 +12,7 @@ from app.__main__ import build_parser, main
 def test_parser_registers_every_command() -> None:
     parser = build_parser()
 
-    for name in ("fixtures", "check", "report", "leak-check"):
+    for name in ("fixtures", "report", "leak-check"):
         assert parser.parse_args([name]).command == name
 
 
@@ -37,13 +37,13 @@ def test_unimplemented_command_exits_1_and_logs_json(
     # main() installs process-wide error hooks; restore them afterwards.
     monkeypatch.setattr(sys, "excepthook", sys.excepthook)
     monkeypatch.setattr(threading, "excepthook", threading.excepthook)
-    monkeypatch.setattr("sys.argv", ["app", "check"])
+    monkeypatch.setattr("sys.argv", ["app", "report"])
 
     assert main() == 1
 
     last = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert last["event"] == "Command failed."
-    assert last["command"] == "check"
+    assert last["command"] == "report"
     assert "not implemented yet" in json.dumps(last["exception"])
 
 
@@ -53,3 +53,7 @@ def test_repeat_label_must_look_like_rn() -> None:
     assert parser.parse_args([*base, "--repeat-label", "r12"]).repeat_label == "r12"
     with pytest.raises(SystemExit):
         parser.parse_args([*base, "--repeat-label", "../x"])
+
+
+def test_check_command_takes_home() -> None:
+    assert build_parser().parse_args(["check", "--home", "h"]).home == "h"

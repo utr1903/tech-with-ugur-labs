@@ -37,3 +37,11 @@ def test_load_settings_rejects_missing_or_short_key(env: dict[str, str]) -> None
         load_settings(env)
 
     assert "short-key" not in str(caught.value)
+
+
+def test_hermes_model_defaults_and_overrides() -> None:
+    assert load_settings({"API_SERVER_KEY": KEY}).hermes_model == (
+        "google/gemma-4-26b-a4b-it-maas"
+    )
+    env = {"API_SERVER_KEY": KEY, "HERMES_MODEL": "m/x"}
+    assert load_settings(env).hermes_model == "m/x"
