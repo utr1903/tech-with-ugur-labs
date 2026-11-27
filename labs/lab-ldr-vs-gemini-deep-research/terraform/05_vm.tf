@@ -23,6 +23,12 @@ resource "aws_instance" "vm" {
     tags                  = merge(local.tags, { Name = "${var.name_prefix}-root" })
   }
 
+  # AWS keeps retrying while a zone has no free g6e capacity. Give up after
+  # ten minutes so the failure is visible; then try another zone.
+  timeouts {
+    create = "10m"
+  }
+
   tags = { Name = "${var.name_prefix}-vm" }
 }
 

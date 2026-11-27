@@ -6,12 +6,14 @@
 
 REGION ?= eu-central-1
 export REGION
+# g6e capacity varies by zone: make up ZONE=eu-central-1b if 1a is short.
+ZONE ?= eu-central-1a
 ALLOWED_SSH_CIDR ?= $(shell ./scripts/my_ip.sh)
 RUNS ?= 3
 QUESTION ?= all
 
 BENCH := docker compose run --rm bench
-TF_ENV = export TF_VAR_region="$(REGION)" TF_VAR_allowed_ssh_cidr="$(ALLOWED_SSH_CIDR)"
+TF_ENV = export TF_VAR_region="$(REGION)" TF_VAR_availability_zone="$(ZONE)" TF_VAR_allowed_ssh_cidr="$(ALLOWED_SSH_CIDR)"
 
 .DEFAULT_GOAL := help
 .PHONY: help doctor env plan up down tunnel tunnel-down check ssh truth truth-check research frontier score test

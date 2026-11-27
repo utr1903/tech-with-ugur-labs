@@ -231,6 +231,10 @@ rest. Run it even if `make up` failed half way.
 
 ## Troubleshooting
 
+- **`make up` sits at `aws_instance.vm: Still creating...` and then fails
+  with `InsufficientInstanceCapacity`**: AWS has no free g6e.2xlarge in that
+  zone right now. Run `make up ZONE=eu-central-1b` (or `eu-central-1c`), and
+  pass the same `ZONE` to `make down`.
 - **My IP changed** (SSH hangs or is refused): run `make up` again; Terraform
   updates the security group rule and the tunnel reopens.
 - **SEC answers 403 during `make truth`**: set `SEC_USER_AGENT` in `.env` to
