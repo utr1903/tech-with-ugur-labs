@@ -1,0 +1,102 @@
+# Laptop stack: Local Deep Research (LDR) + SearXNG + the bench runner.
+# The model is NOT part of this stack: LDR reaches an OpenAI-compatible
+# server on the host (an SSH tunnel to the GPU instance) at port 8000.
+name: ldr-lab
+
+services:
+  ldr:
+    image: localdeepresearch/local-deep-research:2.0.4@sha256:e6886caeec3afebf6deb8a0162495ff8ece0cc72fc886c48ee5ebc769740c079
+    # Allow request draining, then scheduler, queue, log and database cleanup.
+    stop_grace_period: 60s
+    # Makes host.docker.internal resolve on Linux too, but there it points at
+    # the docker bridge and cannot reach the tunnel on the host's loopback
+    # (see the Linux section of the README).
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "127.0.0.1:5000:5000"
+    environment:
+      LDR_WEB_HOST: "0.0.0.0"
+      LDR_WEB_PORT: "5000"
+      LDR_DATA_DIR: /data
+      LDR_LLM_PROVIDER: openai_endpoint
+      LDR_LLM_OPENAI_ENDPOINT_URL: http://host.docker.internal:8000/v1
+      LDR_LLM_OPENAI_ENDPOINT_API_KEY: not-needed
+      LDR_LLM_MODEL: qwen3.6-27b
+      LDR_SEARCH_TOOL: searxng
+      LDR_SEARCH_ENGINE_WEB_SEARXNG_DEFAULT_PARAMS_INSTANCE_URL: http://searxng:8080
+      LDR_LLM_CONTEXT_WINDOW_UNRESTRICTED: "false"
+      LDR_LLM_CONTEXT_WINDOW_SIZE: "131072"
+      LDR_LLM_MAX_TOKENS: "16384"
+      LDR_NEWS_SCHEDULER_ENABLED: "false"
+    volumes:
+      - ldr_data:/data
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN # chown the data directory to the app user
+      - FOWNER # chmod files after the chown
+      - DAC_OVERRIDE # create the app user's config directory
+      - SETUID # drop privileges to the app user
+      - SETGID
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:5000/api/v1/health', timeout=8)
+      interval: 10s
+      timeout: 10s
+      start_period: 60s
+      retries: 6
+    depends_on:
+      searxng:
+        condition: service_healthy
+    restart: unless-stopped
+
+  searxng:
+    image: searxng/searxng:2026.11.26-b5605b8f2@sha256:462d8dbeadd7c7c304be08d47084f5caba70f47a9145a01fd25990a7944e61b7
+    environment:
+      # The image reads this and overrides server.secret_key.
+      SEARXNG_SECRET: ${SEARXNG_SECRET:?run scripts/make_env.sh first}
+    volumes:
+      - ./searxng/settings.yml:/etc/searxng/settings.yml:ro
+    security_opt:
+      - "no-new-privileges:true"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:8080/healthz"]
+      interval: 10s
+      timeout: 10s
+      start_period: 30s
+      retries: 6
+    restart: unless-stopped
+
+  bench:
+    profiles: ["tools"]
+    build:
+      context: ./bench
+      target: runtime
+    image: ldr-lab/bench
+    env_file: .env
+    environment:
+      LDR_URL: http://ldr:5000
+      DATA_DIR: /work/data
+      RESULTS_DIR: /work/results
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    volumes:
+      - ./data:/work/data
+      - ./results:/work/results
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+
+volumes:
+  ldr_data:

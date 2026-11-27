@@ -1,0 +1,187 @@
+{
+  "catalog_version": "2026.11.25",
+  "entries": [
+    {
+      "cve_id": "CVE-2015-3306",
+      "product": "ProFTPD",
+      "vendor": "ProFTPD"
+    },
+    {
+      "cve_id": "CVE-2015-5477",
+      "product": "BIND",
+      "vendor": "ISC"
+    },
+    {
+      "cve_id": "CVE-2016-3081",
+      "product": "Struts",
+      "vendor": "Apache"
+    },
+    {
+      "cve_id": "CVE-2021-3199",
+      "product": "Docs",
+      "vendor": "ONLYOFFICE"
+    },
+    {
+      "cve_id": "CVE-2023-22894",
+      "product": "Strapi",
+      "vendor": "Strapi"
+    },
+    {
+      "cve_id": "CVE-2025-61624",
+      "product": "Multiple Products",
+      "vendor": "Fortinet"
+    },
+    {
+      "cve_id": "CVE-2026-0322",
+      "product": "PAN-OS",
+      "vendor": "Palo Alto Networks"
+    },
+    {
+      "cve_id": "CVE-2026-102489",
+      "product": "Zammad",
+      "vendor": "Zammad GmbH"
+    },
+    {
+      "cve_id": "CVE-2026-102490",
+      "product": "Zammad",
+      "vendor": "Zammad GmbH"
+    },
+    {
+      "cve_id": "CVE-2026-102764",
+      "product": "Remote Support",
+      "vendor": "BeyondTrust"
+    },
+    {
+      "cve_id": "CVE-2026-104286",
+      "product": "FortiMail",
+      "vendor": "Fortinet"
+    },
+    {
+      "cve_id": "CVE-2026-104935",
+      "product": "Connect Secure",
+      "vendor": "Ivanti"
+    },
+    {
+      "cve_id": "CVE-2026-105133",
+      "product": "AhsayCBS",
+      "vendor": "Ahsay"
+    },
+    {
+      "cve_id": "CVE-2026-105134",
+      "product": "AhsayCBS",
+      "vendor": "Ahsay"
+    },
+    {
+      "cve_id": "CVE-2026-106931",
+      "product": "SiteGuard Server Edition",
+      "vendor": "EG Secure Solutions"
+    },
+    {
+      "cve_id": "CVE-2026-109618",
+      "product": "PHP",
+      "vendor": "PHP Group"
+    },
+    {
+      "cve_id": "CVE-2026-109619",
+      "product": "PHP",
+      "vendor": "PHP Group"
+    },
+    {
+      "cve_id": "CVE-2026-110447",
+      "product": "Collabora Online \u2013 Built-in CODE Server",
+      "vendor": "Collabora"
+    },
+    {
+      "cve_id": "CVE-2026-110936",
+      "product": "Software Center",
+      "vendor": "Siemens"
+    },
+    {
+      "cve_id": "CVE-2026-111357",
+      "product": "Connect Secure",
+      "vendor": "Ivanti"
+    },
+    {
+      "cve_id": "CVE-2026-111497",
+      "product": "Brotli",
+      "vendor": "Google"
+    },
+    {
+      "cve_id": "CVE-2026-114625",
+      "product": "VeloCloud Orchestrator",
+      "vendor": "Arista"
+    },
+    {
+      "cve_id": "CVE-2026-118527",
+      "product": "Connect Secure",
+      "vendor": "Ivanti"
+    },
+    {
+      "cve_id": "CVE-2026-21589",
+      "product": "Multiple Products",
+      "vendor": "Atlassian"
+    },
+    {
+      "cve_id": "CVE-2026-41709",
+      "product": "VMware ESX",
+      "vendor": "Broadcom"
+    },
+    {
+      "cve_id": "CVE-2026-46300",
+      "product": "Kernel",
+      "vendor": "Linux"
+    },
+    {
+      "cve_id": "CVE-2026-48356",
+      "product": "Commerce and Magento",
+      "vendor": "Adobe"
+    },
+    {
+      "cve_id": "CVE-2026-76418",
+      "product": "Secure Firewall ASA Software and Cisco Secure FTD Software",
+      "vendor": "Cisco"
+    },
+    {
+      "cve_id": "CVE-2026-76519",
+      "product": "Secure Email Gateway",
+      "vendor": "Cisco"
+    },
+    {
+      "cve_id": "CVE-2026-88779",
+      "product": "NetScaler",
+      "vendor": "Citrix"
+    },
+    {
+      "cve_id": "CVE-2026-96652",
+      "product": "Media Server",
+      "vendor": "Plex"
+    },
+    {
+      "cve_id": "CVE-2026-96654",
+      "product": "Media Server",
+      "vendor": "Plex"
+    },
+    {
+      "cve_id": "CVE-2026-96655",
+      "product": "Media Server",
+      "vendor": "Plex"
+    },
+    {
+      "cve_id": "CVE-2026-96656",
+      "product": "Media Server",
+      "vendor": "Plex"
+    },
+    {
+      "cve_id": "CVE-2026-96951",
+      "product": "Windows",
+      "vendor": "Microsoft"
+    },
+    {
+      "cve_id": "CVE-2026-97229",
+      "product": "Community Edition and Enterprise Edition",
+      "vendor": "GitLab"
+    }
+  ],
+  "window_end": "2026-10-31",
+  "window_start": "2026-10-01"
+}

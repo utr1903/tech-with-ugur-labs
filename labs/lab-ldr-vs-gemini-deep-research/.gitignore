@@ -1,0 +1,15 @@
+# Terraform (local state stays on your machine)
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+crash.log
+*.tfplan
+# Secrets and per-deployment material
+.env
+.ssh/
+# Python
+__pycache__/
+.venv/

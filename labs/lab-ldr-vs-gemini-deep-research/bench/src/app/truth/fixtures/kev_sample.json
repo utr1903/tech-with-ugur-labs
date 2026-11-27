@@ -1,0 +1,11 @@
+{
+  "title": "Sample catalog",
+  "catalogVersion": "2026.11.03",
+  "count": 5,
+  "vulnerabilities": [
+    {"cveID": "CVE-2026-0900", "vendorProject": "Acme", "product": "Edge", "dateAdded": "2026-09-30"},
+    {"cveID": "CVE-2026-1002", "vendorProject": "Globex", "product": "Gate", "dateAdded": "2026-10-31"},
+    {"cveID": "CVE-2026-1001", "vendorProject": "Initech", "product": "Hub", "dateAdded": "2026-10-01"},
+    {"cveID": "CVE-2026-1100", "vendorProject": "Acme", "product": "Core", "dateAdded": "2026-11-01"}
+  ]
+}

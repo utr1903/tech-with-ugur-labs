@@ -1,0 +1,15 @@
+# Optional. Copy to terraform.tfvars ONLY for the settings you want to
+# change, and leave the rest out. `make` passes allowed_ssh_cidr and
+# availability_zone itself (from ALLOWED_SSH_CIDR and ZONE), and a value in
+# terraform.tfvars wins over what make passes, so do not set them here unless
+# you also want them fixed for `make down`.
+#
+# allowed_ssh_cidr  = "198.51.100.7/32"   # your own address as a /32
+# availability_zone = "eu-central-1b"
+
+# Cheaper L40S box (USD 2.80/h) when it has capacity. Also set
+# LDR_LLM_CONTEXT_WINDOW_SIZE to 65536 in compose.yaml and
+# INSTANCE_PRICE_USD_PER_HOUR=2.8035 in .env so LDR cost uses this rate:
+# instance_type = "g6e.2xlarge"
+# max_model_len = 65536
+# max_num_seqs  = 8
