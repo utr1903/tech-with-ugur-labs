@@ -54,11 +54,13 @@ class GenaiInteractions:
     """The lab's `InteractionsApi` over the SDK; SDK failures become `GeminiError`."""
 
     def __init__(self, settings: GeminiSettings) -> None:
-        client = genai.Client(
+        # Keep the client itself: it closes its HTTP session when garbage
+        # collected, which breaks every later `interactions` call.
+        self._client = genai.Client(
             api_key=settings.api_key,
             http_options=types.HttpOptions(api_version=settings.api_version),
         )
-        self._interactions = client.interactions
+        self._interactions = self._client.interactions
 
     def create(self, *, agent: str, prompt: str, background: bool) -> object:
         """Starts a background interaction."""
