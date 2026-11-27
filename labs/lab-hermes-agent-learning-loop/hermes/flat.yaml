@@ -1,0 +1,19 @@
+# Hermes Agent without subagents (delegate_task) or the Python sandbox
+# (execute_code): the flat baseline. Mounted read-only as
+# /opt/data/config.yaml. The GCP project comes from VERTEX_PROJECT_ID.
+#
+# Self-hosted model instead of Vertex AI (vLLM, llama.cpp server): change
+# the model line to
+#   model: {provider: custom, base_url: "http://host.docker.internal:8000/v1", default: <served model name>}
+model: {provider: vertex, default: google/gemma-4-26b-a4b-it-maas}
+vertex: {region: global}
+# Quoted: an unquoted off is the boolean false in YAML 1.1.
+approvals: {mode: "off"}
+# Subagents run inside the API request instead of a separate gateway.
+delegation: {gateway_mode: inline}
+# One fewer model call per session; titles are not used here.
+auxiliary: {title_generation: {enabled: false}}
+# Nothing in the lab needs the network, a browser or media tools; the
+# last two entries switch off subagents and the Python sandbox.
+agent:
+  disabled_toolsets: [web, browser, vision, image_gen, tts, cronjob, connections, delegation, code_execution]

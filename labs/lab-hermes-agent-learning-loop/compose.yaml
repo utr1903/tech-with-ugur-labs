@@ -1,0 +1,84 @@
+# Hermes Agent (the system under test) and the harness that drives it.
+# Hermes talks to Gemma 4 on Vertex AI with your gcloud Application Default
+# Credentials; the harness only talks to Hermes' API server and reads the
+# Hermes home read-only to see which skills the agent wrote.
+
+services:
+  hermes:
+    image: nousresearch/hermes-agent:v0.23.4@sha256:ef0650d523ee1b5ab32c779acabc446d9936869a9932591553688a62bcf0c42f
+    command: ["gateway", "run"]
+    environment:
+      API_SERVER_ENABLED: "true"
+      API_SERVER_HOST: "0.0.0.0"
+      API_SERVER_KEY: ${API_SERVER_KEY:?run make env first}
+      VERTEX_PROJECT_ID: ${VERTEX_PROJECT_ID:?run make env first}
+      # The image lets write_file touch only its home (/opt/data); the
+      # agent must also write its report under /out.
+      HERMES_WRITE_SAFE_ROOT: "/opt/data:/out"
+      # The image remaps its hermes user to these ids, so files it writes
+      # to ./out belong to you.
+      HERMES_UID: ${HERMES_UID:?run make env first}
+      HERMES_GID: ${HERMES_GID:?run make env first}
+    ports:
+      - "127.0.0.1:8642:8642"
+    volumes:
+      # A named volume, not a host folder: on macOS a bind-mounted home
+      # breaks execute_code (chmod of its RPC socket fails with EINVAL).
+      - hermes_home:/opt/data
+      - ./hermes/${HERMES_CONFIG:-full}.yaml:/opt/data/config.yaml:ro
+      - ./data/fleet:/fleet:ro
+      - ./out:/out
+      # Hermes finds ADC at its default path under HOME=/opt/data.
+      - ${ADC_FILE:?run make env first}:/opt/data/.config/gcloud/application_default_credentials.json:ro
+    mem_limit: 4g
+    cpus: 4
+    pids_limit: 512
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+    # The image starts as root, remaps and hands its files to the hermes
+    # user, then drops to it. Each of these was removed in turn: without
+    # any of the first four Hermes does not start; without FOWNER it starts
+    # but its init fails to chmod a directory it already gave to hermes.
+    cap_add:
+      - CHOWN # usermod and chown of the home and service directories
+      - SETUID # s6 drops to the hermes user
+      - SETGID # s6 sets the hermes group list
+      - DAC_OVERRIDE # root writes into the hermes-owned home during setup
+      - FOWNER # root chmods files it no longer owns
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://127.0.0.1:8642/health"]
+      interval: 5s
+      timeout: 5s
+      start_period: 60s
+      retries: 12
+
+  harness:
+    profiles: ["tools"]
+    build:
+      context: ./harness
+      target: runtime
+    # Hermes keeps its home owner-only (mode 700) under HERMES_UID, so the
+    # harness runs as that same user to read the skills the agent wrote.
+    # On Linux this also makes results/ belong to you.
+    user: "${HERMES_UID:?run make env first}:${HERMES_GID:?run make env first}"
+    env_file: .env
+    environment:
+      HERMES_URL: http://hermes:8642
+    volumes:
+      - ./data:/lab/data
+      - ./results:/lab/results
+      - ./out:/lab/out
+      - hermes_home:/hermes-home:ro
+    security_opt:
+      - "no-new-privileges:true"
+    cap_drop:
+      - ALL
+    depends_on:
+      hermes:
+        condition: service_healthy
+
+volumes:
+  hermes_home:
+    name: "${HERMES_HOME_VOLUME:-twu-hermes-full-learn}"
