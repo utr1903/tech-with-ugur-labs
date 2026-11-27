@@ -6,7 +6,7 @@
 
 REGION ?= eu-central-1
 export REGION
-# g6e capacity varies by zone: make up ZONE=eu-central-1b if 1a is short.
+# GPU capacity varies by zone: make up ZONE=eu-central-1b if 1a is short.
 ZONE ?= eu-central-1a
 ALLOWED_SSH_CIDR ?= $(shell ./scripts/my_ip.sh)
 RUNS ?= 3

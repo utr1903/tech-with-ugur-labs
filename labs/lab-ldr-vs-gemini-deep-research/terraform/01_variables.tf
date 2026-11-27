@@ -7,13 +7,13 @@ variable "region" {
 variable "availability_zone" {
   type        = string
   default     = "eu-central-1a"
-  description = "g6e.2xlarge is offered in several eu-central-1 zones. Switch zones if capacity is short."
+  description = "g7e.2xlarge is offered in eu-central-1a and eu-central-1b. Switch zones if capacity is short."
 }
 
 variable "instance_type" {
   type        = string
-  default     = "g6e.2xlarge"
-  description = "One NVIDIA L40S (44.7 GiB), enough for the 27B FP8 model plus its KV cache."
+  default     = "g7e.2xlarge"
+  description = "One NVIDIA RTX PRO 6000 (96 GiB): the 27B FP8 model plus a 128k-token context. Cheaper alternative when it has capacity: g6e.2xlarge (L40S, 44.7 GiB) with max_model_len 65536 and max_num_seqs 8."
 }
 
 variable "ami_name" {
@@ -58,13 +58,13 @@ variable "served_model_name" {
 
 variable "max_model_len" {
   type        = number
-  default     = 65536
+  default     = 131072
   description = "Context length in tokens."
 }
 
 variable "max_num_seqs" {
   type        = number
-  default     = 8
+  default     = 16
   description = "Max sequences vLLM decodes at once. Research agents issue a handful of parallel requests; vLLM's default of 1024 would reserve far more state than the GPU has room for."
 }
 

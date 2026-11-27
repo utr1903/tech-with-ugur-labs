@@ -4,3 +4,9 @@ allowed_ssh_cidr = "203.0.113.7/32"
 
 # Optional overrides:
 # availability_zone = "eu-central-1b"
+
+# Cheaper L40S box (USD 2.80/h) when it has capacity; also set
+# LDR_LLM_CONTEXT_WINDOW_SIZE to 65536 in compose.yaml:
+# instance_type = "g6e.2xlarge"
+# max_model_len = 65536
+# max_num_seqs  = 8

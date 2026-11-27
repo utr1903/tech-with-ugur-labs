@@ -19,7 +19,7 @@ from app.logging_setup import Logger
 from app.questions.catalog import Question, build_prompt
 from app.runs.record import RunRecord
 
-INSTANCE_PRICE_USD_PER_HOUR = 2.8035
+INSTANCE_PRICE_USD_PER_HOUR = 5.71915
 DEFAULT_LDR_VERSION = "2.0.4"
 
 

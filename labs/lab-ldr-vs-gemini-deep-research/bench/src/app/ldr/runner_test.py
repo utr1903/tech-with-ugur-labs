@@ -47,7 +47,7 @@ def test_completed_run_record(log: Logger, clock: FakeClock) -> None:
     assert record.report == "# Report"
     assert record.sources == ("https://a", "https://b")
     assert record.wall_seconds == 10.0
-    assert record.cost_usd == pytest.approx(10.0 / 3600 * 2.8035)
+    assert record.cost_usd == pytest.approx(10.0 / 3600 * 5.71915)
     assert record.meta == {
         "research_id": "r1",
         "model": "qwen3.6-27b",

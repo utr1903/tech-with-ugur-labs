@@ -14,7 +14,7 @@ The searches leave from your own IP (SearXNG on your laptop), and the model
 port on the VM is never public: your laptop reaches it only through an SSH
 tunnel.
 
-> **Cost.** A `g6e.2xlarge` in eu-central-1 costs about **USD 2.80 per hour**
+> **Cost.** A `g7e.2xlarge` in eu-central-1 costs about **USD 5.72 per hour**
 > while it exists, and the first start downloads about **29 GB** of model
 > weights. Gemini Deep Research costs roughly **USD 1-3 per task**; Google's
 > search-grounding charges beyond its free monthly allowance are not included
@@ -41,7 +41,7 @@ touches neither the network nor Terraform.
 - Terraform 1.16.3 (the lab pins it; `make doctor` checks).
 - AWS CLI v2, logged in to an account that may create EC2 resources in
   eu-central-1, with at least **8 vCPUs of the "Running On-Demand G and VT
-  instances" quota** (one `g6e.2xlarge`). New accounts often have 0; request
+  instances" quota** (one `g7e.2xlarge`). New accounts often have 0; request
   an increase first.
 - `make`, `ssh`, `rsync`, `curl`, `openssl`; `shellcheck` only for `make test`.
 - A descriptive contact string for `SEC_USER_AGENT` in `.env` (SEC and CISA
@@ -93,7 +93,7 @@ Laptop (docker compose)                     AWS eu-central-1, dedicated VPC
 -----------------------                     ----------------------------------
 bench (Python)  --HTTP--> ldr :5000         public subnet
                             |  |            +---------------------------------+
-                            |  +-> searxng  | GPU VM g6e.2xlarge (no role,    |
+                            |  +-> searxng  | GPU VM g7e.2xlarge (no role,    |
                             |      (egress  |   no key pair, IMDSv2 hop 1)    |
                             |      from     | SG: ingress 22 from reader /32  |
                             |      home IP) | vllm  127.0.0.1:8000 only       |
@@ -171,7 +171,7 @@ or the wrong shape scores 0 and counts as a format failure.
 The scoreboard also shows runs, min/mean/max, format failures, mean wall time,
 mean cost, mean source count, a per-run table and a "where it went wrong"
 list of missed and invented CVEs and wrong cells (answer vs truth). Cost for
-LDR is wall hours times the instance price (2.8035 USD/h, overridable with
+LDR is wall hours times the instance price (5.71915 USD/h, overridable with
 `INSTANCE_PRICE_USD_PER_HOUR`); Gemini cost comes from the reported token
 usage and a dated rate table.
 
@@ -179,10 +179,10 @@ usage and a dated rate table.
 
 | Setting | Value | Why |
 | --- | --- | --- |
-| Model | `Qwen/Qwen3.6-27B-FP8`, pinned revision, served as `qwen3.6-27b`, thinking on | Fits the 44.7 GiB L40S with room for the KV cache |
-| vLLM `max_model_len` | 65536 | The context window the VM serves |
-| LDR `LLM_CONTEXT_WINDOW_SIZE` | 65536 | Must equal the server's window |
-| LDR `LLM_MAX_TOKENS` | 16384 | **Capped on purpose.** LDR's default of 30000 output tokens would be requested from a server whose total window is 64k, leaving too little for the prompt and tool results |
+| Model | `Qwen/Qwen3.6-27B-FP8`, pinned revision, served as `qwen3.6-27b`, thinking on | 28.75 GiB of weights on a 96 GiB RTX PRO 6000 leaves room for a long KV cache |
+| vLLM `max_model_len` | 131072 | The context window the VM serves; the model card asks for at least 128k so thinking is not cut short |
+| LDR `LLM_CONTEXT_WINDOW_SIZE` | 131072 | Must equal the server's window |
+| LDR `LLM_MAX_TOKENS` | 16384 | **Capped on purpose.** LDR treats an OpenAI-compatible endpoint as a cloud model and would otherwise ask for 30000 output tokens per call; on the 64k L40S setup that leaves too little room for the prompt and tool results, and 16384 still covers the model's thinking |
 | Strategy | LDR's default, `langgraph-agent` | See below |
 | Search | SearXNG on your laptop | Searches leave from your IP, not the VM's |
 
@@ -232,9 +232,12 @@ rest. Run it even if `make up` failed half way.
 ## Troubleshooting
 
 - **`make up` sits at `aws_instance.vm: Still creating...` and then fails
-  with `InsufficientInstanceCapacity`**: AWS has no free g6e.2xlarge in that
-  zone right now. Run `make up ZONE=eu-central-1b` (or `eu-central-1c`), and
-  pass the same `ZONE` to `make down`.
+  with `InsufficientInstanceCapacity`**: AWS has no free GPU of that type in that
+  zone right now. Run `make up ZONE=eu-central-1b`, and pass the same `ZONE`
+  to `make down`. To use the cheaper L40S box instead (USD 2.80/h, when it
+  has capacity), put `instance_type = "g6e.2xlarge"`, `max_model_len = 65536`
+  and `max_num_seqs = 8` in `terraform/terraform.tfvars` and set
+  `LDR_LLM_CONTEXT_WINDOW_SIZE` in `compose.yaml` to 65536.
 - **My IP changed** (SSH hangs or is refused): run `make up` again; Terraform
   updates the security group rule and the tunnel reopens.
 - **SEC answers 403 during `make truth`**: set `SEC_USER_AGENT` in `.env` to
