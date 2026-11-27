@@ -132,8 +132,7 @@ and, because the cells run one after another, about 2 to 3 hours of wall time.
 `REPEATS=3` triples both. The `est. USD` column in `results/metrics.md` is an
 upper bound: it prices every input token at the full input rate and does not
 split out cached input, which can be billed lower. The six-cell figures are
-estimates and will be
-replaced by the measured totals of the committed run (see
+estimates and will be replaced by the measured totals of the committed run (see
 [Results](#results)). Vertex streams occasionally stall for up to about
 180 seconds with no data; Hermes detects that and retries, which shows up as
 a slower cell, not a failed one.
@@ -151,18 +150,7 @@ make down       # stop everything and delete the four home volumes
 
 `make e2e` runs, in order: `make fixtures`, `make run`, `make curator`,
 `make report`, `make leak-check`, and the harness assertions. The pieces are
-also available on their own.
-
-`make report` averages every `run.json` under `results/runs/`, and new runs
-are numbered after the ones already there. This repository ships its own run
-in `results/runs/`, so move it aside first if you want your numbers on their
-own: `mv results/runs results/runs-committed` (or `rm -rf results/runs`).
-
-With `REPEATS` above 1, `metrics.md` averages only the runs that completed
-with a valid report and lists the others, and the assertions check the latest
-repeat of each cell, printing how every earlier repeat ended without failing
-on it.
-
+also available on their own:
 
 | Target | Does |
 | --- | --- |
@@ -173,6 +161,16 @@ on it.
 | `make leak-check` | Scans `results/` and `out/` for the API key, the GCP project id, ADC secrets and access tokens. |
 | `make test` | Harness tests, lint and types in Docker, plus `shellcheck`. |
 | `make help` | Lists the targets. |
+
+`make report` averages every `run.json` under `results/runs/`, and new runs
+are numbered after the ones already there. This repository ships its own run
+in `results/runs/`, so move it aside first if you want your numbers on their
+own: `mv results/runs results/runs-committed` (or `rm -rf results/runs`).
+
+With `REPEATS` above 1, `metrics.md` averages only the runs that completed
+with a valid report and lists the others, and the assertions check the latest
+repeat of each cell, printing how every earlier repeat ended without failing
+on it.
 
 `make fixtures` only checks. The fixtures are generated from a fixed seed and
 are committed. To regenerate them after changing the generator:
@@ -192,8 +190,8 @@ control homes that started with only the bundled skills, `delegate_task` and
 table written, curator dry runs exit 0, and no secrets in the output. Before
 them it prints one `INFO earlier repeat` line per earlier repeat.
 
-Files appear under `results/` (the committed run ships there, so you can read it without
-running anything):
+Files appear under `results/` (the committed run ships there, so you can read it
+without running anything):
 
 ```
 results/
