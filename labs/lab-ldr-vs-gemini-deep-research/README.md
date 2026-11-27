@@ -79,10 +79,36 @@ run reuses that free number.
 
 ## What you should see
 
-<!-- results from the live run go here -->
+The committed runs come from one live session on 2026-11-27 (g7e.2xlarge,
+Qwen3.6-27B-FP8 with thinking on, LDR 2.0.4 `langgraph-agent` in `quick`
+mode, Gemini `deep-research-preview-04-2026`), 3 runs per tool and question.
+`make score` turns them into [`results/scoreboard.md`](results/scoreboard.md):
 
-_The scoreboard from the live run is added here once it exists. Your own run
-will differ: the models, the search results and the web all move._
+| Tool | Question | Runs | Mean | Min | Max | Recall | Precision | Vendor accuracy | Mentioned recall | Format failures | Mean wall time | Mean cost | Mean sources |
+|---|---|---|---|---|---|---|---|---|---|---|---|---|---|
+| ldr | q1-kev | 3 | 100.0% | 100.0% | 100.0% | 100.0% | 100.0% | 99.1% | 100.0% | 0 | 12:05 | $1.15 | 172.0 |
+| gemini | q1-kev | 3 | 95.3% | 91.4% | 100.0% | 94.4% | 96.2% | 93.2% | 94.4% | 0 | 9:44 | $3.43 | 64.7 |
+| ldr | q2-msft | 3 | 94.4% | 87.5% | 100.0% | n/a | n/a | n/a | n/a | 0 | 16:01 | $1.53 | 210.7 |
+| gemini | q2-msft | 3 | 100.0% | 100.0% | 100.0% | n/a | n/a | n/a | n/a | 0 | 9:03 | $3.21 | 40.0 |
+
+Mean is F1 over CVE IDs for q1-kev and the share of the 24 cells within 0.5 %
+for q2-msft. LDR cost is VM time at USD 5.72/h; the Gemini cost is the
+base-rate estimate described below. Where each one went wrong, from the
+scoreboard's own list:
+
+- **Gemini missed and invented CVEs** in two of its three q1 runs: four and
+  two October entries missing, and two IDs in each of those runs that CISA
+  did not add in October.
+- **LDR answered 4.13 for the diluted EPS of the quarter ended 2025-09-30**
+  in two of three q2 runs. The GAAP figure in the 10-Q is 3.72. One of those
+  runs also left two cells empty.
+- **Vendor names drift** for both tools: "Linux Kernel" for KEV's "Linux",
+  "Zammad" for "Zammad GmbH", "PHP" for "PHP Group". The vendor column is
+  scored by exact match after normalising case and spaces, so these count
+  as wrong.
+
+Your own run will differ: the models, the search engines and the web all
+move.
 
 `make check` prints `ok` lines from its script (the model answers through the
 tunnel, the model port is closed on the public address, the in-network checks
