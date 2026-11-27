@@ -100,3 +100,18 @@ def test_cold_without_skill_fails(
     with pytest.raises(LabError):
         run(settings, log=LOG)
     assert any(ln.startswith("FAIL 5") for ln in _lines(capsys))
+
+
+@pytest.mark.parametrize("status", ["run.failed", "completed", "error", ""])
+def test_cell_status_other_than_completed_fails(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str], status: str
+) -> None:
+    settings = _passing(tmp_path)
+    write_record(
+        settings.results_dir / "runs" / "full-warm" / "r2",
+        make_record("full-warm", repeat="r2", status=status, skill_loaded=True),
+    )
+    with pytest.raises(LabError):
+        run(settings, log=LOG)
+    failed = {ln.split()[1] for ln in _lines(capsys) if ln.startswith("FAIL")}
+    assert "3" in failed

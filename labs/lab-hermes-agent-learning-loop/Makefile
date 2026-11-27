@@ -28,9 +28,8 @@ vertex: ## Enable the Vertex AI API in your gcloud default project
 env: ## Create .env with your project, ids and a fresh key (never overwrites)
 	./scripts/make_env.sh
 
-fixtures: ## Regenerate the fleet and answer keys, then prove they are stable
-	@mkdir -p data results out
-	$(HARNESS_OFFLINE) fixtures
+fixtures: ## Prove the committed data/ matches the generator (read-only check)
+	@mkdir -p results out
 	@code=0; $(HARNESS_OFFLINE) fixtures --check || code=$$?; \
 	  echo "exit=$$code" > results/fixtures-check.txt; exit $$code
 
@@ -55,12 +54,21 @@ leak-check: ## Scan results/ and out/ for the API key and ADC secrets
 	docker compose --profile tools run --rm --build --no-deps \
 	  -v "$(ADC_FILE):/adc/adc.json:ro" harness leak-check
 
-e2e: fixtures run curator report leak-check ## The full end-to-end run and its assertions
+# The stages share results/ and must run in this order, so they are sequenced
+# in one recipe instead of prerequisites (which `make -j` would parallelise).
+e2e: ## The full end-to-end run and its assertions: make e2e [REPEATS=1]
+	$(MAKE) fixtures
+	$(MAKE) run REPEATS=$(REPEATS)
+	$(MAKE) curator
+	$(MAKE) report
+	$(MAKE) leak-check
 	$(HARNESS_OFFLINE) assert-e2e
 
 down: ## Stop everything and delete the four lab home volumes
 	-docker compose --profile tools down
-	for v in $(LAB_VOLUMES); do docker volume rm -f "$$v" >/dev/null; done
+	@status=0; \
+	for v in $(LAB_VOLUMES); do docker volume rm -f "$$v" >/dev/null || status=1; done; \
+	exit $$status
 
 test: ## Harness tests, lint and types in Docker; shellcheck
 	docker build --target test harness
