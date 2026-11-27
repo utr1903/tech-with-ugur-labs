@@ -77,7 +77,9 @@ and the advisory id.
 Write one JSON document with exactly this shape. Include one entry for
 every service (all six), even when its lists are empty. Use the flag
 names exactly as listed above and write IP addresses as plain strings.
-Output plain JSON with no markdown fence around it.
+Set `week` to the name of the folder you are triaging (`week-1` or
+`week-2`); the example below shows `week-1`. Output plain JSON with no
+markdown fence around it.
 
 {REPORT_SCHEMA_EXAMPLE}
 """

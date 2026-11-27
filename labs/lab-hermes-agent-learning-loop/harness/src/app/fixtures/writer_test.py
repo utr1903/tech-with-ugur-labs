@@ -16,6 +16,7 @@ def test_write_fixtures_creates_fleet_and_answers(tmp_path: Path) -> None:
         assert (tmp_path / "fleet" / week / "RUNBOOK.md").is_file()
         answer = json.loads((tmp_path / "answers" / f"{week}.json").read_text())
         assert answer["week"] == week
+        assert (tmp_path / "fleet" / week / "advisories.json").is_file()
         assert [s["service"] for s in answer["services"]] == sorted(
             s["service"] for s in answer["services"]
         )

@@ -191,11 +191,17 @@ def _answer_for_service(
     try:
         entries = [
             entry
-            for line in (service_dir / "access.log").read_text().splitlines()
+            for line in (service_dir / "access.log")
+            .read_text(encoding="utf-8")
+            .splitlines()
             if (entry := parse_log_line(line)) is not None
         ]
-        config = yaml.safe_load((service_dir / "config.yaml").read_text())
-        lock = parse_lock((service_dir / "requirements.lock").read_text())
+        config = yaml.safe_load(
+            (service_dir / "config.yaml").read_text(encoding="utf-8")
+        )
+        lock = parse_lock(
+            (service_dir / "requirements.lock").read_text(encoding="utf-8")
+        )
     except (OSError, yaml.YAMLError) as err:
         raise FixtureError(f"cannot read service files in {service_dir}") from err
     if not isinstance(config, dict):

@@ -89,3 +89,19 @@ def test_answers_match_rules_on_disk(tmp_path: Path, week: str) -> None:
     week_dir = _materialize(tmp_path, week)
 
     assert answers_for_week(week_dir) == plan_week(week).answer()
+
+
+@pytest.mark.parametrize("week", list(WEEKS))
+def test_generated_tree_is_complete(week: str) -> None:
+    files = generate_week(week)
+
+    expected = {PurePosixPath("RUNBOOK.md"), PurePosixPath("advisories.json")}
+    for service in SERVICES:
+        base = PurePosixPath("services") / service
+        expected |= {
+            base / "access.log",
+            base / "config.yaml",
+            base / "requirements.lock",
+        }
+    assert set(files) == expected
+    assert all(content for content in files.values())

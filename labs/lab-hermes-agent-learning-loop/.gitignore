@@ -2,3 +2,5 @@
 out/
 harness/.venv/
 __pycache__/
+# The generated fleet access logs are fixtures, not runtime logs.
+!data/fleet/**/access.log
