@@ -45,3 +45,11 @@ def test_unimplemented_command_exits_1_and_logs_json(
     assert last["event"] == "Command failed."
     assert last["command"] == "check"
     assert "not implemented yet" in json.dumps(last["exception"])
+
+
+def test_repeat_label_must_look_like_rn() -> None:
+    parser = build_parser()
+    base = ["run", "--cell", "full-cold", "--week", "w", "--home", "h"]
+    assert parser.parse_args([*base, "--repeat-label", "r12"]).repeat_label == "r12"
+    with pytest.raises(SystemExit):
+        parser.parse_args([*base, "--repeat-label", "../x"])

@@ -44,3 +44,24 @@ def model_of(client: HermesApi, session_id: str) -> str:
         if row.id == session_id:
             return row.model
     return ""
+
+
+def child_dicts(rows: list[SessionRow]) -> list[dict[str, object]]:
+    """The per-child numbers recorded in run.json."""
+    return [
+        {
+            "id": r.id,
+            "input_tokens": r.input_tokens,
+            "output_tokens": r.output_tokens,
+            "tool_call_count": r.tool_call_count,
+        }
+        for r in rows
+    ]
+
+
+def sum_tokens(rows: list[SessionRow]) -> dict[str, int]:
+    """Input and output tokens summed over `rows`."""
+    return {
+        "input": sum(r.input_tokens for r in rows),
+        "output": sum(r.output_tokens for r in rows),
+    }

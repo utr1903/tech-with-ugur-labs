@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from collections.abc import Callable
 
@@ -21,6 +22,12 @@ APP_NAME = "harness"
 COMMANDS = ("fixtures", "check", "run", "report", "leak-check")
 
 type Handler = Callable[[argparse.Namespace, Logger], None]
+
+
+def _repeat_label(value: str) -> str:
+    if not re.fullmatch(r"r\d+", value):
+        raise argparse.ArgumentTypeError(f"{value!r} is not of the form rN")
+    return value
 
 
 def _fixtures(args: argparse.Namespace, log: Logger) -> None:
@@ -61,7 +68,7 @@ def build_parser() -> argparse.ArgumentParser:
             subparser.add_argument("--week", required=True)
             subparser.add_argument("--home", required=True)
             subparser.add_argument("--follow-up-if-no-skill", action="store_true")
-            subparser.add_argument("--repeat-label", default=None)
+            subparser.add_argument("--repeat-label", default=None, type=_repeat_label)
     return parser
 
 

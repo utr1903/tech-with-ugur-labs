@@ -34,6 +34,7 @@ class CellRecord:
     children_tools: dict[str, int]
     skills_before: list[str]
     skills_after: list[str]
+    skills_deleted: list[str]
     agent_created_skills: list[str]
     skill_loaded: bool
     skill_patched: bool

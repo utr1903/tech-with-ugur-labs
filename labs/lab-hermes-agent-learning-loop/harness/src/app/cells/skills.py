@@ -1,13 +1,23 @@
-"""Which agent-made skills a run loaded or changed."""
+"""Which agent-made skills a run loaded, changed or lost."""
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from pathlib import Path
 
 from app.hermes.home import agent_created
 from app.logging_setup import Logger
 
 PATCH_ACTIONS = frozenset({"patch", "edit", "update"})
+
+
+@dataclass(frozen=True)
+class SkillChanges:
+    """How a run touched the skills that existed before it."""
+
+    loaded: bool
+    patched: bool
+    deleted: list[str]
 
 
 def skill_texts(home: Path, baseline: frozenset[str], *, log: Logger) -> dict[str, str]:
@@ -18,16 +28,16 @@ def skill_texts(home: Path, baseline: frozenset[str], *, log: Logger) -> dict[st
     }
 
 
-def loaded_and_patched(
+def skill_changes(
     before: dict[str, str],
     after: dict[str, str],
     calls: list[tuple[str, str, str]],
-) -> tuple[bool, bool]:
-    """(skill_loaded, skill_patched) relative to the skills that pre-existed."""
+) -> SkillChanges:
+    """Loaded/patched/deleted, judged only on skills that pre-existed."""
     loaded = any(tool == "skill_view" and name in before for tool, name, _ in calls)
     called = any(
         tool == "skill_manage" and action in PATCH_ACTIONS and name in before
         for tool, name, action in calls
     )
-    changed = any(after.get(name) != text for name, text in before.items())
-    return loaded, called or changed
+    changed = any(after[n] != text for n, text in before.items() if n in after)
+    return SkillChanges(loaded, called or changed, sorted(set(before) - set(after)))
