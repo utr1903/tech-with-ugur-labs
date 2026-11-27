@@ -11,11 +11,12 @@ from app.scoring.msft_score import CellResult
 _LIST_CAP = 10
 _SUMMARY_HEADER = (
     "| Tool | Question | Runs | Mean | Min | Max | Recall | Precision "
-    "| Format failures | Mean wall time | Mean cost | Mean sources |"
+    "| Vendor accuracy | Mentioned recall | Format failures "
+    "| Mean wall time | Mean cost | Mean sources |"
 )
 _RUN_HEADER = (
     "| Tool | Question | Run | Status | Score | Format failure "
-    "| Wall time | Cost | Sources |"
+    "| Vendor accuracy | Mentioned recall | Wall time | Cost | Sources |"
 )
 
 
@@ -32,6 +33,8 @@ def render_summary_table(summaries: Iterable[Summary]) -> str:
             _percent(s.maximum),
             _optional_percent(s.mean_recall),
             _optional_percent(s.mean_precision),
+            _optional_percent(s.mean_vendor_accuracy),
+            _optional_percent(s.mean_mentioned_recall),
             str(s.format_failures),
             _minutes(s.mean_wall_seconds),
             _cost(s.mean_cost_usd),
@@ -85,6 +88,8 @@ def _run_table(runs: list[ScoredRun]) -> str:
                     r.status,
                     _percent(item.primary),
                     "yes" if item.format_failure else "no",
+                    _optional_percent(item.kev.vendor_accuracy if item.kev else None),
+                    _optional_percent(item.kev.mentioned_recall if item.kev else None),
                     _minutes(r.wall_seconds),
                     _cost(r.cost_usd),
                     str(len(r.sources)),

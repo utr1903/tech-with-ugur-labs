@@ -155,3 +155,28 @@ def test_summary_table_alone() -> None:
 
     assert table.splitlines()[0].startswith("| Tool |")
     assert "Where it went wrong" not in table
+
+
+def test_kev_rows_show_vendor_accuracy_and_mentioned_recall() -> None:
+    report = _kev(("CVE-2026-0001", "Cisco"), ("CVE-2026-0002", "Wrong"))
+    text = _render((_record("q1-kev", report + "\nalso CVE-2026-0001"),))
+
+    summary_header = next(
+        line
+        for line in text.splitlines()
+        if line.startswith("| Tool | Question | Runs")
+    )
+    assert "Vendor accuracy | Mentioned recall" in summary_header
+    run_header = next(
+        line
+        for line in text.splitlines()
+        if line.startswith("| Tool | Question | Run |")
+    )
+    assert "Vendor accuracy | Mentioned recall" in run_header
+    assert text.count("50.0% | 100.0%") >= 2
+
+
+def test_msft_rows_have_no_vendor_columns() -> None:
+    text = _render((_record("q2-msft", _msft(3.65)),))
+
+    assert "| n/a | n/a |" in text

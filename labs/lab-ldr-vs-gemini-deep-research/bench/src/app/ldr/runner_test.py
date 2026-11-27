@@ -52,6 +52,7 @@ def test_completed_run_record(log: Logger, clock: FakeClock) -> None:
         "research_id": "r1",
         "model": "qwen3.6-27b",
         "ldr_version": "2.0.4",
+        "instance_price_usd_per_hour": 5.71915,
         "strategy": "source-based",
         "ldr_duration_seconds": 812.0,
     }

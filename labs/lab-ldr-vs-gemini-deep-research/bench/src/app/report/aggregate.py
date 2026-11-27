@@ -40,6 +40,8 @@ class Summary:
     maximum: float
     mean_recall: float | None
     mean_precision: float | None
+    mean_vendor_accuracy: float | None
+    mean_mentioned_recall: float | None
     format_failures: int
     mean_wall_seconds: float
     mean_cost_usd: float | None
@@ -123,6 +125,12 @@ def _summary(tool: str, question: str, items: list[ScoredRun]) -> Summary:
         maximum=max(primaries),
         mean_recall=_kev_mean(items, lambda k: k.recall) if is_kev else None,
         mean_precision=_kev_mean(items, lambda k: k.precision) if is_kev else None,
+        mean_vendor_accuracy=(
+            _kev_mean(items, lambda k: k.vendor_accuracy) if is_kev else None
+        ),
+        mean_mentioned_recall=(
+            _kev_mean(items, lambda k: k.mentioned_recall) if is_kev else None
+        ),
         format_failures=sum(1 for i in items if i.format_failure),
         mean_wall_seconds=_mean([i.record.wall_seconds for i in items]),
         mean_cost_usd=_known_mean([i.record.cost_usd for i in items]),

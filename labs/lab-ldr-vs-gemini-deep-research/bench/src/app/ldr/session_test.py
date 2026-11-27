@@ -241,3 +241,56 @@ def test_transport_error_becomes_ldr_error() -> None:
 
     with pytest.raises(LdrError):
         _session(httpx.MockTransport(handler)).get_json("/api/x")
+
+
+class ExpiringLdr(FakeLdr):
+    """A logged-in service whose session lapses; API calls then need a re-login."""
+
+    def __init__(self, *, expiry_status: int) -> None:
+        super().__init__(user_exists=True)
+        self.expiry_status = expiry_status
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/x" and not self.logged_in:
+            self.calls.append((request.method, request.url.path))
+            if self.expiry_status == 302:
+                return self._redirect("/auth/login?next=/api/x")
+            return httpx.Response(self.expiry_status)
+        if request.url.path == "/api/x":
+            self.calls.append((request.method, request.url.path))
+            return httpx.Response(200, json={"ok": 1})
+        return super().__call__(request)
+
+
+@pytest.mark.parametrize("status", [401, 302])
+def test_expired_session_logs_in_again_and_retries_once(
+    log: Logger, status: int
+) -> None:
+    service = ExpiringLdr(expiry_status=status)
+    session = _session(httpx.MockTransport(service))
+    session.login(log=log)
+    service.logged_in = False
+
+    assert session.get_json("/api/x") == {"ok": 1}
+
+    assert service.calls.count(("POST", "/auth/login")) == 2
+    assert service.calls.count(("GET", "/api/x")) == 2
+
+
+def test_session_that_stays_expired_fails_after_one_retry(log: Logger) -> None:
+    service = FakeLdr(user_exists=True)
+    api_calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/api/x":
+            api_calls.append(request.url.path)
+            return httpx.Response(401)
+        return service(request)
+
+    session = _session(httpx.MockTransport(handler))
+    session.login(log=log)
+
+    with pytest.raises(LdrError, match="401"):
+        session.get_json("/api/x")
+
+    assert len(api_calls) == 2

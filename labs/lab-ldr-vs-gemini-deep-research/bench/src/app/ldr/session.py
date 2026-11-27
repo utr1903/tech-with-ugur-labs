@@ -55,6 +55,7 @@ class LdrSession:
         self.client = client
         self.settings = settings
         self.csrf_token = ""
+        self._log: Logger | None = None
 
     def login(self, *, log: Logger) -> None:
         """Logs in, registering the lab user first if it does not exist yet.
@@ -63,6 +64,7 @@ class LdrSession:
         the form with status 401. Logging in only once per command keeps
         clear of the service's login rate limit.
         """
+        self._log = log
         try:
             log.info("Logging in to LDR...", base_url=self.settings.base_url)
             self._authenticate(log)
@@ -80,7 +82,7 @@ class LdrSession:
         self._register()
 
     def _fetch_csrf_token(self) -> str:
-        token = self.get_json("/auth/csrf-token").get("csrf_token")
+        token = self._send("GET", "/auth/csrf-token", relogin=False).get("csrf_token")
         if not token:
             raise LdrError("no csrf_token in /auth/csrf-token reply")
         return str(token)
@@ -94,10 +96,21 @@ class LdrSession:
         return self._send("POST", path, payload)
 
     def _send(
-        self, method: str, path: str, payload: Mapping[str, object] | None = None
+        self,
+        method: str,
+        path: str,
+        payload: Mapping[str, object] | None = None,
+        *,
+        relogin: bool = True,
     ) -> dict[str, object]:
         headers = {"X-CSRFToken": self.csrf_token} if method == "POST" else None
         response = self._request(method, path, headers=headers, json=payload)
+        if relogin and self._log is not None and _session_expired(response):
+            # A multi-hour batch outlives the login cookie: sign in once more
+            # and repeat the call once; a second refusal is a real failure.
+            self._log.info("LDR session expired, logging in again...", path=path)
+            self.login(log=self._log)
+            return self._send(method, path, payload, relogin=False)
         if not response.is_success:
             raise LdrError(f"{method} {path} returned {response.status_code}")
         try:
@@ -169,6 +182,13 @@ class LdrSession:
             )
         except httpx.HTTPError as err:
             raise LdrError(f"{method} {path} failed: {err}") from err
+
+
+def _session_expired(response: httpx.Response) -> bool:
+    if response.status_code == 401:
+        return True
+    location = response.headers.get("location", "")
+    return response.status_code in _REDIRECTS and location.startswith("/auth/login")
 
 
 def _scrape_csrf(html: str, path: str) -> str:

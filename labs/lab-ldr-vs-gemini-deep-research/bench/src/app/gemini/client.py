@@ -15,6 +15,9 @@ from app.errors import ConfigError, GeminiError
 
 DEFAULT_AGENT = "deep-research-preview-04-2026"
 DEFAULT_API_VERSION = "v1beta"
+# Per HTTP request, in milliseconds: a hung call fails instead of stalling a
+# multi-hour batch. Polling re-asks every few seconds, so this is generous.
+REQUEST_TIMEOUT_MS = 120_000
 
 
 @dataclass(frozen=True)
@@ -58,7 +61,10 @@ class GenaiInteractions:
         # collected, which breaks every later `interactions` call.
         self._client = genai.Client(
             api_key=settings.api_key,
-            http_options=types.HttpOptions(api_version=settings.api_version),
+            http_options=types.HttpOptions(
+                api_version=settings.api_version,
+                timeout=REQUEST_TIMEOUT_MS,
+            ),
         )
         self._interactions = self._client.interactions
 

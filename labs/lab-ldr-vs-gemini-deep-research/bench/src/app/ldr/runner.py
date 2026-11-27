@@ -47,6 +47,7 @@ def run_ldr_question(
         "research_id": research_id,
         "model": session.settings.model,
         "ldr_version": DEFAULT_LDR_VERSION,
+        "instance_price_usd_per_hour": price_per_hour,
     }
     report = LdrReport(content="", sources=(), metadata={})
     try:

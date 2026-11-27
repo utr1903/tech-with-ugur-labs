@@ -5,6 +5,7 @@ import weakref
 from types import SimpleNamespace
 
 import pytest
+from google.genai import types
 
 from app.gemini.client import GeminiSettings, GenaiInteractions
 
@@ -40,3 +41,27 @@ def test_adapter_keeps_the_sdk_client_alive(monkeypatch: pytest.MonkeyPatch) -> 
 
     assert created[0]() is not None
     assert adapter.get("abc") == "abc"
+
+
+def test_adapter_sets_a_per_request_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    seen: dict[str, object] = {}
+
+    def make_client(**kwargs: object) -> FakeClient:
+        seen.update(kwargs)
+        return FakeClient(**kwargs)
+
+    monkeypatch.setattr("google.genai.Client", make_client)
+    settings = GeminiSettings(
+        api_key="test-key",
+        agent="agent",
+        api_version="v1beta",
+        poll_seconds=1.0,
+        timeout_seconds=60.0,
+    )
+
+    GenaiInteractions(settings)
+
+    options = seen["http_options"]
+    assert isinstance(options, types.HttpOptions)
+    assert options.timeout == 120_000
+    assert options.api_version == "v1beta"
