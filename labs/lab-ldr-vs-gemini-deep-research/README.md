@@ -173,7 +173,11 @@ mean cost, mean source count, a per-run table and a "where it went wrong"
 list of missed and invented CVEs and wrong cells (answer vs truth). Cost for
 LDR is wall hours times the instance price (5.71915 USD/h, overridable with
 `INSTANCE_PRICE_USD_PER_HOUR`); Gemini cost comes from the reported token
-usage and a dated rate table.
+usage and a dated rate table at the base (up to 200k-token prompt) rates. The
+API reports totals summed over the agent's many model calls, so it cannot
+show which calls crossed into the long-context tier: read the Gemini cost as
+an estimate, closer to a floor than a ceiling. Gemini's sources are the links
+it lists in its report.
 
 ### The settings that matter
 

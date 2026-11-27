@@ -4,12 +4,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-# Gemini 3.1 Pro preview list price, checked 2026-11-26. USD per 1M tokens.
-# Prompts above the threshold are billed at the higher long-context rates.
+# Gemini 3.1 Pro preview list price, checked 2026-11-26. USD per 1M tokens:
+# input, output (thinking included), cached input. The API reports totals
+# summed over the agent's many model calls, while the higher long-context
+# rates apply per prompt above 200k tokens; the totals cannot show which
+# calls crossed that line, so the base rates give an estimate (a floor).
 # Search grounding is not added: it sits inside a free monthly allowance.
-_LONG_CONTEXT_THRESHOLD = 200_000
-_SHORT_RATES = (2.00, 12.00, 0.20)
-_LONG_RATES = (4.00, 18.00, 0.40)
+_INPUT_RATE, _OUTPUT_RATE, _CACHED_RATE = 2.00, 12.00, 0.20
 
 
 def gemini_cost_usd(usage: Mapping[str, object]) -> float | None:
@@ -21,13 +22,10 @@ def gemini_cost_usd(usage: Mapping[str, object]) -> float | None:
     output = _tokens(usage, "total_output_tokens") + _tokens(
         usage, "total_thought_tokens"
     )
-    input_rate, output_rate, cached_rate = (
-        _LONG_RATES if prompt > _LONG_CONTEXT_THRESHOLD else _SHORT_RATES
-    )
     return (
-        max(prompt - cached, 0) * input_rate
-        + cached * cached_rate
-        + output * output_rate
+        max(prompt - cached, 0) * _INPUT_RATE
+        + cached * _CACHED_RATE
+        + output * _OUTPUT_RATE
     ) / 1_000_000
 
 

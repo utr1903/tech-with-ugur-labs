@@ -6,7 +6,12 @@ from types import SimpleNamespace
 import pytest
 
 from app.errors import GeminiError
-from app.gemini.interactions import InteractionResult, run_interaction, to_result
+from app.gemini.interactions import (
+    InteractionResult,
+    run_interaction,
+    to_result,
+    urls_in_text,
+)
 from app.logging_setup import Logger, get_logger
 
 
@@ -190,3 +195,16 @@ def test_five_consecutive_poll_errors_fail_the_run(log: Logger) -> None:
     assert result.id == "int-1"
     assert "down" in result.errors[0]
     assert api.cancelled == ["int-1"]
+
+
+def test_urls_in_text_lists_each_link_once_in_order() -> None:
+    text = (
+        "See [a](https://a.example/x) and https://b.example/y.\n"
+        "1. [a again](https://a.example/x)\n2. <https://c.example/z>"
+    )
+
+    assert urls_in_text(text) == (
+        "https://a.example/x",
+        "https://b.example/y",
+        "https://c.example/z",
+    )

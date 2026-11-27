@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import Protocol
@@ -10,7 +11,17 @@ from app.errors import GeminiError
 from app.logging_setup import Logger
 
 _RUNNING = ("in_progress", "queued")
+_URL = re.compile(r"https?://[^\s)\]>\"'<]+")
 _MAX_POLL_FAILURES = 5
+
+
+def urls_in_text(text: str) -> tuple[str, ...]:
+    """Every link in the report, once each, in order of first appearance.
+
+    Deep Research lists its sources inside the report text rather than as
+    citation annotations, so this is how its sources are counted.
+    """
+    return tuple(dict.fromkeys(url.rstrip(".,;") for url in _URL.findall(text)))
 
 
 class InteractionsApi(Protocol):

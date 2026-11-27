@@ -5,7 +5,9 @@ import pytest
 from app.gemini.cost import gemini_cost_usd
 
 
-def test_long_context_rates_split_cached_input() -> None:
+def test_large_totals_still_use_base_rates() -> None:
+    # The totals add up many agent calls; the long-context tier applies per
+    # prompt, so a large total alone must not switch to the higher rates.
     usage = {
         "total_input_tokens": 250_000,
         "total_cached_tokens": 150_000,
@@ -13,7 +15,7 @@ def test_long_context_rates_split_cached_input() -> None:
         "total_thought_tokens": 0,
     }
 
-    assert gemini_cost_usd(usage) == pytest.approx(1.54)
+    assert gemini_cost_usd(usage) == pytest.approx(0.95)
 
 
 def test_short_context_rates_bill_thoughts_as_output() -> None:
