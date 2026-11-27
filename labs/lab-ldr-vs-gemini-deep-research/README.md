@@ -236,6 +236,12 @@ rest. Run it even if `make up` failed half way.
 
 ## Troubleshooting
 
+- **LDR answers with very few sources, and `docker compose logs searxng`
+  shows `timeout` or `too many requests`**: the public search engines behind
+  SearXNG are throttling your IP. `searxng/settings.yml` already spreads
+  searches over brave, yahoo, mwmbl and duckduckgo; wait a while before the
+  next run, or enable other engines there. Check what answers with
+  `docker compose exec searxng wget -qO- "http://localhost:8080/search?q=test&format=json&engines=brave"`.
 - **`make up` sits at `aws_instance.vm: Still creating...` and then fails
   with `InsufficientInstanceCapacity`**: AWS has no free GPU of that type in that
   zone right now. Run `make up ZONE=eu-central-1b`, and pass the same `ZONE`
