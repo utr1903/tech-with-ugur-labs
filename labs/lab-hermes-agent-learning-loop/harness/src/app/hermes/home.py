@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import re
 import shutil
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -17,6 +19,8 @@ _SKILLS = "skills"
 _ARCHIVE = ".archive"
 _SKIPPED_DIRS = frozenset({_ARCHIVE, "pending"})
 _MEMORY = Path("memories") / "MEMORY.md"
+# Names come from agent-written files, so they must be plain path segments.
+_SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
 @dataclass(frozen=True)
@@ -49,35 +53,80 @@ def parse_frontmatter(text: str) -> dict[str, object]:
     return {str(k): v for k, v in data.items()}
 
 
-def _skill_paths(home: Path) -> list[Path]:
+def _is_safe_path(home: Path, path: Path, *, log: Logger) -> bool:
+    """False if any component below `home` is a symlink or the target escapes."""
+    current = home
+    for part in path.relative_to(home).parts:
+        current = current / part
+        if current.is_symlink():
+            log.warning("Skipping symlinked path.", path=str(path))
+            return False
+    if not path.resolve().is_relative_to(home.resolve()):
+        log.warning("Skipping path outside the home.", path=str(path))
+        return False
+    return True
+
+
+def _skill_paths(home: Path, *, log: Logger) -> list[Path]:
     root = home / _SKILLS
     if not root.is_dir():
         return []
-    return sorted(
-        p
-        for p in root.rglob("SKILL.md")
-        if not _SKIPPED_DIRS.intersection(p.relative_to(root).parts)
-    )
+    found: list[Path] = []
+    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+        here = Path(dirpath)
+        dirnames[:] = sorted(
+            d
+            for d in dirnames
+            if d not in _SKIPPED_DIRS and _is_safe_path(home, here / d, log=log)
+        )
+        skill = here / "SKILL.md"
+        if "SKILL.md" in filenames and _is_safe_path(home, skill, log=log):
+            found.append(skill)
+    return sorted(found)
 
 
-def _read_skill(path: Path, *, log: Logger) -> SkillFile:
+def _read_skill(path: Path, *, log: Logger) -> SkillFile | None:
     try:
-        meta = parse_frontmatter(path.read_text(encoding="utf-8"))
+        meta = parse_frontmatter(path.read_text(encoding="utf-8-sig"))
     except ReportError:
         log.warning("Skill frontmatter is invalid.", path=str(path))
-        return SkillFile(name=path.parent.name, path=path, description="")
-    return SkillFile(
-        name=str(meta["name"]), path=path, description=str(meta["description"])
-    )
+        meta = {}
+    name = str(meta.get("name", ""))
+    description = str(meta.get("description", ""))
+    if not _SAFE_NAME.match(name):
+        if meta:
+            log.warning("Skill name is not a safe path segment.", path=str(path))
+        name = path.parent.name
+    if not _SAFE_NAME.match(name):
+        log.warning("Skipping skill with an unusable name.", path=str(path))
+        return None
+    return SkillFile(name=name, path=path, description=description)
+
+
+def _unique_key(home: Path, skill: SkillFile, *, log: Logger) -> str | None:
+    """The category-qualified key used when two skills share a name."""
+    parts = skill.path.parent.relative_to(home / _SKILLS).parts
+    if not parts or not all(_SAFE_NAME.match(p) for p in parts):
+        log.warning("Skipping skill with an unusable path.", path=str(skill.path))
+        return None
+    return "/".join(parts)
 
 
 def list_skills(home: Path, *, log: Logger) -> dict[str, SkillFile]:
     """Every skill in `home`, archived ones excluded, keyed by skill name."""
     try:
         log.info("Listing skills...", home=str(home))
-        skills = {}
-        for path in _skill_paths(home):
+        skills: dict[str, SkillFile] = {}
+        for path in _skill_paths(home, log=log):
             skill = _read_skill(path, log=log)
+            if skill is None:
+                continue
+            if skill.name in skills:
+                log.warning("Duplicate skill name.", name=skill.name, path=str(path))
+                key = _unique_key(home, skill, log=log)
+                if key is None or key in skills:
+                    continue
+                skill = SkillFile(key, skill.path, skill.description)
             skills[skill.name] = skill
     except Exception:
         log.exception("Listing skills failed.", home=str(home))
@@ -92,15 +141,15 @@ def snapshot_path(results: Path, home_name: str) -> Path:
     return results / f"{home_name}-baseline.json"
 
 
-def _relative_skill_paths(home: Path) -> list[str]:
-    return sorted(p.relative_to(home).as_posix() for p in _skill_paths(home))
+def _relative_skill_paths(home: Path, *, log: Logger) -> list[str]:
+    return sorted(p.relative_to(home).as_posix() for p in _skill_paths(home, log=log))
 
 
 def save_baseline(home: Path, dest: Path, *, log: Logger) -> None:
     """Records which skill files exist now (bundled ones included)."""
     try:
         log.info("Saving skill baseline...", home=str(home), dest=str(dest))
-        paths = _relative_skill_paths(home)
+        paths = _relative_skill_paths(home, log=log)
         dest.parent.mkdir(parents=True, exist_ok=True)
         dest.write_text(json.dumps(paths, indent=2) + "\n", encoding="utf-8")
     except Exception:
@@ -110,15 +159,21 @@ def save_baseline(home: Path, dest: Path, *, log: Logger) -> None:
         log.info("Saving skill baseline succeeded.", skills=len(paths))
 
 
-def load_baseline(dest: Path) -> frozenset[str]:
+def load_baseline(dest: Path, *, log: Logger) -> frozenset[str]:
     """Reads the skill paths stored by `save_baseline`."""
     try:
+        log.info("Loading skill baseline...", dest=str(dest))
         data = json.loads(dest.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as err:
+        if not isinstance(data, list) or not all(isinstance(x, str) for x in data):
+            raise ReportError(f"Baseline {dest} is not a list of paths")  # noqa: TRY301
+    except (OSError, json.JSONDecodeError, ReportError) as err:
+        log.exception("Loading skill baseline failed.", dest=str(dest))
+        if isinstance(err, ReportError):
+            raise
         raise ReportError(f"Cannot read baseline {dest}: {err}") from err
-    if not isinstance(data, list) or not all(isinstance(x, str) for x in data):
-        raise ReportError(f"Baseline {dest} is not a list of paths")
-    return frozenset(data)
+    else:
+        log.info("Loading skill baseline succeeded.", skills=len(data))
+        return frozenset(data)
 
 
 def agent_created(
@@ -133,6 +188,10 @@ def agent_created(
     }
 
 
+def _inside(dest: Path, target: Path) -> bool:
+    return target.resolve().is_relative_to(dest.resolve())
+
+
 def copy_out(
     home: Path, names: Iterable[str], dest: Path, *, log: Logger
 ) -> list[Path]:
@@ -141,6 +200,7 @@ def copy_out(
     skills = list_skills(home, log=log)
     missing = [n for n in wanted if n not in skills]
     if missing:
+        log.error("Copying out skills failed.", missing=missing, home=str(home))
         raise ReportError(f"Skills not found in {home}: {', '.join(missing)}")
 
     try:
@@ -148,11 +208,13 @@ def copy_out(
         written: list[Path] = []
         for name in wanted:
             target = dest / _SKILLS / name / "SKILL.md"
+            if not _inside(dest, target):
+                raise ReportError(f"Skill target escapes {dest}: {name}")  # noqa: TRY301
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(skills[name].path, target)
             written.append(target)
         memory = home / _MEMORY
-        if memory.is_file():
+        if memory.is_file() and _is_safe_path(home, memory, log=log):
             dest.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(memory, dest / "MEMORY.md")
             written.append(dest / "MEMORY.md")

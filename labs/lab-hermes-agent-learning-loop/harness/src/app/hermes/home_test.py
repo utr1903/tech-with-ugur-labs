@@ -70,7 +70,7 @@ def test_agent_created_diffs_baseline(tmp_path: Path) -> None:
     save_baseline(home, baseline_file, log=LOG)
     _skill(home, "mine/two", "two")
 
-    baseline = load_baseline(baseline_file)
+    baseline = load_baseline(baseline_file, log=LOG)
     assert baseline == frozenset({"skills/bundled/one/SKILL.md"})
     assert sorted(agent_created(home, baseline, log=LOG)) == ["two"]
 
@@ -108,3 +108,89 @@ def test_copy_out_without_memory(tmp_path: Path) -> None:
 def test_copy_out_unknown_skill_raises(tmp_path: Path) -> None:
     with pytest.raises(ReportError):
         copy_out(tmp_path, ["ghost"], tmp_path / "out", log=LOG)
+
+
+def test_traversal_and_absolute_names_fall_back_to_dir_name(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    _skill(home, "evil", "../../escape")
+    _skill(home, "abs", "/tmp/abs-escape")
+    skills = list_skills(home, log=LOG)
+    assert sorted(skills) == ["abs", "evil"]
+    dest = tmp_path / "deep" / "out"
+    copy_out(home, ["evil", "abs"], dest, log=LOG)
+    assert (dest / "skills" / "evil" / "SKILL.md").exists()
+    assert not (tmp_path / "escape").exists()
+
+
+def test_copy_out_refuses_unknown_traversal_name(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    _skill(home, "ok", "ok")
+    with pytest.raises(ReportError):
+        copy_out(home, ["../x"], tmp_path / "out", log=LOG)
+
+
+def test_symlinked_skill_file_is_skipped(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    secret = tmp_path / "auth.json"
+    secret.write_text("---\nname: s\ndescription: d\n---\nsecret", "utf-8")
+    link = home / "skills" / "leak" / "SKILL.md"
+    link.parent.mkdir(parents=True)
+    link.symlink_to(secret)
+    assert list_skills(home, log=LOG) == {}
+
+
+def test_symlinked_skill_dir_is_skipped(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    outside = tmp_path / "elsewhere"
+    _skill(outside, "x", "x")
+    (home / "skills").mkdir(parents=True)
+    (home / "skills" / "linked").symlink_to(outside / "skills" / "x")
+    assert list_skills(home, log=LOG) == {}
+
+
+def test_symlinked_memory_is_not_copied(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    _skill(home, "a", "a")
+    (home / "memories").mkdir()
+    secret = tmp_path / "transcript.txt"
+    secret.write_text("secret", encoding="utf-8")
+    (home / "memories" / "MEMORY.md").symlink_to(secret)
+    written = copy_out(home, ["a"], tmp_path / "out", log=LOG)
+    assert [p.name for p in written] == ["SKILL.md"]
+    assert not (tmp_path / "out" / "MEMORY.md").exists()
+
+
+def test_duplicate_names_are_keyed_by_directory(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    _skill(home, "alpha/dup", "dup")
+    _skill(home, "beta/dup", "dup")
+    skills = list_skills(home, log=LOG)
+    assert sorted(skills) == ["beta/dup", "dup"]
+    assert "alpha" in str(skills["dup"].path)
+    assert "beta" in str(skills["beta/dup"].path)
+    dest = tmp_path / "out"
+    copy_out(home, ["dup", "beta/dup"], dest, log=LOG)
+    assert (dest / "skills" / "beta" / "dup" / "SKILL.md").exists()
+
+
+def test_pending_dir_is_skipped(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    _skill(home, "pending/p", "p")
+    _skill(home, "real", "real")
+    assert sorted(list_skills(home, log=LOG)) == ["real"]
+
+
+def test_bom_frontmatter_is_read(tmp_path: Path) -> None:
+    home = tmp_path / "home"
+    path = _skill(home, "bom", "bom", "Use when bom.")
+    path.write_bytes(b"\xef\xbb\xbf" + path.read_bytes())
+    assert list_skills(home, log=LOG)["bom"].description == "Use when bom."
+
+
+def test_load_baseline_errors_are_report_errors(tmp_path: Path) -> None:
+    bad = tmp_path / "b.json"
+    bad.write_text("{", encoding="utf-8")
+    with pytest.raises(ReportError):
+        load_baseline(bad, log=LOG)
+    with pytest.raises(ReportError):
+        load_baseline(tmp_path / "missing.json", log=LOG)

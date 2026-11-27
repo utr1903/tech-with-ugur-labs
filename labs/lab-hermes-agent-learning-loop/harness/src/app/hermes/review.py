@@ -12,7 +12,7 @@ from pathlib import Path
 from app.logging_setup import Logger
 
 _LINE = re.compile(
-    r"^(?P<ts>\d{4}-\d\d-\d\d \d\d:\d\d:\d\d)(?:,\d+)? (?P<level>\w+)"
+    r"^(?P<ts>\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{1,6}) (?P<level>\w+)"
     r"(?: \[(?P<sid>[^\]]+)\])? (?P<logger>\S+): (?P<msg>.*)$"
 )
 _COMPLETE = re.compile(
@@ -67,7 +67,7 @@ def _ours(
     sid = match["sid"]
     if sid is not None and sid != session_id:
         return None
-    stamp = datetime.strptime(match["ts"], "%Y-%m-%d %H:%M:%S").replace(tzinfo=UTC)
+    stamp = datetime.strptime(match["ts"], "%Y-%m-%d %H:%M:%S,%f").replace(tzinfo=UTC)
     if stamp < started_after:
         return None
     return match["msg"], match["logger"]
@@ -114,12 +114,7 @@ def wait_for_review(
                 continue
             verdict = _classify(*seen)
             if isinstance(verdict, ReviewOutcome):
-                log.info(
-                    "Waiting for background review succeeded.",
-                    result=verdict.result,
-                    calls=verdict.calls,
-                )
-                return verdict
+                return _finished(verdict, log, session_id)
             if verdict and not started:
                 started = True
                 log.info("Background review started.", session_id=session_id)
@@ -131,8 +126,18 @@ def wait_for_review(
         sleep(poll_s)
 
 
+def _finished(outcome: ReviewOutcome, log: Logger, session_id: str) -> ReviewOutcome:
+    if outcome.result == "error":
+        log.warning("Background review failed.", session_id=session_id)
+    else:
+        log.info(
+            "Waiting for background review succeeded.",
+            result=outcome.result,
+            calls=outcome.calls,
+        )
+    return outcome
+
+
 def _giveup(result: str, log: Logger, session_id: str) -> ReviewOutcome:
-    log.warning(
-        "Background review did not finish.", result=result, session_id=session_id
-    )
+    log.warning("Background review ended.", result=result, session_id=session_id)
     return ReviewOutcome(result, 0, 0, 0)

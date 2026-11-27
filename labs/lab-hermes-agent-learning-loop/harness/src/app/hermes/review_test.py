@@ -22,9 +22,11 @@ class FakeTime:
         self.now += seconds
 
 
-def _line(ts: str, msg: str, *, sid: str | None = SID, name: str = "agent.x") -> str:
+def _line(
+    ts: str, msg: str, *, sid: str | None = SID, name: str = "agent.x", ms: str = "100"
+) -> str:
     tag = f" [{sid}]" if sid else ""
-    return f"2026-11-27 {ts},100 INFO{tag} {name}: {msg}\n"
+    return f"2026-11-27 {ts},{ms} INFO{tag} {name}: {msg}\n"
 
 
 DONE = (
@@ -135,3 +137,28 @@ def test_wait_review_reads_incrementally_and_tolerates_partial_line(
     )
     assert out.result == "skill+memory"
     assert calls == 2
+
+
+def test_wait_review_filters_on_milliseconds(tmp_path: Path) -> None:
+    half = datetime(2026, 11, 27, 18, 0, 0, 500_000, tzinfo=UTC)
+    log = tmp_path / "agent.log"
+    log.write_text(
+        _line("18:00:00", DONE.replace("skill+memory", "none"), ms="100")
+        + _line("18:00:00", DONE, ms="900"),
+        encoding="utf-8",
+    )
+    out = wait_for_review(
+        log,
+        SID,
+        started_after=half,
+        clock=FakeTime().clock,
+        sleep=lambda _: None,
+        log=LOG,
+    )
+    assert out.result == "skill+memory"
+
+
+def test_wait_review_ignores_same_session_line_before_start(tmp_path: Path) -> None:
+    log = tmp_path / "agent.log"
+    log.write_text(_line("17:59:00", DONE), encoding="utf-8")
+    assert _wait(log, FakeTime(), grace_s=4).result == "not_started"
