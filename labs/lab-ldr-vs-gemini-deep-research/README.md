@@ -31,8 +31,9 @@ make score   # prints the scoreboard and writes results/scoreboard.md
 ```
 
 The Gemini runs under `results/runs/gemini` can be scored (and compared with
-your own LDR runs) even if you never get a paid Gemini key. `make score`
-touches neither the network nor Terraform.
+your own LDR runs) even if you never get a paid Gemini key. Once the bench
+image is built (the first `make score` builds it), `make score` touches
+neither the network nor Terraform.
 
 ## Prerequisites
 
@@ -73,6 +74,8 @@ when the model answers a chat completion and a tool call.
 is capped at 60 minutes and recorded as `timeout` if it does not finish. The
 GPU bills the whole time, so run it when you can wait. An interrupted run
 resumes at the next free `run-<n>`; existing run files are never overwritten.
+To redo a run, delete `results/runs/<tool>/<question>/run-<n>.json`; the next
+run reuses that free number.
 
 ## What you should see
 
@@ -81,7 +84,10 @@ resumes at the next free `run-<n>`; existing run files are never overwritten.
 _The scoreboard from the live run is added here once it exists. Your own run
 will differ: the models, the search results and the web all move._
 
-`make check` ends with three `ok` lines (see
+`make check` prints `ok` lines from its script (the model answers through the
+tunnel, the model port is closed on the public address, the in-network checks
+passed) followed by the bench's own `ok` lines (`ldr reachable`, `model
+listed`, `ldr login`; see
 [Why the model port is never public](#why-the-model-port-is-never-public)),
 and `make down` ends with an empty `terraform state list` and a leftovers
 check that reports everything `gone`.
@@ -156,13 +162,15 @@ string alone are ignored.
 Each question prompt starts with "Today's date is YYYY-MM-DD." and ends by
 telling the tool that the report may be any length but must finish with
 exactly one fenced `json` block in a fixed schema and nothing after it. The
-scorer parses the **last** fenced `json` block. A missing block, invalid JSON
+scorer parses the **last fenced `json` block that parses as JSON**; a later
+block that is not valid JSON is skipped. A missing block, invalid JSON
 or the wrong shape scores 0 and counts as a format failure.
 
 - **Q1**: CVE IDs are upper-cased and trimmed, and duplicates collapse. The
   scoreboard reports precision, recall and F1 over the ID set (F1 is the
   primary score), vendor accuracy for the correctly listed CVEs, and
-  `mentioned_recall`: how many true CVEs appear anywhere in the report text.
+  mentioned recall: how many true CVEs appear anywhere in the report text.
+  Both columns are in the scoreboard's summary and per-run tables.
 - **Q2**: 24 cells (8 quarters x 3 metrics). A cell is correct when it is
   within 0.5 % of the truth; a missing quarter is 3 wrong cells; extra
   quarters are ignored; `quarter_end` must match exactly. The primary score
@@ -209,13 +217,14 @@ match, or leave both alone.
 This lab is written for Docker Desktop. On native Linux Docker,
 `host-gateway` resolves to the docker bridge address (typically
 `172.17.0.1`), not to the host's loopback, so a tunnel bound to
-`127.0.0.1:8000` is not reachable from the containers. Linux is therefore **not covered** by the tested path. To adapt it, bind the
+`127.0.0.1:8000` is not reachable from the containers. Linux is therefore
+**not covered** by the tested path. To adapt it, bind the
 forward to the docker0 address instead (change the `-L 127.0.0.1:8000:...`
 line in `scripts/vm_ssh.sh` to your docker0 address, for example
 `172.17.0.1:8000:127.0.0.1:8000`) and point the loopback probes in
 `scripts/vm_ssh.sh`, `scripts/tunnel.sh` and `scripts/reach_check.sh` at that
-address too. Also on
-Linux, `results/` and `data/` must be writable by **uid 10001**, the user the
+address too. On Linux,
+`results/` and `data/` must be writable by **uid 10001**, the user the
 bench container runs as:
 
 ```bash
@@ -246,19 +255,37 @@ rest. Run it even if `make up` failed half way.
   with `InsufficientInstanceCapacity`**: AWS has no free GPU of that type in that
   zone right now. Run `make up ZONE=eu-central-1b`, and pass the same `ZONE`
   to `make down`. To use the cheaper L40S box instead (USD 2.80/h, when it
-  has capacity), put `instance_type = "g6e.2xlarge"`, `max_model_len = 65536`
-  and `max_num_seqs = 8` in `terraform/terraform.tfvars` and set
-  `LDR_LLM_CONTEXT_WINDOW_SIZE` in `compose.yaml` to 65536.
+  has capacity), create `terraform/terraform.tfvars` with just these lines:
+
+  ```hcl
+  instance_type = "g6e.2xlarge"
+  max_model_len = 65536
+  max_num_seqs  = 8
+  ```
+
+  and set `LDR_LLM_CONTEXT_WINDOW_SIZE` in `compose.yaml` to 65536 and
+  `INSTANCE_PRICE_USD_PER_HOUR=2.8035` in `.env`, so the LDR cost uses the
+  L40S rate. Do not put `allowed_ssh_cidr` or `availability_zone` in that
+  file: a value there wins over what `make` passes.
+- **`make up` fails in the IP lookup** (`my_ip: could not reach ...`): pass
+  the address yourself, `make up ALLOWED_SSH_CIDR=<your-ip>/32`. `make down`
+  never needs the lookup.
 - **My IP changed** (SSH hangs or is refused): run `make up` again; Terraform
   updates the security group rule and the tunnel reopens.
 - **SEC answers 403 during `make truth`**: set `SEC_USER_AGENT` in `.env` to
   your own name and email; the placeholder is refused.
 - **LDR login rate limit**: LDR allows 5 logins per 15 minutes and `bench`
-  logs in once per command. Wait 15 minutes, and prefer one `make research`
+  logs in once per command (`make check`, and so `make up`, uses one of the
+  five). Wait 15 minutes, and prefer one `make research`
   with `RUNS=3` over many small ones.
 - **`make score` says "no run files"**: there is nothing under
   `results/runs/` yet. Run `make research` or `make frontier`.
 - **A run is `timeout` or `failed`**: the run file is still written with that
   status and a score of 0; the command carries on with the next run.
-- **`make frontier` refuses to start**: `GEMINI_API_KEY` is empty or not a
-  paid-tier key.
+- **`make frontier` refuses to start**: `GEMINI_API_KEY` is empty. A key
+  without paid-tier access does not stop it starting; the first API call
+  fails.
+- **LDR login and registration both fail after you regenerated `.env`**: the
+  old lab user is still in the `ldr_data` volume with the old password. Run
+  `docker compose down -v` to drop the volume (this also deletes LDR's
+  research history), then `make up` or `docker compose up -d` again.

@@ -8,7 +8,9 @@ services:
     image: localdeepresearch/local-deep-research:2.0.4@sha256:e6886caeec3afebf6deb8a0162495ff8ece0cc72fc886c48ee5ebc769740c079
     # Allow request draining, then scheduler, queue, log and database cleanup.
     stop_grace_period: 60s
-    # host.docker.internal also resolves on Linux with this line.
+    # Makes host.docker.internal resolve on Linux too, but there it points at
+    # the docker bridge and cannot reach the tunnel on the host's loopback
+    # (see the Linux section of the README).
     extra_hosts:
       - "host.docker.internal:host-gateway"
     ports:

@@ -8,12 +8,18 @@ REGION ?= eu-central-1
 export REGION
 # GPU capacity varies by zone: make up ZONE=eu-central-1b if 1a is short.
 ZONE ?= eu-central-1a
+# What the caller passed, before the lookup default below fills it in.
+GIVEN_SSH_CIDR := $(ALLOWED_SSH_CIDR)
 ALLOWED_SSH_CIDR ?= $(shell ./scripts/my_ip.sh)
 RUNS ?= 3
 QUESTION ?= all
 
 BENCH := docker compose run --rm bench
 TF_ENV = export TF_VAR_region="$(REGION)" TF_VAR_availability_zone="$(ZONE)" TF_VAR_allowed_ssh_cidr="$(ALLOWED_SSH_CIDR)"
+# Destroy ignores the SSH rule, so it must not depend on the IP lookup: a
+# failed lookup would otherwise leave the GPU running. 192.0.2.1 is a
+# documentation address that only satisfies the variable's validation.
+TF_DOWN_ENV = export TF_VAR_region="$(REGION)" TF_VAR_availability_zone="$(ZONE)" TF_VAR_allowed_ssh_cidr="$(or $(GIVEN_SSH_CIDR),192.0.2.1/32)"
 
 .DEFAULT_GOAL := help
 .PHONY: help doctor env plan up down tunnel tunnel-down check ssh truth truth-check research frontier score test
@@ -39,7 +45,7 @@ up: ## Deploy the GPU VM, open the tunnel, start the laptop stack, verify
 down: ## Destroy everything and prove nothing is left
 	-docker compose --profile tools down
 	-./scripts/tunnel.sh close
-	$(TF_ENV) && ./scripts/deploy_cloud.sh --destroy
+	$(TF_DOWN_ENV) && ./scripts/deploy_cloud.sh --destroy
 	./scripts/check_leftovers.sh
 	@echo "terraform state list (must print nothing):"
 	@state="$$(terraform -chdir=terraform state list)" && echo "$$state" && test -z "$$state"

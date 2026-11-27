@@ -31,7 +31,7 @@ check "elastic IPs" "$(aws ec2 describe-addresses --region "$region" --filters "
   --query 'Addresses[].AllocationId' --output text)"
 
 if [ "$found" -ne 0 ]; then
-  echo "Some resources survived the destroy. Delete them in the console or re-run make destroy." >&2
+  echo "Some resources survived the destroy. Delete them in the console or re-run make down." >&2
   exit 1
 fi
 echo "Nothing left behind."
