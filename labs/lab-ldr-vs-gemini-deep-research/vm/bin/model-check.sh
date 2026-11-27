@@ -90,10 +90,15 @@ import json, sys
 choice = json.load(sys.stdin)["choices"][0]
 message = choice["message"]
 calls = message.get("tool_calls") or []
-if not calls or calls[0]["function"]["name"] != "get_weather":
+wanted = [c for c in calls if c["function"]["name"] == "get_weather"]
+if not wanted:
     reason = choice.get("finish_reason")
     sys.exit(f"no parsed tool call; finish_reason={reason}; message was: {message}")
-print("  ok    tool call parsed:", calls[0]["function"]["name"], calls[0]["function"]["arguments"])
+print("  ok    tool call parsed:", wanted[0]["function"]["name"], wanted[0]["function"]["arguments"])
+# A thinking model sometimes also emits the chat template example call.
+others = sorted({c["function"]["name"] for c in calls} - {"get_weather"})
+if others:
+    print("  warn  the reply also held calls to:", ", ".join(others))
 ' || die "tool call" "no parsed get_weather call"
 
 speed_body="$(python3 -c '
