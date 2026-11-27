@@ -14,7 +14,9 @@ ALLOWED_SSH_CIDR ?= $(shell ./scripts/my_ip.sh)
 RUNS ?= 3
 QUESTION ?= all
 
-BENCH := docker compose run --rm bench
+# --build: after a git pull the bench image would otherwise keep running the
+# old code, because compose only builds an image that does not exist yet.
+BENCH := docker compose run --rm --build bench
 TF_ENV = export TF_VAR_region="$(REGION)" TF_VAR_availability_zone="$(ZONE)" TF_VAR_allowed_ssh_cidr="$(ALLOWED_SSH_CIDR)"
 # Destroy ignores the SSH rule, so it must not depend on the IP lookup: a
 # failed lookup would otherwise leave the GPU running. 192.0.2.1 is a

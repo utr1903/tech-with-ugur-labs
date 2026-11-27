@@ -36,10 +36,10 @@ else
 fi
 
 # 3. The in-network checks.
-if (cd "$lab_dir" && docker compose run --rm bench check); then
+if (cd "$lab_dir" && docker compose run --rm --build bench check); then
   ok "in-network checks passed"
 else
-  bad "in-network checks failed (docker compose run --rm bench check)"
+  bad "in-network checks failed (docker compose run --rm --build bench check)"
 fi
 
 exit "$failed"
