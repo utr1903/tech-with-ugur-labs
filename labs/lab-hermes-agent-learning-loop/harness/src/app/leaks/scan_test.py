@@ -95,3 +95,10 @@ def test_unreadable_file_is_an_error_naming_it(
     monkeypatch.setattr(Path, "read_bytes", deny)
     with pytest.raises(LeakError, match="locked.txt"):
         scan(tmp_path, [])
+
+
+def test_detects_project_id(tmp_path: Path) -> None:
+    (tmp_path / "run.json").write_text('{"url": "projects/my-gcp-proj-42/x"}')
+    hits = scan(tmp_path, (), project_id="my-gcp-proj-42")
+    assert hits == [LeakHit(Path("run.json"), "project-id")]
+    assert scan(tmp_path, (), project_id="") == []

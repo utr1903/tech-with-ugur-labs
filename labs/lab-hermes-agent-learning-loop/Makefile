@@ -49,9 +49,10 @@ report: ## Summarise every run into results/metrics.md (offline)
 	@mkdir -p results
 	$(HARNESS_OFFLINE) report
 
-leak-check: ## Scan results/ and out/ for the API key and ADC secrets
+leak-check: ## Scan results/ and out/ for the API key, project id and ADC secrets
 	@mkdir -p results out
 	docker compose --profile tools run --rm --build --no-deps \
+	  $(if $(LEAK_CHECK_ADC),-e LEAK_CHECK_ADC=$(LEAK_CHECK_ADC)) \
 	  -v "$(ADC_FILE):/adc/adc.json:ro" harness leak-check
 
 # The stages share results/ and must run in this order, so they are sequenced

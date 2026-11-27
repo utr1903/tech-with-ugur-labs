@@ -10,6 +10,7 @@ from app.errors import ConfigError
 
 MIN_KEY_LENGTH = 16
 DEFAULT_MODEL = "google/gemma-4-26b-a4b-it-maas"
+_SWITCH = {"on": True, "off": False}
 
 
 @dataclass(frozen=True)
@@ -24,6 +25,8 @@ class Settings:
     hermes_home: Path
     adc_file: Path
     hermes_model: str = DEFAULT_MODEL
+    vertex_project_id: str = ""
+    leak_check_adc: bool = True
 
 
 def load_settings(env: Mapping[str, str]) -> Settings:
@@ -33,6 +36,9 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         raise ConfigError(
             f"API_SERVER_KEY must be set and at least {MIN_KEY_LENGTH} characters"
         )
+    adc_switch = env.get("LEAK_CHECK_ADC", "on")
+    if adc_switch not in _SWITCH:
+        raise ConfigError(f"LEAK_CHECK_ADC must be on or off, got {adc_switch!r}")
     return Settings(
         hermes_url=env.get("HERMES_URL", "http://hermes:8642"),
         api_key=api_key,
@@ -42,4 +48,6 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         hermes_home=Path(env.get("HERMES_HOME_RO", "/hermes-home")),
         adc_file=Path(env.get("ADC_FILE_RO", "/adc/adc.json")),
         hermes_model=env.get("HERMES_MODEL", DEFAULT_MODEL),
+        vertex_project_id=env.get("VERTEX_PROJECT_ID", "").strip(),
+        leak_check_adc=_SWITCH[adc_switch],
     )

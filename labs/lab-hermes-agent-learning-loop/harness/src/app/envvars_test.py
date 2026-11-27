@@ -45,3 +45,17 @@ def test_hermes_model_defaults_and_overrides() -> None:
     )
     env = {"API_SERVER_KEY": KEY, "HERMES_MODEL": "m/x"}
     assert load_settings(env).hermes_model == "m/x"
+
+
+def test_project_id_and_adc_switch() -> None:
+    settings = load_settings({"API_SERVER_KEY": KEY})
+    assert settings.vertex_project_id == "" and settings.leak_check_adc is True
+    env = {"API_SERVER_KEY": KEY, "VERTEX_PROJECT_ID": "p-1", "LEAK_CHECK_ADC": "off"}
+    settings = load_settings(env)
+    assert settings.vertex_project_id == "p-1" and settings.leak_check_adc is False
+    assert load_settings({**env, "LEAK_CHECK_ADC": "on"}).leak_check_adc is True
+
+
+def test_bad_adc_switch_is_a_config_error() -> None:
+    with pytest.raises(ConfigError, match="LEAK_CHECK_ADC"):
+        load_settings({"API_SERVER_KEY": KEY, "LEAK_CHECK_ADC": "maybe"})

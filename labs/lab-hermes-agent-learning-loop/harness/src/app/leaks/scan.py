@@ -30,8 +30,8 @@ def secrets_from_adc(adc: Path) -> tuple[str, ...]:
     """Returns the secret values of a gcloud ADC file, long enough to match."""
     try:
         data = json.loads(adc.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as exc:
-        raise LeakError(f"Cannot read the ADC file at {adc}") from exc
+    except (OSError, ValueError) as err:
+        raise LeakError(f"Cannot read the ADC file at {adc}") from err
     if not isinstance(data, dict):
         raise LeakError(f"The ADC file at {adc} is not a JSON object")
     # Non-key secrets are plain ASCII tokens, so JSON escaping cannot hide them.
@@ -52,8 +52,17 @@ def secrets_from_adc(adc: Path) -> tuple[str, ...]:
     return tuple(secrets)
 
 
-def scan(root: Path, secrets: Sequence[str], *, api_key: str = "") -> list[LeakHit]:
-    """Scans every regular file under `root`, skipping symlinks."""
+def scan(
+    root: Path,
+    secrets: Sequence[str],
+    *,
+    api_key: str = "",
+    project_id: str = "",
+) -> list[LeakHit]:
+    """Scans every regular file under `root`, skipping symlinks.
+
+    An empty `api_key` or `project_id` is not looked for.
+    """
     hits: list[LeakHit] = []
     if not root.is_dir():
         raise LeakError(f"Scan root {root} is not a directory")
@@ -65,13 +74,16 @@ def scan(root: Path, secrets: Sequence[str], *, api_key: str = "") -> list[LeakH
             if path.stat().st_size > MAX_BYTES:
                 raise LeakError(f"{relative} is too large to scan")
             text = path.read_bytes().decode("utf-8", errors="replace")
-        except OSError as exc:
-            raise LeakError(f"Cannot read {relative}") from exc
-        hits.extend(LeakHit(relative, kind) for kind in _kinds(text, secrets, api_key))
+        except OSError as err:
+            raise LeakError(f"Cannot read {relative}") from err
+        kinds = _kinds(text, secrets, api_key, project_id)
+        hits.extend(LeakHit(relative, kind) for kind in kinds)
     return hits
 
 
-def _kinds(text: str, secrets: Sequence[str], api_key: str) -> list[str]:
+def _kinds(
+    text: str, secrets: Sequence[str], api_key: str, project_id: str
+) -> list[str]:
     kinds = []
     if any(secret in text for secret in secrets):
         kinds.append("adc-secret")
@@ -79,4 +91,6 @@ def _kinds(text: str, secrets: Sequence[str], api_key: str) -> list[str]:
         kinds.append("access-token")
     if api_key and api_key in text:
         kinds.append("api-server-key")
+    if project_id and project_id in text:
+        kinds.append("project-id")
     return kinds

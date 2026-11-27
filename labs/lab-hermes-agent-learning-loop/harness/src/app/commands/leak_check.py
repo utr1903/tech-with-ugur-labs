@@ -19,9 +19,9 @@ def run(settings: Settings, *, log: Logger) -> None:
     # Replace any earlier verdict first so a failure can never leave a stale pass.
     _write(report, ["exit=1", "hits=0", "error=scan did not finish"])
     try:
-        hits = _scan_all(settings)
-    except LeakError as exc:
-        _write(report, ["exit=1", "hits=0", f"error={_safe(str(exc))}"])
+        hits = _scan_all(settings, log=log)
+    except LeakError as err:
+        _write(report, ["exit=1", "hits=0", f"error={_safe(str(err))}"])
         raise
     lines = [f"exit={int(bool(hits))}", f"hits={len(hits)}"]
     lines.extend(f"{hit.kind} {_safe(str(hit.path))}" for hit in hits)
@@ -34,11 +34,22 @@ def run(settings: Settings, *, log: Logger) -> None:
     write_line("leak-check: clean")
 
 
-def _scan_all(settings: Settings) -> list[LeakHit]:
-    secrets = secrets_from_adc(settings.adc_file)
+def _scan_all(settings: Settings, *, log: Logger) -> list[LeakHit]:
+    secrets: tuple[str, ...] = ()
+    if settings.leak_check_adc:
+        secrets = secrets_from_adc(settings.adc_file)
+    else:
+        log.warning("LEAK_CHECK_ADC=off: not scanning for ADC secrets.")
+    if not settings.vertex_project_id:
+        log.warning("VERTEX_PROJECT_ID is not set: not scanning for the project id.")
     hits: list[LeakHit] = []
     for root in (settings.results_dir, settings.out_dir):
-        found = scan(root, secrets, api_key=settings.api_key)
+        found = scan(
+            root,
+            secrets,
+            api_key=settings.api_key,
+            project_id=settings.vertex_project_id,
+        )
         hits.extend(LeakHit(Path(root.name) / hit.path, hit.kind) for hit in found)
     return hits
 

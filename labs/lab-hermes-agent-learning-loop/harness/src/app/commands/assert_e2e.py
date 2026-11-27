@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 from collections.abc import Callable
 from pathlib import Path
@@ -75,7 +76,29 @@ def _skill_text_ok(run_dir: Path, rec: CellRecord) -> bool:
     return bool(rec.skills_after)
 
 
-def _learning(rows: Latest, root: Path) -> Check:
+def _baseline(results: Path, home: str) -> list[object] | None:
+    try:
+        data = json.loads((results / f"{home}-baseline.json").read_text("utf-8"))
+    except (OSError, ValueError):
+        return None
+    return data if isinstance(data, list) else None
+
+
+def _fresh_controls(results: Path) -> bool:
+    """Each control home started with exactly the learn home's bundled skills.
+
+    Both baselines are taken on a brand-new volume of the same image before
+    any cell runs, so a control home that was not fresh (an agent-written
+    skill already there) shows up as an extra path in its baseline.
+    """
+    pairs = [
+        (_baseline(results, f"{c}-control"), _baseline(results, f"{c}-learn"))
+        for c in ("full", "flat")
+    ]
+    return all(ctrl is not None and ctrl == learn for ctrl, learn in pairs)
+
+
+def _learning(rows: Latest, root: Path, results: Path) -> Check:
     cold, warm, ctrl = (
         rows.get("full-cold"),
         rows.get("full-warm"),
@@ -86,11 +109,12 @@ def _learning(rows: Latest, root: Path) -> Check:
     ok = (
         _skill_text_ok(root / cold.cell / cold.repeat, cold)
         and warm.skill_loaded
-        and not ctrl.skills_before
+        and _fresh_controls(results)
     )
     return (
         ok,
-        "full-cold wrote a valid skill, full-warm loaded it, full-control empty",
+        "full-cold wrote a valid skill, full-warm loaded it, "
+        "control homes started with only the bundled skills",
     )
 
 
@@ -158,7 +182,7 @@ def run(settings: Settings, *, f1_threshold: float = 0.8, log: Logger) -> None:
         lambda: _versions(rows, settings.hermes_model),
         lambda: _complete(rows),
         lambda: _f1(rows, f1_threshold),
-        lambda: _learning(rows, root),
+        lambda: _learning(rows, root, results),
         lambda: _tools(rows),
         lambda: _both(_metrics(results), _curator(results)),
         lambda: _exit_check(results / "leak-check.txt", "leak-check"),
