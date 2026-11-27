@@ -32,6 +32,11 @@ recall and F1 over the findings. No LLM judge. The logs are large enough that
 reading every file into the conversation is expensive, and small enough that
 `grep` alone also works. The answer keys are never mounted into Hermes.
 
+One known quirk: the report example in `RUNBOOK.md` lists `billing` with
+`pyyaml` 5.3 and advisory `TWU-2026-0001`, and that dependency finding is true
+in both weeks, so an agent that copies the example earns one true positive for
+free. It is the same in every cell, so it does not favour any of them.
+
 ## The matrix
 
 Two configurations times three situations gives six cells.
@@ -59,6 +64,12 @@ none, it sends one follow-up in the same session ("Save the workflow you just
 used for this weekly triage as a reusable skill ...") and records the learning
 path as `unprompted`, `follow-up` or `none`, with the follow-up's tokens
 counted separately.
+
+Each cell starts with an empty `out/`, so no cell can read a report an earlier
+cell left there. A run that passes its 30-minute deadline, or whose event
+stream fails, is stopped through Hermes' API and recorded as an error, and the
+matrix restarts Hermes on the same home before the next cell, so a stuck run
+cannot keep writing into the next one.
 
 ## Architecture
 
@@ -118,7 +129,10 @@ price). Measured so far: a cold `full` cell takes 17 to 26 minutes and uses
 to 0.39 per cell. Assuming the other five cells are about as expensive, one
 pass over all six (`make run`, or `make e2e`) comes to roughly USD 1.4 to 2.3
 and, because the cells run one after another, about 2 to 3 hours of wall time.
-`REPEATS=3` triples both. The six-cell figures are estimates and will be
+`REPEATS=3` triples both. The `est. USD` column in `results/metrics.md` is an
+upper bound: it prices every input token at the full input rate and does not
+split out cached input, which can be billed lower. The six-cell figures are
+estimates and will be
 replaced by the measured totals of the committed run (see
 [Results](#results)). Vertex streams occasionally stall for up to about
 180 seconds with no data; Hermes detects that and retries, which shows up as
@@ -137,7 +151,18 @@ make down       # stop everything and delete the four home volumes
 
 `make e2e` runs, in order: `make fixtures`, `make run`, `make curator`,
 `make report`, `make leak-check`, and the harness assertions. The pieces are
-also available on their own:
+also available on their own.
+
+`make report` averages every `run.json` under `results/runs/`, and new runs
+are numbered after the ones already there. This repository ships its own run
+in `results/runs/`, so move it aside first if you want your numbers on their
+own: `mv results/runs results/runs-committed` (or `rm -rf results/runs`).
+
+With `REPEATS` above 1, `metrics.md` averages only the runs that completed
+with a valid report and lists the others, and the assertions check the latest
+repeat of each cell, printing how every earlier repeat ended without failing
+on it.
+
 
 | Target | Does |
 | --- | --- |
@@ -145,7 +170,7 @@ also available on their own:
 | `make run` | The six-cell matrix on fresh homes (`REPEATS=N` repeats the block). |
 | `make curator` | Asks Hermes' curator what it would do with each learn home's skills (dry run) and its status. Output goes to `results/curator/`. |
 | `make report` | Rebuilds `results/metrics.md` from every `run.json`, offline. |
-| `make leak-check` | Scans `results/` and `out/` for the API key and ADC secrets. |
+| `make leak-check` | Scans `results/` and `out/` for the API key, the GCP project id, ADC secrets and access tokens. |
 | `make test` | Harness tests, lint and types in Docker, plus `shellcheck`. |
 | `make help` | Lists the targets. |
 
@@ -161,9 +186,11 @@ docker compose --profile tools run --rm --build --no-deps harness fixtures
 `make doctor` prints one `ok` line per check. `make e2e` prints the harness'
 structured JSON logs while each cell runs, then the assertions: fixtures match,
 six cells completed with schema-valid reports, F1 of at least 0.8 for every
-`full` cell, an agent-written skill after `full-cold`, `delegate_task` and
+`full` cell, an agent-written skill after `full-cold` that `full-warm` loaded,
+control homes that started with only the bundled skills, `delegate_task` and
 `execute_code` used in `full` cells and absent in `flat` cells, the metrics
-table written, curator dry runs exit 0, and no secrets in the output.
+table written, curator dry runs exit 0, and no secrets in the output. Before
+them it prints one `INFO earlier repeat` line per earlier repeat.
 
 Files appear under `results/` (the committed run ships there, so you can read it without
 running anything):
@@ -183,15 +210,20 @@ results/
 
 ### Reading `results/metrics.md`
 
-- **Cost and tools**: one row per cell with F1, parent and child tokens
-  (children are the subagents), tool call counts (`delegate_task`,
-  `execute_code`, `skill_view`, `skill_manage`, ...), wall seconds, learning
-  path, whether the agent loaded or patched a skill, and the estimated cost.
-  With `REPEATS` above 1 each number is the mean with its min to max range.
-- **F1 per finding category**: precision and recall split into suspicious IPs,
-  risky config and vulnerable dependencies, so you can see which rule an agent
-  gets wrong.
-- **Where it went wrong**: the missed and extra findings per cell.
+- **Cost and tools**: one row per cell with the number of runs, `ok runs`
+  (completed with a valid report, out of all runs), F1, parent and child
+  tokens (children are the subagents), mean tool calls per run
+  (`delegate_task`, `execute_code`, `skill_manage`, `skill_view`,
+  `terminal`), wall seconds, the learning path of each run, `skill loaded`
+  and `skill patched` (how many runs viewed or changed a skill that existed
+  before the run, as `k/N`), the learning overhead tokens and the estimated
+  cost, which is an upper bound. With `REPEATS` above 1 each number is the
+  mean over the ok runs with its min to max range.
+- **Precision, recall and F1 per finding category**: suspicious IPs, risky
+  config and vulnerable dependencies, each with precision (`P`), recall (`R`)
+  and F1, so you can see which rule an agent gets wrong.
+- **Where it went wrong**: the missed and extra findings of each cell's latest
+  run, then every run left out of the means, with its status and error.
 - **What the agent wrote**: links to the copied `SKILL.md` and `MEMORY.md`.
 
 Open the agent's own `SKILL.md` next to the table. It is the learning loop's
@@ -276,9 +308,10 @@ This setup is for learning, not for running on anything that matters.
   listens on `127.0.0.1:8642` and requires the key from `.env`.
 - Egress is not blocked: the container can still reach the internet even
   though the web toolsets are disabled. Part 2 of this series hardens that.
-- `make leak-check` scans `results/` and `out/` for the API key, the ADC
-  refresh token and client secret, and `ya29.` access tokens before you commit
-  or share anything.
+- `make leak-check` scans `results/` and `out/` for the API key, your GCP
+  project id (`VERTEX_PROJECT_ID`), the ADC refresh token and client secret,
+  and `ya29.` access tokens before you commit or share anything. It reports
+  the file and the kind of hit, never the value.
 
 ## Pointing it at your own model server
 
@@ -299,6 +332,11 @@ Two things still expect Vertex AI. Compose requires `ADC_FILE` and bind-mounts
 it, so point `ADC_FILE` in `.env` at any existing file (an empty JSON file
 containing `{}` will do) and skip `make vertex` and `make doctor`, which probe
 Vertex AI. `make leak-check` mounts the same file, so pass it there too.
+A placeholder file holds no ADC secrets, and leak-check refuses to pass
+without any, so tell it to skip them: set `LEAK_CHECK_ADC=off` in `.env`, or
+run `make e2e LEAK_CHECK_ADC=off`. It logs a warning and still scans for the
+API key, the project id and `ya29.` tokens. Leave it `on` (the default) for
+Vertex AI runs.
 
 On Docker Desktop `host.docker.internal` resolves out of the box. On Linux add
 `extra_hosts: ["host.docker.internal:host-gateway"]` to the `hermes` service
