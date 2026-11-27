@@ -42,8 +42,46 @@ def test_hit_message_has_no_secret(
     assert REFRESH not in str(err.value) + report + capsys.readouterr().out
 
 
-def test_missing_adc_fails_without_report(tmp_path: Path) -> None:
+def _report(settings: Settings) -> str:
+    return (settings.results_dir / "leak-check.txt").read_text()
+
+
+def test_missing_adc_fails_and_marks_report_failed(tmp_path: Path) -> None:
     settings = _settings(tmp_path)
     settings.adc_file.unlink()
     with pytest.raises(LeakError):
         run(settings, log=LOG)
+    assert _report(settings).startswith("exit=1\nhits=0\nerror=")
+
+
+def test_stale_clean_report_is_replaced_on_failure(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    run(settings, log=LOG)
+    assert _report(settings).startswith("exit=0")
+    settings.adc_file.write_text("{}")
+    with pytest.raises(LeakError):
+        run(settings, log=LOG)
+    assert _report(settings).startswith("exit=1")
+
+
+def test_missing_out_dir_is_an_error(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    settings.out_dir.rmdir()
+    with pytest.raises(LeakError):
+        run(settings, log=LOG)
+    assert _report(settings).startswith("exit=1")
+
+
+def test_missing_results_dir_is_an_error(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    settings.results_dir.rmdir()
+    with pytest.raises(LeakError):
+        run(settings, log=LOG)
+
+
+def test_hit_path_with_newline_is_escaped(tmp_path: Path) -> None:
+    settings = _settings(tmp_path)
+    (settings.out_dir / "a\nb.txt").write_text(REFRESH)
+    with pytest.raises(LeakError):
+        run(settings, log=LOG)
+    assert len(_report(settings).splitlines()) == 3

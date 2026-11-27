@@ -72,5 +72,26 @@ def test_oversized_file_is_an_error(
         scan(tmp_path, [])
 
 
-def test_missing_root_is_empty(tmp_path: Path) -> None:
-    assert scan(tmp_path / "absent", [REFRESH]) == []
+def test_missing_root_is_an_error(tmp_path: Path) -> None:
+    with pytest.raises(LeakError, match="absent"):
+        scan(tmp_path / "absent", [REFRESH])
+
+
+def test_adc_without_collectable_secrets_is_an_error(tmp_path: Path) -> None:
+    with pytest.raises(LeakError):
+        secrets_from_adc(_adc(tmp_path))
+    with pytest.raises(LeakError):
+        secrets_from_adc(_adc(tmp_path, refresh_token="short", type="x" * 30))
+
+
+def test_unreadable_file_is_an_error_naming_it(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (tmp_path / "locked.txt").write_text("x")
+
+    def deny(_self: Path) -> bytes:
+        raise PermissionError("denied")
+
+    monkeypatch.setattr(Path, "read_bytes", deny)
+    with pytest.raises(LeakError, match="locked.txt"):
+        scan(tmp_path, [])

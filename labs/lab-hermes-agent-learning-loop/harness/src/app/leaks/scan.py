@@ -34,6 +34,7 @@ def secrets_from_adc(adc: Path) -> tuple[str, ...]:
         raise LeakError(f"Cannot read the ADC file at {adc}") from exc
     if not isinstance(data, dict):
         raise LeakError(f"The ADC file at {adc} is not a JSON object")
+    # Non-key secrets are plain ASCII tokens, so JSON escaping cannot hide them.
     secrets: list[str] = []
     for field in ADC_FIELDS:
         value = data.get(field)
@@ -46,6 +47,8 @@ def secrets_from_adc(adc: Path) -> tuple[str, ...]:
                 for line in value.splitlines()
                 if len(line) >= MIN_KEY_LINE_LENGTH and not line.startswith("-----")
             )
+    if not secrets:
+        raise LeakError(f"The ADC file at {adc} holds no secret values to look for")
     return tuple(secrets)
 
 
@@ -53,14 +56,17 @@ def scan(root: Path, secrets: Sequence[str], *, api_key: str = "") -> list[LeakH
     """Scans every regular file under `root`, skipping symlinks."""
     hits: list[LeakHit] = []
     if not root.is_dir():
-        return hits
+        raise LeakError(f"Scan root {root} is not a directory")
     for path in sorted(root.rglob("*")):
         relative = path.relative_to(root)
         if path.is_symlink() or not path.is_file() or str(relative) == SELF_REPORT:
             continue
-        if path.stat().st_size > MAX_BYTES:
-            raise LeakError(f"{relative} is too large to scan")
-        text = path.read_bytes().decode("utf-8", errors="replace")
+        try:
+            if path.stat().st_size > MAX_BYTES:
+                raise LeakError(f"{relative} is too large to scan")
+            text = path.read_bytes().decode("utf-8", errors="replace")
+        except OSError as exc:
+            raise LeakError(f"Cannot read {relative}") from exc
         hits.extend(LeakHit(relative, kind) for kind in _kinds(text, secrets, api_key))
     return hits
 
