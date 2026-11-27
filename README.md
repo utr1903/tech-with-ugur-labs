@@ -42,6 +42,7 @@ the only instruction set you need.
 | [lab-gradient-descent-1d](labs/lab-gradient-descent-1d/) | maths | [post](https://techwithugur.dev/posts/gradient-descent-1d/) | See how the same update rule reaches three different valleys when only the starting point changes. |
 | [lab-aikido-code-to-cloud](labs/lab-aikido-code-to-cloud/) | cybersecurity, cloud | [post](https://techwithugur.dev/posts/aikido-code-to-cloud/) | A deliberately vulnerable AWS and GCP environment for trying out Aikido Security across every layer it scans, from code and containers to cloud posture and VM disks. |
 | [lab-tetragon-runtime-benchmark](labs/lab-tetragon-runtime-benchmark/) | cybersecurity, devops | [post](https://techwithugur.dev/posts/tetragon-runtime-benchmark/) | Tetragon v1.8.0 on a local kind cluster runs 15 MITRE ATT&CK-mapped attack scenarios and 3 benign ones under its default install, tuned monitor-mode policies and the same policies in enforce mode. |
+| [lab-ldr-vs-gemini-deep-research](labs/lab-ldr-vs-gemini-deep-research/) | ai, cloud | [post](https://techwithugur.dev/posts/ldr-vs-gemini-deep-research/) | Local Deep Research on an open-weight model on a rented GPU VM races Gemini Deep Research on two questions, and a deterministic scorer with no LLM judge grades every run against answer keys from CISA's KEV feed and SEC EDGAR. |
 <!-- LAB-INDEX:END -->
 
 ## Conventions
