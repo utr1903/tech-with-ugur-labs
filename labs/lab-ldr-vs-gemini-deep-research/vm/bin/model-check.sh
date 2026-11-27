@@ -70,7 +70,8 @@ choice = json.load(sys.stdin)["choices"][0]
 message = choice["message"]
 content = (message.get("content") or "").strip()
 if not content:
-    sys.exit(f"empty content; finish_reason={choice.get('finish_reason')}; message was: {message}")
+    reason = choice.get("finish_reason")
+    sys.exit(f"empty content; finish_reason={reason}; message was: {message}")
 print("  ok    chat completion answered:", content[:60])
 ' || die "chat completion" "no non-empty content"
 
@@ -90,7 +91,8 @@ choice = json.load(sys.stdin)["choices"][0]
 message = choice["message"]
 calls = message.get("tool_calls") or []
 if not calls or calls[0]["function"]["name"] != "get_weather":
-    sys.exit(f"no parsed tool call; finish_reason={choice.get('finish_reason')}; message was: {message}")
+    reason = choice.get("finish_reason")
+    sys.exit(f"no parsed tool call; finish_reason={reason}; message was: {message}")
 print("  ok    tool call parsed:", calls[0]["function"]["name"], calls[0]["function"]["arguments"])
 ' || die "tool call" "no parsed get_weather call"
 
