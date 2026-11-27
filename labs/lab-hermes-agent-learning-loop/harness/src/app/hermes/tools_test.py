@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 
-from app.hermes.tools import count_tools, skill_actions
+from app.hermes.tools import count_tools, skill_actions, skill_calls
 
 
 def _call(name: str, arguments: object) -> dict[str, object]:
@@ -59,3 +59,14 @@ def test_skill_actions_skips_bad_arguments() -> None:
         }
     ]
     assert skill_actions(bad) == []
+
+
+def test_skill_calls_include_the_action() -> None:
+    assert skill_calls(MESSAGES)[0] == ("skill_manage", "count-and-ips", "create")
+    view = [
+        {
+            "role": "assistant",
+            "tool_calls": [_call("skill_view", {"name": "count-and-ips"})],
+        }
+    ]
+    assert skill_calls(view) == [("skill_view", "count-and-ips", "")]

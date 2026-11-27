@@ -11,8 +11,10 @@ import sys
 from collections.abc import Callable
 
 from app.commands import fixtures as fixtures_command
+from app.commands import run as run_command
 from app.envvars import load_settings
 from app.errors import LabError
+from app.hermes.client import HermesClient
 from app.logging_setup import Logger, configure_logging, install_global_error_handlers
 
 APP_NAME = "harness"
@@ -25,8 +27,25 @@ def _fixtures(args: argparse.Namespace, log: Logger) -> None:
     fixtures_command.run(load_settings(os.environ), check=args.check, log=log)
 
 
+def _run(args: argparse.Namespace, log: Logger) -> None:
+    settings = load_settings(os.environ)
+    client = HermesClient(settings.hermes_url, settings.api_key, log=log)
+    run_command.run(
+        settings,
+        run_command.RunArgs(
+            args.cell,
+            args.week,
+            args.home,
+            args.follow_up_if_no_skill,
+            args.repeat_label,
+        ),
+        client=client,
+        log=log,
+    )
+
+
 # Later commands register themselves here as they are implemented.
-HANDLERS: dict[str, Handler] = {"fixtures": _fixtures}
+HANDLERS: dict[str, Handler] = {"fixtures": _fixtures, "run": _run}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -37,6 +56,12 @@ def build_parser() -> argparse.ArgumentParser:
         subparser = subparsers.add_parser(name)
         if name == "fixtures":
             subparser.add_argument("--check", action="store_true")
+        if name == "run":
+            subparser.add_argument("--cell", required=True, choices=run_command.CELLS)
+            subparser.add_argument("--week", required=True)
+            subparser.add_argument("--home", required=True)
+            subparser.add_argument("--follow-up-if-no-skill", action="store_true")
+            subparser.add_argument("--repeat-label", default=None)
     return parser
 
 

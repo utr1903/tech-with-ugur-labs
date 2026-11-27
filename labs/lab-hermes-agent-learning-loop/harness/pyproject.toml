@@ -44,6 +44,10 @@ ignore = [
   "TRY003",
 ]
 
+[tool.ruff.lint.per-file-ignores]
+# Test fakes implement protocols and must accept arguments they ignore.
+"*_test.py" = ["ARG"]
+
 [tool.ruff.lint.mccabe]
 max-complexity = 10
 

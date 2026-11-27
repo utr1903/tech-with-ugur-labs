@@ -36,6 +36,24 @@ def skill_actions(messages: Iterable[Mapping[str, object]]) -> list[tuple[str, s
     return found
 
 
+def skill_calls(
+    messages: Iterable[Mapping[str, object]],
+) -> list[tuple[str, str, str]]:
+    """Returns (tool, skill name, action) for each skill tool call.
+
+    `action` is the skill_manage action ("create", "patch", ...), or "" when
+    the call has none (skill_view).
+    """
+    found: list[tuple[str, str, str]] = []
+    for name, arguments in _calls(messages):
+        if name in _SKILL_TOOLS:
+            args = _arguments(arguments)
+            skill, action = args.get("name"), args.get("action")
+            if isinstance(skill, str):
+                found.append((name, skill, action if isinstance(action, str) else ""))
+    return found
+
+
 def _calls(messages: Iterable[Mapping[str, object]]) -> Iterator[tuple[str, object]]:
     for message in messages:
         if message.get("role") != "assistant":

@@ -12,8 +12,16 @@ from app.__main__ import build_parser, main
 def test_parser_registers_every_command() -> None:
     parser = build_parser()
 
-    for name in ("fixtures", "check", "run", "report", "leak-check"):
+    for name in ("fixtures", "check", "report", "leak-check"):
         assert parser.parse_args([name]).command == name
+
+
+def test_run_command_takes_cell_week_home_and_flags() -> None:
+    args = build_parser().parse_args(
+        ["run", "--cell", "full-cold", "--week", "week-1", "--home", "h"]
+    )
+    assert (args.cell, args.week, args.home) == ("full-cold", "week-1", "h")
+    assert args.follow_up_if_no_skill is False and args.repeat_label is None
 
 
 def test_fixtures_command_accepts_check_flag() -> None:
