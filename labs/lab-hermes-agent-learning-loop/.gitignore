@@ -1,0 +1,4 @@
+.env
+out/
+harness/.venv/
+__pycache__/
