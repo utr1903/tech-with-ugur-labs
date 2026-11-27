@@ -8,12 +8,13 @@ from pathlib import Path
 from app.cells.record import CellRecord
 from app.metrics.aggregate import TOOLS, CellSummary, latest
 from app.metrics.cost import GEMMA_PRICE_PER_M
-from app.metrics.sections import went_wrong, wrote
+from app.metrics.sections import failed_runs, went_wrong, wrote
 from app.scoring.score import CATEGORIES
 
 HEADER = (
     "cell",
     "runs",
+    "ok runs",
     "F1",
     "total tok",
     "parent tok",
@@ -22,6 +23,8 @@ HEADER = (
     *TOOLS,
     "wall s",
     "learning path",
+    "skill loaded",
+    "skill patched",
     "learning overhead tok",
     "est. USD",
 )
@@ -44,17 +47,21 @@ def table(header: Sequence[str], rows: Sequence[Sequence[str]]) -> list[str]:
 def _row(s: CellSummary) -> list[str]:
     low, high = s.total_tokens_range
     wlow, whigh = s.wall_range
+    n = s.ok_runs or s.runs
     return [
         s.cell,
         str(s.runs),
-        span(s.f1_mean, s.f1_min, s.f1_max, s.runs, 2),
-        span(s.total_tokens_mean, low, high, s.runs),
+        f"{s.ok_runs}/{s.runs}",
+        span(s.f1_mean, s.f1_min, s.f1_max, n, 2),
+        span(s.total_tokens_mean, low, high, n),
         f"{s.parent_tokens_mean:.0f}",
         f"{s.children_tokens_mean:.0f}",
         f"{s.subagents_mean:.1f}",
         *(f"{s.tool_means[t]:.1f}" for t in TOOLS),
-        span(s.wall_mean, wlow, whigh, s.runs, 1),
+        span(s.wall_mean, wlow, whigh, n, 1),
         ", ".join(s.learning_paths),
+        f"{s.skill_loaded_runs}/{s.runs}",
+        f"{s.skill_patched_runs}/{s.runs}",
         f"{s.overhead_tokens_mean:.0f}",
         f"{s.cost_mean_usd:.4f}",
     ]
@@ -79,25 +86,36 @@ def render(
     lines += ["## Cost and tools", "", *table(HEADER, [_row(s) for s in summaries])]
     lines += [
         "",
-        "Repeats show `mean (min–max)`; tool columns are mean calls per run "
-        "(main turn, parent plus subagents). `total tok` is the main turn, "
-        "parent plus subagents; `learning overhead tok` is the follow-up turn "
-        "plus the background reviews.",
+        "`ok runs` counts runs that completed with a valid report; the means "
+        "leave out failed runs, which are listed under Where it went wrong "
+        "(a cell with no ok run averages all its runs). Repeats show "
+        "`mean (min–max)`; tool columns are mean calls per run (main turn, "
+        "parent plus subagents). `skill loaded` and `skill patched` count the "
+        "runs that viewed or changed a skill that existed before the run. "
+        "`total tok` is the main turn, parent plus subagents; "
+        "`learning overhead tok` is the follow-up turn plus the background "
+        "reviews.",
         "",
         "`est. USD` covers the main turn (parent and subagents), the follow-up "
         "turn (parent and subagents) and the background review tokens, at "
         f"{GEMMA_PRICE_PER_M[0]} / {GEMMA_PRICE_PER_M[1]} USD per 1M input / "
-        "output tokens.",
+        "output tokens. It is an upper bound: every input token is priced at "
+        "the full input rate, and cached input, which can be billed lower, is "
+        "not split out.",
         "",
-        "## F1 per finding category",
+        "## Precision, recall and F1 per finding category",
         "",
     ]
+    cat_header = ["cell"]
+    for c in CATEGORIES:
+        cat_header += [f"{c} P", f"{c} R", f"{c} F1"]
     cat_rows = [
-        [s.cell, *(f"{s.category_f1_mean[c]:.2f}" for c in CATEGORIES)]
+        [s.cell, *(f"{v:.2f}" for c in CATEGORIES for v in s.category_means[c])]
         for s in summaries
     ]
-    lines += table(("cell", *CATEGORIES), cat_rows)
+    lines += table(cat_header, cat_rows)
     lines += ["", *went_wrong([latest(records, s.cell) for s in summaries])]
+    lines += failed_runs(records)
     lines += ["", *wrote(records, results)]
     lines += [
         "",

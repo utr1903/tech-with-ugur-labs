@@ -6,7 +6,7 @@ from pathlib import Path
 
 from app.cells.names import CELLS
 from app.cells.record import CellRecord
-from app.metrics.aggregate import latest, runs_root
+from app.metrics.aggregate import is_ok, latest, runs_root
 from app.metrics.numbers import mapping
 
 
@@ -33,6 +33,25 @@ def went_wrong(latest_records: list[CellRecord | None]) -> list[str]:
         lines.append(
             f"- **{rec.cell}** ({rec.repeat}): missed {_items(score.get('missed'))}"
             f"; extra {_items(score.get('extra'))}"
+        )
+    return lines
+
+
+def _one_line(text: str, limit: int = 200) -> str:
+    flat = " ".join(text.split()).replace("|", "/")
+    return flat if len(flat) <= limit else flat[: limit - 3] + "..."
+
+
+def failed_runs(records: list[CellRecord]) -> list[str]:
+    """One line per run left out of the means, with why it failed."""
+    bad = [r for r in records if not is_ok(r)]
+    if not bad:
+        return []
+    lines = ["", "Runs left out of the means:", ""]
+    for rec in bad:
+        reason = rec.error or "no valid report"
+        lines.append(
+            f"- **{rec.cell}** {rec.repeat} failed ({rec.status}): {_one_line(reason)}"
         )
     return lines
 

@@ -115,3 +115,17 @@ def test_cell_status_other_than_completed_fails(
         run(settings, log=LOG)
     failed = {ln.split()[1] for ln in _lines(capsys) if ln.startswith("FAIL")}
     assert "3" in failed
+
+
+def test_earlier_repeats_are_reported_not_asserted(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    settings = _passing(tmp_path)
+    runs = settings.results_dir / "runs" / "full-warm"
+    write_record(runs / "r1", make_record("full-warm", status="error", error="x"))
+    write_record(runs / "r2", make_record("full-warm", repeat="r2", skill_loaded=True))
+    run(settings, log=LOG)
+    out = _lines(capsys)
+    assert "INFO earlier repeat full-warm r1: status=error ok=False" in out
+    assert "INFO earlier repeat full-cold r1: status=run.completed ok=True" not in out
+    assert all(not ln.startswith("FAIL") for ln in out)

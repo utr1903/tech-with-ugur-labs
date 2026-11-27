@@ -13,7 +13,7 @@ from app.envvars import Settings
 from app.errors import LabError, ReportError
 from app.hermes.home import parse_frontmatter
 from app.logging_setup import Logger
-from app.metrics.aggregate import latest, load_records, runs_root
+from app.metrics.aggregate import is_ok, latest, load_records, runs_root
 from app.metrics.numbers import num
 from app.output import write_line
 
@@ -128,12 +128,31 @@ def _both(first: Check, second: Check) -> Check:
     return first[0] and second[0], f"{first[1]}; {second[1]}"
 
 
+def _earlier_repeats(records: list[CellRecord], rows: Latest, log: Logger) -> None:
+    """Shows how the repeats before the latest one ended; they are not asserted."""
+    for rec in records:
+        if rows.get(rec.cell) is rec:
+            continue
+        ok = is_ok(rec)
+        write_line(
+            f"INFO earlier repeat {rec.cell} {rec.repeat}: status={rec.status} ok={ok}"
+        )
+        log.info(
+            "Earlier repeat.",
+            cell=rec.cell,
+            repeat=rec.repeat,
+            status=rec.status,
+            ok=ok,
+        )
+
+
 def run(settings: Settings, *, f1_threshold: float = 0.8, log: Logger) -> None:
     """Prints one PASS or FAIL line per assertion; raises if any failed."""
     results = settings.results_dir
     records = load_records(results)
     rows = {c: r for c in CELLS if (r := latest(records, c))}
     root = runs_root(results)
+    _earlier_repeats(records, rows, log)
     checks: list[Callable[[], Check]] = [
         lambda: _exit_check(results / "fixtures-check.txt", "fixtures-check"),
         lambda: _versions(rows, settings.hermes_model),

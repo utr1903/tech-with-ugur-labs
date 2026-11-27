@@ -49,7 +49,7 @@ def test_mean_min_max_for_repeats(tmp_path: Path) -> None:
     assert (s.runs, s.f1_min, s.f1_max) == (2, 0.6, 1.0)
     assert s.f1_mean == pytest.approx(0.8)
     assert s.wall_range == (50.0, 150.0) and s.wall_mean == 100.0
-    assert s.category_f1_mean["ip"] == pytest.approx(0.8)
+    assert s.category_means["ip"][2] == pytest.approx(0.8)
     latest_rec = latest(records, "full-cold")
     assert latest_rec is not None and latest_rec.repeat == "r2"
 
@@ -79,3 +79,50 @@ def test_tokens_and_cost_parts(tmp_path: Path) -> None:
     in_tok, out_tok = 1000 + 500 + 400 + 200, 100 + 50 + 40 + 20
     assert s.cost_mean_usd == pytest.approx(cost_usd(in_tok, out_tok))
     assert s.subagents_mean == 1
+
+
+def _repeats(tmp_path: Path, *variants: dict[str, object]) -> None:
+    for n, over in enumerate(variants, 1):
+        rec = make_record("full-warm", repeat=f"r{n}", **over)
+        write_record(tmp_path / "runs" / "full-warm" / f"r{n}", rec)
+
+
+def test_skill_use_is_counted_per_run(tmp_path: Path) -> None:
+    _repeats(
+        tmp_path,
+        {"skill_loaded": True, "skill_patched": True, "tools": {"skill_manage": 2}},
+        {"skill_loaded": True},
+        {},
+    )
+    (s,) = summarise(load_records(tmp_path))
+    assert (s.skill_loaded_runs, s.skill_patched_runs) == (2, 1)
+    assert s.tool_means["skill_manage"] == pytest.approx(2 / 3)
+
+
+def test_failed_runs_are_left_out_of_the_means(tmp_path: Path) -> None:
+    bad_format = {"f1": 0.0, "format_failure": True}
+    _repeats(
+        tmp_path,
+        {"score": {"f1": 0.8, "format_failure": False}, "wall_seconds": 10.0},
+        {"status": "error", "score": {"f1": 0.0}, "wall_seconds": 1800.0},
+        {"score": bad_format, "wall_seconds": 5.0},
+        {"score": {"f1": 1.0, "format_failure": False}, "wall_seconds": 30.0},
+    )
+    (s,) = summarise(load_records(tmp_path))
+    assert (s.runs, s.ok_runs, s.failed) == (4, 2, ("r2", "r3"))
+    assert s.f1_mean == pytest.approx(0.9) and s.f1_min == 0.8
+    assert s.wall_range == (10.0, 30.0)
+
+
+def test_cell_with_no_ok_run_still_has_numbers(tmp_path: Path) -> None:
+    _repeats(tmp_path, {"status": "error", "score": {"f1": 0.2}})
+    (s,) = summarise(load_records(tmp_path))
+    assert (s.ok_runs, s.failed) == (0, ("r1",)) and s.f1_mean == pytest.approx(0.2)
+
+
+def test_category_precision_and_recall(tmp_path: Path) -> None:
+    cat = {"precision": 0.5, "recall": 1.0, "f1": 0.67}
+    score = {"f1": 0.67, "format_failure": False, "by_category": {"ip": cat}}
+    _repeats(tmp_path, {"score": score})
+    (s,) = summarise(load_records(tmp_path))
+    assert s.category_means["ip"] == pytest.approx((0.5, 1.0, 0.67))

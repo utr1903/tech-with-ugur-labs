@@ -10,21 +10,29 @@ from statistics import fmean
 
 from app.cells.names import CELLS
 from app.cells.record import CellRecord
+from app.cells.stream import COMPLETED
 from app.errors import ReportError
 from app.metrics.cost import cost_usd
 from app.metrics.numbers import main_tokens, mapping, num, overhead_io, total_io
 from app.scoring.score import CATEGORIES
 
-TOOLS = ("delegate_task", "execute_code", "skill_view", "terminal")
+TOOLS = ("delegate_task", "execute_code", "skill_manage", "skill_view", "terminal")
 _RUN = re.compile(r"^r(\d+)$")
 
 
 @dataclass(frozen=True)
 class CellSummary:
-    """One matrix cell averaged over its repeats."""
+    """One matrix cell averaged over its repeats.
+
+    The means and ranges cover only the ok runs (completed with a valid
+    report); `failed` names the others. A cell with no ok run averages all
+    of its runs, so it still shows what happened.
+    """
 
     cell: str
     runs: int
+    ok_runs: int
+    failed: tuple[str, ...]
     f1_mean: float
     f1_min: float
     f1_max: float
@@ -38,9 +46,10 @@ class CellSummary:
     wall_range: tuple[float, float]
     learning_paths: tuple[str, ...]
     skill_loaded_runs: int
+    skill_patched_runs: int
     overhead_tokens_mean: float
     cost_mean_usd: float
-    category_f1_mean: dict[str, float]
+    category_means: dict[str, tuple[float, float, float]]
 
 
 def runs_root(results: Path) -> Path:
@@ -77,18 +86,31 @@ def _f1(rec: CellRecord) -> float:
     return num(rec.score.get("f1"))
 
 
-def _cat_f1(rec: CellRecord, category: str) -> float:
-    return num(mapping(mapping(rec.score.get("by_category")).get(category)).get("f1"))
+def is_ok(rec: CellRecord) -> bool:
+    """Completed with a schema-valid report."""
+    return rec.status == COMPLETED and rec.score.get("format_failure") is False
 
 
-def _summary(cell: str, recs: list[CellRecord]) -> CellSummary:
+def _cat_mean(recs: list[CellRecord], category: str) -> tuple[float, float, float]:
+    cats = [mapping(mapping(r.score.get("by_category")).get(category)) for r in recs]
+    p, r, f1 = (
+        fmean(num(c.get(k)) for c in cats) for k in ("precision", "recall", "f1")
+    )
+    return p, r, f1
+
+
+def _summary(cell: str, every: list[CellRecord]) -> CellSummary:
+    ok = [r for r in every if is_ok(r)]
+    recs = ok or every
     f1s = [_f1(r) for r in recs]
     totals = [float(sum(main_tokens(r))) for r in recs]
     walls = [r.wall_seconds for r in recs]
     costs = [cost_usd(*total_io(r)) for r in recs]
     return CellSummary(
         cell=cell,
-        runs=len(recs),
+        runs=len(every),
+        ok_runs=len(ok),
+        failed=tuple(r.repeat for r in every if not is_ok(r)),
         f1_mean=fmean(f1s),
         f1_min=min(f1s),
         f1_max=max(f1s),
@@ -100,11 +122,12 @@ def _summary(cell: str, recs: list[CellRecord]) -> CellSummary:
         tool_means={t: fmean(r.tools.get(t, 0) for r in recs) for t in TOOLS},
         wall_mean=fmean(walls),
         wall_range=(min(walls), max(walls)),
-        learning_paths=tuple(r.learning_path for r in recs),
-        skill_loaded_runs=sum(r.skill_loaded for r in recs),
+        learning_paths=tuple(r.learning_path for r in every),
+        skill_loaded_runs=sum(r.skill_loaded for r in every),
+        skill_patched_runs=sum(r.skill_patched for r in every),
         overhead_tokens_mean=fmean(sum(overhead_io(r)) for r in recs),
         cost_mean_usd=fmean(costs),
-        category_f1_mean={c: fmean(_cat_f1(r, c) for r in recs) for c in CATEGORIES},
+        category_means={c: _cat_mean(recs, c) for c in CATEGORIES},
     )
 
 
