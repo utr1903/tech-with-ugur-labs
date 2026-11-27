@@ -14,6 +14,8 @@ The searches leave from your own IP (SearXNG on your laptop), and the model
 port on the VM is never public: your laptop reaches it only through an SSH
 tunnel.
 
+> Companion post: [Is a home GPU box good enough for deep research? Local Deep Research vs Gemini, scored against official answer keys](https://techwithugur.dev/posts/ldr-vs-gemini-deep-research/)
+
 > **Cost.** A `g7e.2xlarge` in eu-central-1 costs about **USD 5.72 per hour**
 > while it exists, and the first start downloads about **29 GB** of model
 > weights. Gemini Deep Research costs roughly **USD 1-3 per task**; Google's
