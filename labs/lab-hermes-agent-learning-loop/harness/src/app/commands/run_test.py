@@ -49,6 +49,7 @@ class FakeHermes(HermesApi):
         self.starts: list[tuple[str, str | None]] = []
         self.children: list[SessionRow] = []
         self.msgs: dict[str, list[dict[str, object]]] = {}
+        self.stopped: list[str] = []
 
     @override
     def health(self) -> dict[str, object]:
@@ -74,6 +75,11 @@ class FakeHermes(HermesApi):
             raise HermesError("deadline")
         usage = {"input_tokens": 100, "output_tokens": 10}
         yield RunEvent("run.completed", 2, {"usage": usage})
+
+    @override
+    def stop_run(self, run_id: str) -> str:
+        self.stopped.append(run_id)
+        return "stopping"
 
     @override
     def sessions(
@@ -170,6 +176,7 @@ def test_cold_without_flag_is_none(tmp_path: Path) -> None:
     s, fake, _ = _setup(tmp_path, "flat-cold")
     rec = run(s, _args("flat-cold"), client=fake, log=LOG, wait=_wait([]))
     assert rec.learning_path == "none" and rec.config == "flat"
+    assert fake.stopped == []
     assert (
         run(s, _args("flat-cold"), client=fake, log=LOG, wait=_wait([])).repeat == "r2"
     )
@@ -220,6 +227,7 @@ def test_stream_error_is_recorded_not_raised(tmp_path: Path) -> None:
     waits: list[datetime] = []
     rec = run(s, _args("full-control"), client=fake, log=LOG, wait=_wait(waits))
     assert rec.status == "error" and rec.error == "deadline" and not waits
+    assert fake.stopped == ["run_1"]
     lines = (
         (s.results_dir / "runs/full-control/r1/events.jsonl").read_text().splitlines()
     )
@@ -312,6 +320,7 @@ def test_follow_up_failures_are_recorded(tmp_path: Path) -> None:
         assert rec.follow_up["error"]
         assert rec.error is not None and rec.error.startswith("follow-up: ")
         assert rec.status == "run.completed" and rec.learning_path == "none"
+        assert fake.stopped == ([] if kind == "start" else ["run_2"])
         assert (s.results_dir / "runs" / "full-cold" / "r1" / "run.json").is_file()
 
 

@@ -15,6 +15,7 @@ from app.hermes.models import TERMINAL_EVENTS
 from app.logging_setup import Logger
 
 STREAM_TIMEOUT_S = 1800.0
+STOP_WAIT_S = 60.0
 COMPLETED = "run.completed"
 
 
@@ -68,6 +69,37 @@ def stream_to_file(
         except HermesError as err:
             status, error = "error", str(err)
             log.exception("Streaming run failed.", run_id=run_id)
+    if status not in TERMINAL_EVENTS:
+        # Left alone, the run keeps working and can write into the next cell.
+        stop_and_wait(client, run_id, log=log)
     if status != COMPLETED:
         error = error or f"run ended as {status}"
     return StreamOutcome(status, error, *tokens, tools, round(clock() - began, 3))
+
+
+def stop_and_wait(
+    client: HermesApi, run_id: str, *, log: Logger, wait_s: float = STOP_WAIT_S
+) -> str | None:
+    """Stops a run that has not ended and waits briefly for its last event.
+
+    Returns the terminal event, or None when Hermes refused the stop or the
+    run did not end within `wait_s`; both are logged, never raised, because
+    the cell has already failed and must still be recorded.
+    """
+    try:
+        log.info("Stopping run...", run_id=run_id, wait_s=wait_s)
+        client.stop_run(run_id)
+        final = next(
+            (
+                event.event
+                for event in client.stream_events(run_id, timeout_s=wait_s)
+                if event.event in TERMINAL_EVENTS
+            ),
+            None,
+        )
+    except HermesError:
+        log.warning("Stopping run failed.", run_id=run_id, exc_info=True)
+        return None
+    else:
+        log.info("Stopping run succeeded.", run_id=run_id, terminal_event=final)
+        return final

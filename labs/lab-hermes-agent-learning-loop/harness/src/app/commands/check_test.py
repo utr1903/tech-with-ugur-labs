@@ -44,6 +44,10 @@ class FakeHermes(HermesApi):
         yield RunEvent(self.terminal, 1, {})
 
     @override
+    def stop_run(self, run_id: str) -> str:
+        return "stopping"
+
+    @override
     def sessions(
         self, *, include_children: bool = True, limit: int = 200
     ) -> list[SessionRow]:

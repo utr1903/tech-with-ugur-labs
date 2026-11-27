@@ -23,15 +23,32 @@ fresh_home() {
   harness check --home "${home}"
 }
 
+# The harness stops a run that fails or overruns. As a second guard, a cell
+# that did not complete gets a restarted Hermes (same home volume), so no
+# leftover work can write into the next cell.
+cell() {
+  local name="$1"
+  harness run --cell "$@"
+  local dir best=0 n
+  for dir in "results/runs/${name}"/r*; do
+    n="${dir##*/r}"
+    if [[ "${n}" =~ ^[0-9]+$ ]] && ((n > best)); then best="${n}"; fi
+  done
+  if ! grep -q '^  "status": "run.completed",$' "results/runs/${name}/r${best}/run.json" 2>/dev/null; then
+    echo "${name} did not complete; restarting Hermes on the same home"
+    docker compose up -d --wait --force-recreate hermes
+  fi
+}
+
 mkdir -p results out
 for repeat in $(seq 1 "${repeats}"); do
   echo "== repeat ${repeat} of ${repeats}"
   for config in full flat; do
     fresh_home "${config}" "${config}-learn"
-    harness run --cell "${config}-cold" --week week-1 --home "${config}-learn" --follow-up-if-no-skill
-    harness run --cell "${config}-warm" --week week-2 --home "${config}-learn"
+    cell "${config}-cold" --week week-1 --home "${config}-learn" --follow-up-if-no-skill
+    cell "${config}-warm" --week week-2 --home "${config}-learn"
 
     fresh_home "${config}" "${config}-control"
-    harness run --cell "${config}-control" --week week-2 --home "${config}-control"
+    cell "${config}-control" --week week-2 --home "${config}-control"
   done
 done

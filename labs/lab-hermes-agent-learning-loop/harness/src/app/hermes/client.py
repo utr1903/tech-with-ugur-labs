@@ -26,6 +26,8 @@ class HermesApi(Protocol):
 
     def stream_events(self, run_id: str, *, timeout_s: float) -> Iterator[RunEvent]: ...
 
+    def stop_run(self, run_id: str) -> str: ...
+
     def sessions(
         self, *, include_children: bool = True, limit: int = 200
     ) -> list[SessionRow]: ...
@@ -70,6 +72,16 @@ class HermesClient:
         return stream_run_events(
             self._http, self._auth, run_id, timeout_s=timeout_s, log=self._log
         )
+
+    def stop_run(self, run_id: str) -> str:
+        """Asks Hermes to interrupt a run; returns the status it reports.
+
+        Hermes answers `stopping` for a live run and the run's own status
+        when it has already ended; the stream then ends with `run.cancelled`.
+        """
+        status = self._json("POST", f"/v1/runs/{run_id}/stop").get("status")
+        self._log.info("Run stop requested.", run_id=run_id, status=status)
+        return str(status)
 
     def sessions(
         self, *, include_children: bool = True, limit: int = 200

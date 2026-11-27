@@ -220,3 +220,21 @@ def test_session_row_without_id_raises_hermes_error() -> None:
     client = _client(lambda _r: httpx.Response(200, json={"data": [{"source": "x"}]}))
     with pytest.raises(HermesError, match="without an id"):
         client.sessions()
+
+
+def test_stop_run_posts_to_the_stop_route() -> None:
+    seen: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen.append(request)
+        return httpx.Response(200, json={"run_id": "run_1", "status": "stopping"})
+
+    assert _client(handler).stop_run("run_1") == "stopping"
+    assert (seen[0].method, seen[0].url.path) == ("POST", "/v1/runs/run_1/stop")
+    assert seen[0].headers["authorization"] == "Bearer secret-key"
+
+
+def test_stop_run_refused_raises_hermes_error() -> None:
+    client = _client(lambda _r: httpx.Response(409, json={"error": "not active"}))
+    with pytest.raises(HermesError, match="409"):
+        client.stop_run("run_1")
