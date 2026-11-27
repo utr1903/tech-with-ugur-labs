@@ -9,13 +9,12 @@ import httpx
 
 from app.errors import HermesError
 from app.hermes.models import RunEvent, SessionRow
-from app.hermes.runs import stream_run_events
+from app.hermes.runs import BODY_CHARS, stream_run_events
 from app.logging_setup import Logger
 
 __all__ = ["HermesApi", "HermesClient", "RunEvent", "SessionRow"]
 
 _TIMEOUT = httpx.Timeout(120.0, connect=10.0)
-_BODY_CHARS = 300
 
 
 class HermesApi(Protocol):
@@ -107,9 +106,12 @@ class HermesClient:
         if response.status_code >= 300:
             raise HermesError(
                 f"{method} {route} returned {response.status_code}: "
-                f"{response.text[:_BODY_CHARS]}"
+                f"{response.text[:BODY_CHARS]}"
             )
-        body = response.json()
+        try:
+            body = response.json()
+        except ValueError as err:
+            raise HermesError(f"{method} {route} returned malformed JSON.") from err
         if not isinstance(body, dict):
             raise HermesError(f"{method} {route} returned a non-object body.")
         return body
@@ -123,6 +125,8 @@ def _list_of_dicts(value: object, route: str) -> list[dict[str, object]]:
 
 def _session_row(row: dict[str, object]) -> SessionRow:
     parent = row.get("parent_session_id")
+    if "id" not in row:
+        raise HermesError("/api/sessions returned a row without an id.")
     return SessionRow(
         id=str(row["id"]),
         source=str(row.get("source", "")),

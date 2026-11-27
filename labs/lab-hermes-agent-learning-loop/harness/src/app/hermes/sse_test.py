@@ -21,5 +21,5 @@ def test_parse_sse_multi_frames_one_chunk() -> None:
     assert list(parse_sse([chunk])) == [{"seq": 1}, {"seq": 2}]
 
 
-def test_parse_sse_flushes_unterminated_last_frame() -> None:
-    assert list(parse_sse(['data: {"seq": 3}'])) == [{"seq": 3}]
+def test_parse_sse_drops_unterminated_last_frame() -> None:
+    assert list(parse_sse(['data: {"seq": 1}\n\ndata: {"seq": 2'])) == [{"seq": 1}]

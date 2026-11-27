@@ -16,7 +16,8 @@ def parse_sse(lines: Iterable[str]) -> Iterator[dict[str, object]]:
     containing several lines. A piece must not end mid-line. A frame ends at
     a blank line; comment lines (`: keepalive`, `: stream closed`) and the
     `id:`/`event:` fields are ignored. A trailing frame without its closing
-    blank line is still delivered.
+    blank line is dropped: the connection ended mid-frame, and the caller
+    recovers it by reconnecting.
     """
     data: list[str] = []
     for piece in lines:
@@ -28,8 +29,6 @@ def parse_sse(lines: Iterable[str]) -> Iterator[dict[str, object]]:
                     data = []
             elif line.startswith("data:"):
                 data.append(line[5:].removeprefix(" "))
-    if data:
-        yield _decode(data)
 
 
 def _decode(data: list[str]) -> dict[str, object]:

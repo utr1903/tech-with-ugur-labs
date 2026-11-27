@@ -8,6 +8,7 @@ import pytest
 
 from app.errors import HermesError
 from app.hermes.client import HermesClient
+from app.hermes.runs import stream_run_events
 from app.logging_setup import get_logger
 
 
@@ -163,3 +164,59 @@ def test_messages_returns_data() -> None:
         return httpx.Response(200, json={"data": [{"id": 1, "role": "user"}]})
 
     assert _client(handler).messages("r1") == [{"id": 1, "role": "user"}]
+
+
+def test_stream_keepalives_only_trip_deadline() -> None:
+    ticks = iter(range(1000))
+    body = ": keepalive\n\n" * 50
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        return httpx.Response(200, content=body.encode())
+
+    http = httpx.Client(base_url="http://h", transport=httpx.MockTransport(handler))
+    stream = stream_run_events(
+        http, {}, "r1", timeout_s=5, log=get_logger(), clock=lambda: float(next(ticks))
+    )
+    with pytest.raises(HermesError, match="deadline"):
+        list(stream)
+
+
+def test_stream_truncated_frame_reconnects() -> None:
+    queries: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        queries.append(request.url.query.decode())
+        if len(queries) == 1:
+            full = _frame(1, "message.delta", delta="a") + _frame(2, "message.delta")
+            return httpx.Response(200, content=full[:-30].encode())
+        return _sse(_frame(2, "message.delta"), _frame(3, "run.completed", output="x"))
+
+    events = list(_client(handler).stream_events("r1", timeout_s=30))
+    assert [e.seq for e in events] == [1, 2, 3]
+    assert queries == ["", "last_seq=1"]
+
+
+def test_stream_reconnect_cap_counts_consecutive_failures() -> None:
+    calls = 0
+
+    def handler(_request: httpx.Request) -> httpx.Response:
+        nonlocal calls
+        calls += 1
+        if calls <= 8:  # more drops than the cap, but each one follows progress
+            return _sse(_frame(calls, "message.delta"))
+        return _sse(_frame(calls, "run.completed", output="x"))
+
+    events = list(_client(handler).stream_events("r1", timeout_s=30))
+    assert len(events) == 9
+
+
+def test_malformed_json_body_raises_hermes_error() -> None:
+    client = _client(lambda _r: httpx.Response(200, text="<html>"))
+    with pytest.raises(HermesError, match="malformed"):
+        client.sessions()
+
+
+def test_session_row_without_id_raises_hermes_error() -> None:
+    client = _client(lambda _r: httpx.Response(200, json={"data": [{"source": "x"}]}))
+    with pytest.raises(HermesError, match="without an id"):
+        client.sessions()
