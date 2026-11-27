@@ -6,8 +6,8 @@ import re
 from collections.abc import Callable
 from pathlib import Path
 
+from app.cells.names import CELLS
 from app.cells.record import CellRecord
-from app.commands.run import CELLS
 from app.envvars import Settings
 from app.errors import LabError, ReportError
 from app.hermes.home import parse_frontmatter
@@ -123,6 +123,10 @@ def _metrics(results: Path) -> Check:
     return not missing, f"metrics.md has the six cell rows (missing: {missing})"
 
 
+def _both(first: Check, second: Check) -> Check:
+    return first[0] and second[0], f"{first[1]}; {second[1]}"
+
+
 def run(settings: Settings, *, f1_threshold: float = 0.8, log: Logger) -> None:
     """Prints one PASS or FAIL line per assertion; raises if any failed."""
     results = settings.results_dir
@@ -147,7 +151,3 @@ def run(settings: Settings, *, f1_threshold: float = 0.8, log: Logger) -> None:
     log.info("End-to-end assertions finished.", failed=failed)
     if failed:
         raise LabError(f"{failed} end-to-end assertions failed")
-
-
-def _both(first: Check, second: Check) -> Check:
-    return first[0] and second[0], f"{first[1]}; {second[1]}"

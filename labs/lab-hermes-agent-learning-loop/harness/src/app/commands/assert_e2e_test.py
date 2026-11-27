@@ -7,10 +7,10 @@ import pytest
 from app.cells.record import write_record
 from app.commands.assert_e2e import run
 from app.commands.report import run as report
+from app.conftest import make_record, settings_for, write_matrix
 from app.envvars import Settings
 from app.errors import LabError
 from app.logging_setup import get_logger
-from app.metrics.factory_test import make_record, settings_for, write_matrix
 
 LOG = get_logger()
 
@@ -48,7 +48,7 @@ def test_assert_flat_with_delegate_fails(
     settings = _passing(tmp_path)
     tools = {"terminal": 1, "delegate_task": 1}
     rec = make_record("flat-warm", tools=tools)
-    write_record(settings.results_dir / "flat-warm" / "r1", rec)
+    write_record(settings.results_dir / "runs" / "flat-warm" / "r1", rec)
     with pytest.raises(LabError):
         run(settings, log=LOG)
     assert any(ln.startswith("FAIL 6") for ln in _lines(capsys))
@@ -68,7 +68,7 @@ def test_assert_full_f1_below_threshold_fails(
 def test_flat_f1_never_fails(tmp_path: Path) -> None:
     settings = _passing(tmp_path)
     rec = make_record("flat-cold", score={"f1": 0.0, "format_failure": False})
-    write_record(settings.results_dir / "flat-cold" / "r2", rec)
+    write_record(settings.results_dir / "runs" / "flat-cold" / "r2", rec)
     run(settings, log=LOG)
 
 
@@ -78,7 +78,7 @@ def test_wrong_version_and_leak_and_curator_fail(
     settings = _passing(tmp_path)
     res = settings.results_dir
     write_record(
-        res / "full-warm" / "r2",
+        res / "runs" / "full-warm" / "r2",
         make_record("full-warm", repeat="r2", hermes_version="0.1", skill_loaded=True),
     )
     (res / "leak-check.txt").write_text("exit=1\n")
@@ -94,7 +94,8 @@ def test_cold_without_skill_fails(
 ) -> None:
     settings = _passing(tmp_path)
     write_record(
-        settings.results_dir / "full-cold" / "r2", make_record("full-cold", repeat="r2")
+        settings.results_dir / "runs" / "full-cold" / "r2",
+        make_record("full-cold", repeat="r2"),
     )
     with pytest.raises(LabError):
         run(settings, log=LOG)

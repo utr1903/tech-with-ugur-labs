@@ -5,9 +5,9 @@ from pathlib import Path
 import pytest
 
 from app.commands.report import run
+from app.conftest import settings_for, write_matrix
 from app.errors import ReportError
 from app.logging_setup import get_logger
-from app.metrics.factory_test import settings_for, write_matrix
 
 
 def test_report_writes_metrics_md(tmp_path: Path) -> None:

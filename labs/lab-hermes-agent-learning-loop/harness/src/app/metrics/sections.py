@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from app.cells.names import CELLS
 from app.cells.record import CellRecord
-from app.commands.run import CELLS
 from app.metrics.aggregate import latest, runs_root
 from app.metrics.numbers import mapping
 

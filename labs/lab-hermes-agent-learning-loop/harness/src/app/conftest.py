@@ -5,8 +5,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from app.cells.names import CELLS
 from app.cells.record import CellRecord, write_record
-from app.commands.run import CELLS
 from app.envvars import Settings
 
 MODEL = "google/gemma-4-26b-a4b-it-maas"
@@ -79,12 +79,14 @@ def write_matrix(results: Path, **over: object) -> None:
                 "agent_created_skills": ["triage"],
                 "learning_path": "unprompted",
             }
-            skill = results / cell / "r1" / "skills" / "triage" / "SKILL.md"
+            skill = results / "runs" / cell / "r1" / "skills" / "triage" / "SKILL.md"
             skill.parent.mkdir(parents=True)
             skill.write_text("---\nname: triage\ndescription: d\n---\nbody\n")
         if cell == "full-warm":
             extra = {"skill_loaded": True, "skills_before": ["triage"]}
-        write_record(results / cell / "r1", make_record(cell, **{**extra, **over}))
+        write_record(
+            results / "runs" / cell / "r1", make_record(cell, **{**extra, **over})
+        )
 
 
 def settings_for(tmp: Path) -> Settings:

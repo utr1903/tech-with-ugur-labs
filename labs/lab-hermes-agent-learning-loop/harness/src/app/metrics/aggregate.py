@@ -8,8 +8,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from statistics import fmean
 
+from app.cells.names import CELLS
 from app.cells.record import CellRecord
-from app.commands.run import CELLS
 from app.errors import ReportError
 from app.metrics.cost import cost_usd
 from app.metrics.numbers import main_tokens, mapping, num, overhead_io, total_io
@@ -45,7 +45,7 @@ class CellSummary:
 
 def runs_root(results: Path) -> Path:
     """The folder holding the per-cell run folders."""
-    return results / "runs" if (results / "runs").is_dir() else results
+    return results / "runs"
 
 
 def _repeat_number(record: CellRecord) -> int:

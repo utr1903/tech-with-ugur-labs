@@ -11,6 +11,7 @@ from pathlib import Path
 from app.cells.collect import child_dicts, sum_tokens
 from app.cells.learning import Env, Wait
 from app.cells.measure import Measured, measure
+from app.cells.names import CELLS
 from app.cells.record import CellRecord, next_run_dir, write_record
 from app.cells.skills import skill_changes, skill_texts
 from app.envvars import Settings
@@ -21,15 +22,6 @@ from app.hermes.review import ReviewOutcome, wait_for_review
 from app.logging_setup import Logger
 from app.output import write_line
 from app.scoring.score import score_report
-
-CELLS = (
-    "full-cold",
-    "full-warm",
-    "full-control",
-    "flat-cold",
-    "flat-warm",
-    "flat-control",
-)
 
 
 @dataclass(frozen=True)
@@ -68,7 +60,7 @@ def run(
     """Runs one cell against Hermes and writes its `run.json`."""
     if args.cell not in CELLS:
         raise ConfigError(f"Unknown cell {args.cell}")
-    run_dir = _run_dir(settings.results_dir / args.cell, args.repeat_label)
+    run_dir = _run_dir(settings.results_dir / "runs" / args.cell, args.repeat_label)
     run_dir.mkdir(parents=True)
     report = settings.out_dir / args.cell / "report.json"
     report.parent.mkdir(parents=True, exist_ok=True)

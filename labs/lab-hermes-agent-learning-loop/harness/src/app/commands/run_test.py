@@ -143,7 +143,7 @@ def test_cold_follow_up_when_no_skill(tmp_path: Path) -> None:
     assert rec.follow_up and rec.follow_up["run_id"] == "run_2"
     assert rec.agent_created_skills == ["triage"]
     assert len(waits) == 2 and rec.score["f1"] == 1.0
-    run_dir = s.results_dir / "full-cold" / "r1"
+    run_dir = s.results_dir / "runs" / "full-cold" / "r1"
     assert (run_dir / "skills" / "triage" / "SKILL.md").is_file()
     assert (run_dir / "follow_up_events.jsonl").is_file()
     assert json.loads((run_dir / "run.json").read_text())["hermes_version"] == "9.9"
@@ -211,7 +211,7 @@ def test_missing_report_records_format_failure(tmp_path: Path) -> None:
     rec = run(s, _args("full-control"), client=fake, log=LOG, wait=_wait([]))
     assert rec.score["format_failure"] is True
     assert rec.error == "report.json was not written"
-    assert (s.results_dir / "full-control" / "r1" / "run.json").is_file()
+    assert (s.results_dir / "runs" / "full-control" / "r1" / "run.json").is_file()
 
 
 def test_stream_error_is_recorded_not_raised(tmp_path: Path) -> None:
@@ -220,7 +220,9 @@ def test_stream_error_is_recorded_not_raised(tmp_path: Path) -> None:
     waits: list[datetime] = []
     rec = run(s, _args("full-control"), client=fake, log=LOG, wait=_wait(waits))
     assert rec.status == "error" and rec.error == "deadline" and not waits
-    lines = (s.results_dir / "full-control/r1/events.jsonl").read_text().splitlines()
+    lines = (
+        (s.results_dir / "runs/full-control/r1/events.jsonl").read_text().splitlines()
+    )
     assert json.loads(lines[0])["event"] == "tool.started"
     with pytest.raises(ConfigError, match="Unknown cell"):
         run(s, _args("bogus"), client=fake, log=LOG)
@@ -310,7 +312,7 @@ def test_follow_up_failures_are_recorded(tmp_path: Path) -> None:
         assert rec.follow_up["error"]
         assert rec.error is not None and rec.error.startswith("follow-up: ")
         assert rec.status == "run.completed" and rec.learning_path == "none"
-        assert (s.results_dir / "full-cold" / "r1" / "run.json").is_file()
+        assert (s.results_dir / "runs" / "full-cold" / "r1" / "run.json").is_file()
 
 
 @pytest.mark.parametrize("failure", ["fail_start", "fail_sessions", "fail_messages"])
@@ -321,7 +323,7 @@ def test_main_hermes_error_still_writes_run_json(tmp_path: Path, failure: str) -
     setattr(fake, failure, {1} if failure == "fail_start" else True)
     rec = run(s, _args("full-warm"), client=fake, log=LOG, wait=_wait([]))
     assert rec.status == "error" and rec.error
-    assert (s.results_dir / "full-warm" / "r1" / "run.json").is_file()
+    assert (s.results_dir / "runs" / "full-warm" / "r1" / "run.json").is_file()
 
 
 def test_bad_repeat_label_is_a_config_error(tmp_path: Path) -> None:

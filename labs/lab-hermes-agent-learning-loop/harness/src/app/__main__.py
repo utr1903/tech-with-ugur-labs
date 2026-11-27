@@ -11,6 +11,7 @@ import re
 import sys
 from collections.abc import Callable
 
+from app.cells.names import CELLS
 from app.commands import assert_e2e as assert_e2e_command
 from app.commands import check as check_command
 from app.commands import fixtures as fixtures_command
@@ -99,7 +100,7 @@ def build_parser() -> argparse.ArgumentParser:
         if name == "assert-e2e":
             subparser.add_argument("--f1-threshold", type=float, default=0.8)
         if name == "run":
-            subparser.add_argument("--cell", required=True, choices=run_command.CELLS)
+            subparser.add_argument("--cell", required=True, choices=CELLS)
             subparser.add_argument("--week", required=True)
             subparser.add_argument("--home", required=True)
             subparser.add_argument("--follow-up-if-no-skill", action="store_true")

@@ -4,12 +4,12 @@ from pathlib import Path
 
 import pytest
 
+from app.cells.names import CELLS
 from app.cells.record import write_record
-from app.commands.run import CELLS
+from app.conftest import make_record, write_matrix
 from app.errors import ReportError
 from app.metrics.aggregate import latest, load_records, summarise
 from app.metrics.cost import GEMMA_PRICE_PER_M, cost_usd
-from app.metrics.factory_test import make_record, write_matrix
 
 
 def test_cost_usd() -> None:
@@ -24,13 +24,15 @@ def test_summarise_orders_cells(tmp_path: Path) -> None:
     assert [s.cell for s in summarise(records)] == list(CELLS)
 
 
-def test_load_records_reads_runs_subfolder(tmp_path: Path) -> None:
+def test_load_records_ignores_flat_layout(tmp_path: Path) -> None:
+    write_record(tmp_path / "flat-cold" / "r1", make_record("flat-cold"))
+    assert load_records(tmp_path) == []
     write_record(tmp_path / "runs" / "flat-cold" / "r1", make_record("flat-cold"))
     assert [r.cell for r in load_records(tmp_path)] == ["flat-cold"]
 
 
 def test_bad_record_is_a_report_error(tmp_path: Path) -> None:
-    path = tmp_path / "full-cold" / "r1" / "run.json"
+    path = tmp_path / "runs" / "full-cold" / "r1" / "run.json"
     path.parent.mkdir(parents=True)
     path.write_text("{not json")
     with pytest.raises(ReportError):
@@ -41,7 +43,7 @@ def test_mean_min_max_for_repeats(tmp_path: Path) -> None:
     for repeat, f1, wall in (("r1", 0.6, 50.0), ("r2", 1.0, 150.0)):
         score = {"f1": f1, "by_category": {"ip": {"f1": f1}}}
         rec = make_record("full-cold", repeat=repeat, score=score, wall_seconds=wall)
-        write_record(tmp_path / "full-cold" / repeat, rec)
+        write_record(tmp_path / "runs" / "full-cold" / repeat, rec)
     records = load_records(tmp_path)
     (s,) = summarise(records)
     assert (s.runs, s.f1_min, s.f1_max) == (2, 0.6, 1.0)
@@ -55,7 +57,8 @@ def test_mean_min_max_for_repeats(tmp_path: Path) -> None:
 def test_latest_orders_numerically(tmp_path: Path) -> None:
     for repeat in ("r2", "r10"):
         write_record(
-            tmp_path / "full-cold" / repeat, make_record("full-cold", repeat=repeat)
+            tmp_path / "runs" / "full-cold" / repeat,
+            make_record("full-cold", repeat=repeat),
         )
     found = latest(load_records(tmp_path), "full-cold")
     assert found is not None and found.repeat == "r10"
@@ -68,7 +71,7 @@ def test_tokens_and_cost_parts(tmp_path: Path) -> None:
         "children_tokens": {"input": 100, "output": 10},
     }
     rec = make_record("full-cold", follow_up=follow)
-    write_record(tmp_path / "full-cold" / "r1", rec)
+    write_record(tmp_path / "runs" / "full-cold" / "r1", rec)
     (s,) = summarise(load_records(tmp_path))
     assert s.total_tokens_mean == 1650  # parent 1100 + children 550
     assert (s.parent_tokens_mean, s.children_tokens_mean) == (1100, 550)

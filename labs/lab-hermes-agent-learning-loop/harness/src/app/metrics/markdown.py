@@ -7,6 +7,7 @@ from pathlib import Path
 
 from app.cells.record import CellRecord
 from app.metrics.aggregate import TOOLS, CellSummary, latest
+from app.metrics.cost import GEMMA_PRICE_PER_M
 from app.metrics.sections import went_wrong, wrote
 from app.scoring.score import CATEGORIES
 
@@ -85,7 +86,8 @@ def render(
         "",
         "`est. USD` covers the main turn (parent and subagents), the follow-up "
         "turn (parent and subagents) and the background review tokens, at "
-        "0.15 / 0.60 USD per 1M input / output tokens.",
+        f"{GEMMA_PRICE_PER_M[0]} / {GEMMA_PRICE_PER_M[1]} USD per 1M input / "
+        "output tokens.",
         "",
         "## F1 per finding category",
         "",
