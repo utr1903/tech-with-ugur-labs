@@ -38,7 +38,7 @@ resource "aws_route_table_association" "public" {
 
 resource "aws_security_group" "vm" {
   name        = "${var.name_prefix}-vm"
-  description = "GPU VM: SSH from the reader's own address only"
+  description = "GPU VM: SSH from your own address only"
   vpc_id      = aws_vpc.lab.id
 }
 

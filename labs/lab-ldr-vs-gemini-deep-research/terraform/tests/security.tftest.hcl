@@ -56,6 +56,12 @@ run "vm_holds_no_credentials_and_no_key" {
 run "ssh_only_from_your_own_address" {
   command = plan
 
+  # EC2 rejects security group descriptions outside this character set
+  # (an apostrophe fails at apply time, not at plan time).
+  assert {
+    condition     = can(regex("^[a-zA-Z0-9. _\\-:/()#,@\\[\\]+=&;{}!$*]{0,255}$", aws_security_group.vm.description))
+    error_message = "The security group description uses characters EC2 does not accept."
+  }
   assert {
     condition = (
       aws_vpc_security_group_ingress_rule.vm_ssh.from_port == 22 &&
