@@ -1,0 +1,81 @@
+{
+  "advisories": [
+    {
+      "affected": [
+        {
+          "fixed": "5.4",
+          "introduced": "5.0"
+        }
+      ],
+      "id": "TWU-2026-0001",
+      "package": "pyyaml",
+      "summary": "Unsafe loader in old releases"
+    },
+    {
+      "affected": [
+        {
+          "fixed": "3.0.0",
+          "introduced": "2.8"
+        }
+      ],
+      "id": "TWU-2026-0002",
+      "package": "jinja2",
+      "summary": "Template sandbox escape"
+    },
+    {
+      "affected": [
+        {
+          "fixed": "1.26.5",
+          "introduced": "1.9"
+        }
+      ],
+      "id": "TWU-2026-0003",
+      "package": "urllib3",
+      "summary": "Header leak across redirects"
+    },
+    {
+      "affected": [
+        {
+          "fixed": "2.31.0",
+          "introduced": "2.0"
+        }
+      ],
+      "id": "TWU-2026-0004",
+      "package": "requests",
+      "summary": "Credentials kept on redirect"
+    },
+    {
+      "affected": [
+        {
+          "fixed": "9.0.1",
+          "introduced": "8.0"
+        }
+      ],
+      "id": "TWU-2026-0005",
+      "package": "pillow",
+      "summary": "Heap overflow in image decoder"
+    },
+    {
+      "affected": [
+        {
+          "fixed": "41.0.2",
+          "introduced": "3.0"
+        }
+      ],
+      "id": "TWU-2026-0006",
+      "package": "cryptography",
+      "summary": "Weak padding check"
+    },
+    {
+      "affected": [
+        {
+          "fixed": "3.4.0",
+          "introduced": "2.0"
+        }
+      ],
+      "id": "TWU-2026-0007",
+      "package": "paramiko",
+      "summary": "Handshake downgrade"
+    }
+  ]
+}

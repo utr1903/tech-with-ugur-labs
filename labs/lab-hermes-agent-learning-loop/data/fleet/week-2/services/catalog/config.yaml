@@ -1,0 +1,16 @@
+admin:
+  bind: 127.0.0.1
+  port: 9000
+auth:
+  enabled: true
+  session_minutes: 30
+cors:
+  allow_origins:
+  - https://app.example.test
+  - https://catalog.example.test
+debug: false
+log_level: warning
+service: catalog
+tls:
+  min_version: '1.2'
+workers: 5

@@ -1,0 +1,9 @@
+# Pinned dependencies for notifications
+Flask==3.0.0
+gunicorn==20.1.0
+lxml==5.1.0
+paramiko==2.7.2
+Pillow==10.0.0
+PyYAML==4.2
+requests==2.19.0
+urllib3==2.0.7

@@ -16,6 +16,13 @@ def test_parser_registers_every_command() -> None:
         assert parser.parse_args([name]).command == name
 
 
+def test_fixtures_command_accepts_check_flag() -> None:
+    parser = build_parser()
+
+    assert parser.parse_args(["fixtures"]).check is False
+    assert parser.parse_args(["fixtures", "--check"]).check is True
+
+
 def test_unimplemented_command_exits_1_and_logs_json(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

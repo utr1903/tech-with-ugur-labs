@@ -1,0 +1,98 @@
+{
+  "services": [
+    {
+      "risky_config": [
+        "admin_public",
+        "auth_disabled"
+      ],
+      "service": "billing",
+      "suspicious_ips": [
+        "203.0.113.3",
+        "203.0.113.47"
+      ],
+      "vulnerable_dependencies": [
+        {
+          "advisory_id": "TWU-2026-0001",
+          "package": "pyyaml",
+          "version": "5.3"
+        }
+      ]
+    },
+    {
+      "risky_config": [],
+      "service": "catalog",
+      "suspicious_ips": [
+        "203.0.113.223"
+      ],
+      "vulnerable_dependencies": [
+        {
+          "advisory_id": "TWU-2026-0006",
+          "package": "cryptography",
+          "version": "38.0.4"
+        },
+        {
+          "advisory_id": "TWU-2026-0004",
+          "package": "requests",
+          "version": "2.25.1"
+        }
+      ]
+    },
+    {
+      "risky_config": [
+        "auth_disabled",
+        "debug"
+      ],
+      "service": "checkout",
+      "suspicious_ips": [
+        "203.0.113.120"
+      ],
+      "vulnerable_dependencies": [
+        {
+          "advisory_id": "TWU-2026-0006",
+          "package": "cryptography",
+          "version": "38.0.4"
+        },
+        {
+          "advisory_id": "TWU-2026-0003",
+          "package": "urllib3",
+          "version": "1.10.4"
+        }
+      ]
+    },
+    {
+      "risky_config": [],
+      "service": "identity",
+      "suspicious_ips": [
+        "203.0.113.225"
+      ],
+      "vulnerable_dependencies": []
+    },
+    {
+      "risky_config": [
+        "auth_disabled"
+      ],
+      "service": "inventory",
+      "suspicious_ips": [],
+      "vulnerable_dependencies": []
+    },
+    {
+      "risky_config": [
+        "auth_disabled",
+        "tls_min_version"
+      ],
+      "service": "notifications",
+      "suspicious_ips": [
+        "203.0.113.242",
+        "203.0.113.25"
+      ],
+      "vulnerable_dependencies": [
+        {
+          "advisory_id": "TWU-2026-0004",
+          "package": "requests",
+          "version": "2.19.0"
+        }
+      ]
+    }
+  ],
+  "week": "week-1"
+}

@@ -1,0 +1,16 @@
+admin:
+  bind: 127.0.0.1
+  port: 9000
+auth:
+  enabled: false
+  session_minutes: 30
+cors:
+  allow_origins:
+  - https://app.example.test
+  - https://notifications.example.test
+debug: false
+log_level: debug
+service: notifications
+tls:
+  min_version: '1.1'
+workers: 7

@@ -1,0 +1,8 @@
+# Pinned dependencies for catalog
+celery==5.3.6
+cryptography==38.0.4
+Django==4.2.7
+gunicorn==21.2.0
+requests==2.25.1
+SQLAlchemy==1.4.50
+urllib3==1.26.5

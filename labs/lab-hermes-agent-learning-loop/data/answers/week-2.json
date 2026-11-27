@@ -1,0 +1,104 @@
+{
+  "services": [
+    {
+      "risky_config": [
+        "admin_public"
+      ],
+      "service": "billing",
+      "suspicious_ips": [],
+      "vulnerable_dependencies": [
+        {
+          "advisory_id": "TWU-2026-0001",
+          "package": "pyyaml",
+          "version": "5.3"
+        }
+      ]
+    },
+    {
+      "risky_config": [],
+      "service": "catalog",
+      "suspicious_ips": [
+        "203.0.113.4"
+      ],
+      "vulnerable_dependencies": [
+        {
+          "advisory_id": "TWU-2026-0006",
+          "package": "cryptography",
+          "version": "38.0.4"
+        },
+        {
+          "advisory_id": "TWU-2026-0004",
+          "package": "requests",
+          "version": "2.25.1"
+        }
+      ]
+    },
+    {
+      "risky_config": [
+        "auth_disabled",
+        "debug"
+      ],
+      "service": "checkout",
+      "suspicious_ips": [
+        "203.0.113.130",
+        "203.0.113.49"
+      ],
+      "vulnerable_dependencies": [
+        {
+          "advisory_id": "TWU-2026-0006",
+          "package": "cryptography",
+          "version": "38.0.4"
+        }
+      ]
+    },
+    {
+      "risky_config": [],
+      "service": "identity",
+      "suspicious_ips": [
+        "203.0.113.177",
+        "203.0.113.2"
+      ],
+      "vulnerable_dependencies": []
+    },
+    {
+      "risky_config": [
+        "auth_disabled",
+        "cors_wildcard"
+      ],
+      "service": "inventory",
+      "suspicious_ips": [
+        "203.0.113.195"
+      ],
+      "vulnerable_dependencies": [
+        {
+          "advisory_id": "TWU-2026-0001",
+          "package": "pyyaml",
+          "version": "5.1.2"
+        }
+      ]
+    },
+    {
+      "risky_config": [
+        "auth_disabled",
+        "tls_min_version"
+      ],
+      "service": "notifications",
+      "suspicious_ips": [
+        "203.0.113.134"
+      ],
+      "vulnerable_dependencies": [
+        {
+          "advisory_id": "TWU-2026-0007",
+          "package": "paramiko",
+          "version": "2.7.2"
+        },
+        {
+          "advisory_id": "TWU-2026-0004",
+          "package": "requests",
+          "version": "2.19.0"
+        }
+      ]
+    }
+  ],
+  "week": "week-2"
+}

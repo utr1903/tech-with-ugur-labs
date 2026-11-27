@@ -6,9 +6,12 @@ uv run app fixtures
 from __future__ import annotations
 
 import argparse
+import os
 import sys
 from collections.abc import Callable
 
+from app.commands import fixtures as fixtures_command
+from app.envvars import load_settings
 from app.errors import LabError
 from app.logging_setup import Logger, configure_logging, install_global_error_handlers
 
@@ -17,8 +20,13 @@ COMMANDS = ("fixtures", "check", "run", "report", "leak-check")
 
 type Handler = Callable[[argparse.Namespace, Logger], None]
 
+
+def _fixtures(args: argparse.Namespace, log: Logger) -> None:
+    fixtures_command.run(load_settings(os.environ), check=args.check, log=log)
+
+
 # Later commands register themselves here as they are implemented.
-HANDLERS: dict[str, Handler] = {}
+HANDLERS: dict[str, Handler] = {"fixtures": _fixtures}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -26,7 +34,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="app")
     subparsers = parser.add_subparsers(dest="command", required=True)
     for name in COMMANDS:
-        subparsers.add_parser(name)
+        subparser = subparsers.add_parser(name)
+        if name == "fixtures":
+            subparser.add_argument("--check", action="store_true")
     return parser
 
 

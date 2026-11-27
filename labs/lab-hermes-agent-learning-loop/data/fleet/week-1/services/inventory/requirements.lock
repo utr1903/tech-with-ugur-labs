@@ -1,0 +1,10 @@
+# Pinned dependencies for inventory
+celery==5.2.7
+cryptography==2.9.2
+Django==4.2.7
+Flask==3.0.0
+lxml==5.1.0
+paramiko==3.4.0
+PyYAML==4.2
+requests==1.2.3
+urllib3==1.26.5

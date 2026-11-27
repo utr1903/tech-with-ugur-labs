@@ -1,0 +1,16 @@
+admin:
+  bind: 0.0.0.0
+  port: 9000
+auth:
+  enabled: true
+  session_minutes: 30
+cors:
+  allow_origins:
+  - https://app.example.test
+  - https://billing.example.test
+debug: false
+log_level: debug
+service: billing
+tls:
+  min_version: '1.3'
+workers: 4
