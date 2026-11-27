@@ -281,7 +281,9 @@ def test_follow_up_is_self_contained(tmp_path: Path) -> None:
     assert rec.tools == {"terminal": 2} and rec.parent_tools == {"terminal": 1}
     fu = rec.follow_up
     assert fu is not None
-    assert [c["id"] for c in fu["children"]] == ["c2"]  # type: ignore[attr-defined]
+    kids = fu["children"]
+    assert isinstance(kids, list)
+    assert [c["id"] for c in kids if isinstance(c, dict)] == ["c2"]
     assert fu["children_tokens"] == {"input": 20, "output": 2}
     assert fu["children_tools"] == {"execute_code": 1}
     assert fu["parent_tools"] == {"terminal": 1}

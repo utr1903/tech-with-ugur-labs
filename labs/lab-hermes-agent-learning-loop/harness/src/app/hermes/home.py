@@ -159,13 +159,18 @@ def save_baseline(home: Path, dest: Path, *, log: Logger) -> None:
         log.info("Saving skill baseline succeeded.", skills=len(paths))
 
 
+def _read_baseline(dest: Path) -> list[str]:
+    data = json.loads(dest.read_text(encoding="utf-8"))
+    if not isinstance(data, list) or not all(isinstance(x, str) for x in data):
+        raise ReportError(f"Baseline {dest} is not a list of paths")
+    return data
+
+
 def load_baseline(dest: Path, *, log: Logger) -> frozenset[str]:
     """Reads the skill paths stored by `save_baseline`."""
     try:
         log.info("Loading skill baseline...", dest=str(dest))
-        data = json.loads(dest.read_text(encoding="utf-8"))
-        if not isinstance(data, list) or not all(isinstance(x, str) for x in data):
-            raise ReportError(f"Baseline {dest} is not a list of paths")  # noqa: TRY301
+        data = _read_baseline(dest)
     except (OSError, json.JSONDecodeError, ReportError) as err:
         log.exception("Loading skill baseline failed.", dest=str(dest))
         if isinstance(err, ReportError):
@@ -192,6 +197,13 @@ def _inside(dest: Path, target: Path) -> bool:
     return target.resolve().is_relative_to(dest.resolve())
 
 
+def _skill_target(dest: Path, name: str) -> Path:
+    target = dest / _SKILLS / name / "SKILL.md"
+    if not _inside(dest, target):
+        raise ReportError(f"Skill target escapes {dest}: {name}")
+    return target
+
+
 def copy_out(
     home: Path, names: Iterable[str], dest: Path, *, log: Logger
 ) -> list[Path]:
@@ -207,9 +219,7 @@ def copy_out(
         log.info("Copying out skills...", skills=wanted, dest=str(dest))
         written: list[Path] = []
         for name in wanted:
-            target = dest / _SKILLS / name / "SKILL.md"
-            if not _inside(dest, target):
-                raise ReportError(f"Skill target escapes {dest}: {name}")  # noqa: TRY301
+            target = _skill_target(dest, name)
             target.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(skills[name].path, target)
             written.append(target)
