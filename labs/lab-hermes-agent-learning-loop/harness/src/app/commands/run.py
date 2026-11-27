@@ -49,6 +49,24 @@ def _run_dir(cell_dir: Path, label: str | None) -> Path:
     return cell_dir / label
 
 
+def empty_out(out_dir: Path, *, log: Logger) -> None:
+    """Deletes everything under `out_dir`, so no cell sees another's report."""
+    try:
+        log.info("Emptying output folder...", out_dir=str(out_dir))
+        out_dir.mkdir(parents=True, exist_ok=True)
+        entries = list(out_dir.iterdir())
+        for entry in entries:
+            if entry.is_dir() and not entry.is_symlink():
+                shutil.rmtree(entry)
+            else:
+                entry.unlink()
+    except OSError:
+        log.exception("Emptying output folder failed.", out_dir=str(out_dir))
+        raise
+    else:
+        log.info("Emptying output folder succeeded.", removed=len(entries))
+
+
 def run(
     settings: Settings,
     args: RunArgs,
@@ -57,18 +75,38 @@ def run(
     log: Logger,
     wait: Wait = wait_for_review,
 ) -> CellRecord:
-    """Runs one cell against Hermes and writes its `run.json`."""
+    """Runs one cell against Hermes and writes its `run.json`.
+
+    The run folder is only created once the cell starts; if the cell fails
+    in an unexpected way it is removed again, so no empty `rN` is left.
+    """
     if args.cell not in CELLS:
         raise ConfigError(f"Unknown cell {args.cell}")
     run_dir = _run_dir(settings.results_dir / "runs" / args.cell, args.repeat_label)
-    run_dir.mkdir(parents=True)
-    report = settings.out_dir / args.cell / "report.json"
-    report.parent.mkdir(parents=True, exist_ok=True)
-    report.unlink(missing_ok=True)
-
-    home = settings.hermes_home
     baseline = load_baseline(snapshot_path(settings.results_dir, args.home), log=log)
-    env = Env(client, home, baseline, run_dir, log, wait)
+    empty_out(settings.out_dir, log=log)
+    (settings.out_dir / args.cell).mkdir()
+    run_dir.mkdir(parents=True)
+    env = Env(client, settings.hermes_home, baseline, run_dir, log, wait)
+    try:
+        record = _run_cell(settings, args, env)
+    except Exception:
+        log.exception("Running cell failed.", cell=args.cell, run_dir=str(run_dir))
+        shutil.rmtree(run_dir, ignore_errors=True)
+        raise
+    _summary(record, log)
+    return record
+
+
+def _run_cell(settings: Settings, args: RunArgs, env: Env) -> CellRecord:
+    home, baseline, run_dir, log = env.home, env.baseline, env.run_dir, env.log
+    report = settings.out_dir / args.cell / "report.json"
+    copied = run_dir / "report.json"
+
+    def keep_main_report() -> None:
+        if report.is_file():
+            shutil.copyfile(report, copied)
+
     before = skill_texts(home, baseline, log=log)
     m = Measured()
     failure: str | None = None
@@ -80,6 +118,7 @@ def run(
             week=args.week,
             before=frozenset(before),
             follow_up_if_no_skill=args.follow_up_if_no_skill,
+            after_main=keep_main_report,
         )
     except HermesError as err:
         failure = str(err)
@@ -98,12 +137,10 @@ def run(
         )
         if e
     ]
-    if report.is_file():
-        shutil.copyfile(report, run_dir / "report.json")
-    elif not errors:
+    if not copied.is_file() and not errors:
         errors.append("report.json was not written")
     score = score_report(
-        run_dir / "report.json",
+        copied,
         settings.data_dir / "answers" / f"{args.week}.json",
         log=log,
     )
@@ -144,7 +181,6 @@ def run(
         hermes_version=m.version,
     )
     write_record(run_dir, record)
-    _summary(record, log)
     return record
 
 

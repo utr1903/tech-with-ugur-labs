@@ -12,7 +12,7 @@ import pytest
 from app.cells.learning import Wait
 from app.commands.run import RunArgs, run
 from app.envvars import Settings
-from app.errors import ConfigError, HermesError
+from app.errors import ConfigError, HermesError, ReportError
 from app.fixtures.writer import write_fixtures
 from app.hermes.client import HermesApi
 from app.hermes.home import save_baseline, snapshot_path
@@ -340,3 +340,65 @@ def test_bad_repeat_label_is_a_config_error(tmp_path: Path) -> None:
     args = RunArgs("full-control", "week-1", "h", False, "../x")
     with pytest.raises(ConfigError, match="repeat"):
         run(s, args, client=fake, log=LOG, wait=_wait([]))
+
+
+def test_out_dir_is_emptied_before_the_run(tmp_path: Path) -> None:
+    s, fake, _ = _setup(tmp_path, "full-control")
+    other = s.out_dir / "full-warm" / "report.json"
+    other.parent.mkdir(parents=True)
+    other.write_text("{}")
+    (s.out_dir / "notes.txt").write_text("left over")
+    seen: list[list[str]] = []
+    fake.on_start = [lambda: seen.append(sorted(p.name for p in s.out_dir.rglob("*")))]
+
+    run(s, _args("full-control"), client=fake, log=LOG, wait=_wait([]))
+
+    # Only this cell's own report, which the fake writes in start_run.
+    assert seen == [["full-control", "report.json"]]
+    assert s.out_dir.is_dir() and not other.exists()
+
+
+def test_cold_score_is_the_main_turn_report(tmp_path: Path) -> None:
+    s, fake, home = _setup(tmp_path, "full-cold")
+    report = s.out_dir / "full-cold" / "report.json"
+
+    def follow_up_overwrites() -> None:
+        report.write_text('{"not": "a report"}')
+        _write_skill(home, "triage")
+
+    fake.on_start = [lambda: None, follow_up_overwrites]
+    rec = run(
+        s,
+        _args("full-cold", follow_up_if_no_skill=True),
+        client=fake,
+        log=LOG,
+        wait=_wait([]),
+    )
+    assert rec.learning_path == "follow-up"
+    assert rec.score["f1"] == 1.0 and rec.score["format_failure"] is False
+    copied = s.results_dir / "runs" / "full-cold" / "r1" / "report.json"
+    assert "not" not in json.loads(copied.read_text())
+
+
+def test_missing_baseline_leaves_no_run_dir(tmp_path: Path) -> None:
+    s, fake, _ = _setup(tmp_path, "full-control")
+    snapshot_path(s.results_dir, "h").unlink()
+    with pytest.raises(ReportError):
+        run(s, _args("full-control"), client=fake, log=LOG, wait=_wait([]))
+    assert not (s.results_dir / "runs" / "full-control").exists()
+
+
+def test_unexpected_failure_removes_the_run_dir(tmp_path: Path) -> None:
+    s, fake, _ = _setup(tmp_path, "full-control")
+
+    def broken(
+        agent_log: Path, session_id: str, *, started_after: datetime, log: Logger
+    ) -> ReviewOutcome:
+        del agent_log, session_id, started_after, log
+        raise ReportError("agent log unreadable")
+
+    with pytest.raises(ReportError):
+        run(s, _args("full-control"), client=fake, log=LOG, wait=broken)
+    assert not (s.results_dir / "runs" / "full-control" / "r1").exists()
+    rec = run(s, _args("full-control"), client=fake, log=LOG, wait=_wait([]))
+    assert rec.repeat == "r1"

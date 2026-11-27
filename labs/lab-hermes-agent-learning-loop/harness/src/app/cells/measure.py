@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from collections import Counter
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 
@@ -45,14 +46,20 @@ def measure(
     week: str,
     before: frozenset[str],
     follow_up_if_no_skill: bool,
+    after_main: Callable[[], None],
 ) -> None:
-    """Runs the cell's turns; raises HermesError, leaving `m` partly filled."""
+    """Runs the cell's turns; raises HermesError, leaving `m` partly filled.
+
+    `after_main` runs as soon as the main turn has ended, before any
+    follow-up turn can change what the main turn left behind.
+    """
     m.version = str(env.client.health().get("version", ""))
     m.started = datetime.now(UTC)
     m.run_id = env.client.start_run(triage_prompt(week, cell))
     m.main = stream_to_file(
         env.client, m.run_id, env.run_dir / "events.jsonl", log=env.log
     )
+    after_main()
     m.children = collect_children(env.client, m.run_id)
     m.child_tools = collect_tools(env.client, m.children)
     m.review = wait_after(env, m.main, m.run_id, m.started)
