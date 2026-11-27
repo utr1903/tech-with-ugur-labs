@@ -114,12 +114,13 @@ The lab creates no cloud resources, so there is nothing to destroy afterwards.
 Gemma 4 26B on Vertex AI is billed per token (USD 0.15 per 1M input tokens,
 USD 0.60 per 1M output tokens when this was written; check the current
 price). Measured so far: a cold `full` cell takes 17 to 26 minutes and uses
-roughly 1.5 to 2 M input tokens and about 0.05 M output tokens, which is about
-USD 0.25 to 0.35 per cell. One pass over all six cells (`make run`, or
-`make e2e`) is therefore on the order of USD 1 to 3 and, because the runs are
-sequential, **more than 2 hours of wall time**. `REPEATS=3` triples both. These
-are estimates and will be replaced by the measured totals of the committed run
-(see [Results](#results)). Vertex streams occasionally stall for up to about
+1.4 to 2.3 M input tokens and 0.05 to 0.08 M output tokens, which is USD 0.24
+to 0.39 per cell. Assuming the other five cells are about as expensive, one
+pass over all six (`make run`, or `make e2e`) comes to roughly USD 1.4 to 2.3
+and, because the cells run one after another, about 2 to 3 hours of wall time.
+`REPEATS=3` triples both. The six-cell figures are estimates and will be
+replaced by the measured totals of the committed run (see
+[Results](#results)). Vertex streams occasionally stall for up to about
 180 seconds with no data; Hermes detects that and retries, which shows up as
 a slower cell, not a failed one.
 
@@ -204,9 +205,9 @@ the path.
 
 ## Results
 
-Placeholder: the measured table of the committed run (and its `REPEATS=3`
-variant) will be pasted here. Until then `results/metrics.md` is the source of
-truth, and any number in the cost section above is an estimate.
+The measured table of the committed run (and its `REPEATS=3` variant) appears
+here. `results/metrics.md` is always the source of truth, and the six-cell
+figures in the cost section above are estimates.
 
 ## Knobs that matter
 
@@ -215,7 +216,7 @@ mounted read-only over Hermes' `config.yaml`:
 
 | Setting | Why it matters |
 | --- | --- |
-| `skills.write_approval` | Whether the agent needs sign-off before writing a skill. Not set here: the container is the boundary, and with approvals off the loop closes without a human. |
+| `skills.write_approval` | Hermes' setting for whether a skill write needs sign-off. Left at Hermes' default and not set in this lab's configs. |
 | curator (`hermes curator`) | Reviews and consolidates agent-written skills over time. The lab only runs its dry run and status (`make curator`); a skill the agent writes in the foreground shows up as "unmanaged", not as a curator candidate. |
 | `delegation.max_concurrent_children`, `delegation.model` | How many subagents run at once and which model they use. The lab leaves both at their defaults, so children use the same model as the parent. |
 | `delegation.gateway_mode: inline` | Keeps subagents inside the API request. Without it the harness would have no way to follow them. |
@@ -246,9 +247,11 @@ mounted read-only over Hermes' `config.yaml`:
   runs as that same uid and gid to read the skills from the read-only mount.
   `make env` fills both in from `id -u` and `id -g`.
 - **`make doctor` and `make leak-check` do not read `.env`.** They use the
-  Makefile's `ADC_FILE` default and your gcloud default project. If you point
-  `.env` at another credentials file or project, pass the same values to make
-  (`make doctor ADC_FILE=...`) so they stay consistent.
+  Makefile's `ADC_FILE` default, and `make doctor` takes the project from
+  `VERTEX_PROJECT_ID` in your shell or, failing that, gcloud's default
+  project. Set gcloud's default project to the one in `.env`, and if you point
+  `.env` at another credentials file, pass the same one to make
+  (`make doctor ADC_FILE=...`, `make leak-check ADC_FILE=...`).
 - **One Compose project name per clone directory name.** Two clones with the
   same directory name share the Compose project and the four volumes. Run
   `make down` in one before using the other.
@@ -288,10 +291,19 @@ model: {provider: custom, base_url: "http://host.docker.internal:8000/v1", defau
 ```
 
 Serve it with a context window of at least 64000 tokens (set `context_length`
-if the server does not report it); Hermes expects that much room for its tools and a long session. Also
-set `HERMES_MODEL` in `.env` to the same name so `make up` and the `check`
-step accept it, and skip `make vertex` and `make doctor` (which probes
-Vertex AI). Everything else is unchanged.
+if the server does not report it); Hermes expects that much room for its tools
+and a long session. Also set `HERMES_MODEL` in `.env` to the same name so
+`make up` and the `check` step accept it.
+
+Two things still expect Vertex AI. Compose requires `ADC_FILE` and bind-mounts
+it, so point `ADC_FILE` in `.env` at any existing file (an empty JSON file
+containing `{}` will do) and skip `make vertex` and `make doctor`, which probe
+Vertex AI. `make leak-check` mounts the same file, so pass it there too.
+
+On Docker Desktop `host.docker.internal` resolves out of the box. On Linux add
+`extra_hosts: ["host.docker.internal:host-gateway"]` to the `hermes` service
+in `compose.yaml`, or use the host's IP address in `base_url`. Everything else
+is unchanged.
 
 ## Clean up
 
