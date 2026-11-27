@@ -12,7 +12,7 @@ from app.__main__ import build_parser, main
 def test_parser_registers_every_command() -> None:
     parser = build_parser()
 
-    for name in ("fixtures", "report", "leak-check"):
+    for name in ("fixtures", "report", "assert-e2e", "leak-check"):
         assert parser.parse_args([name]).command == name
 
 
@@ -37,13 +37,13 @@ def test_unimplemented_command_exits_1_and_logs_json(
     # main() installs process-wide error hooks; restore them afterwards.
     monkeypatch.setattr(sys, "excepthook", sys.excepthook)
     monkeypatch.setattr(threading, "excepthook", threading.excepthook)
-    monkeypatch.setattr("sys.argv", ["app", "report"])
+    monkeypatch.setattr("sys.argv", ["app", "leak-check"])
 
     assert main() == 1
 
     last = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert last["event"] == "Command failed."
-    assert last["command"] == "report"
+    assert last["command"] == "leak-check"
     assert "not implemented yet" in json.dumps(last["exception"])
 
 
@@ -57,3 +57,11 @@ def test_repeat_label_must_look_like_rn() -> None:
 
 def test_check_command_takes_home() -> None:
     assert build_parser().parse_args(["check", "--home", "h"]).home == "h"
+
+
+def test_assert_e2e_threshold_defaults_to_point_eight() -> None:
+    parser = build_parser()
+    assert parser.parse_args(["assert-e2e"]).f1_threshold == 0.8
+    assert (
+        parser.parse_args(["assert-e2e", "--f1-threshold", "0.5"]).f1_threshold == 0.5
+    )

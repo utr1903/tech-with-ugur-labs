@@ -11,8 +11,10 @@ import re
 import sys
 from collections.abc import Callable
 
+from app.commands import assert_e2e as assert_e2e_command
 from app.commands import check as check_command
 from app.commands import fixtures as fixtures_command
+from app.commands import report as report_command
 from app.commands import run as run_command
 from app.envvars import load_settings
 from app.errors import LabError
@@ -20,7 +22,7 @@ from app.hermes.client import HermesClient
 from app.logging_setup import Logger, configure_logging, install_global_error_handlers
 
 APP_NAME = "harness"
-COMMANDS = ("fixtures", "check", "run", "report", "leak-check")
+COMMANDS = ("fixtures", "check", "run", "report", "assert-e2e", "leak-check")
 
 type Handler = Callable[[argparse.Namespace, Logger], None]
 
@@ -64,11 +66,23 @@ def _check(args: argparse.Namespace, log: Logger) -> None:
     )
 
 
+def _report(_args: argparse.Namespace, log: Logger) -> None:
+    report_command.run(load_settings(os.environ), log=log)
+
+
+def _assert_e2e(args: argparse.Namespace, log: Logger) -> None:
+    assert_e2e_command.run(
+        load_settings(os.environ), f1_threshold=args.f1_threshold, log=log
+    )
+
+
 # Later commands register themselves here as they are implemented.
 HANDLERS: dict[str, Handler] = {
     "fixtures": _fixtures,
     "check": _check,
     "run": _run,
+    "report": _report,
+    "assert-e2e": _assert_e2e,
 }
 
 
@@ -82,6 +96,8 @@ def build_parser() -> argparse.ArgumentParser:
             subparser.add_argument("--check", action="store_true")
         if name == "check":
             subparser.add_argument("--home", required=True)
+        if name == "assert-e2e":
+            subparser.add_argument("--f1-threshold", type=float, default=0.8)
         if name == "run":
             subparser.add_argument("--cell", required=True, choices=run_command.CELLS)
             subparser.add_argument("--week", required=True)
