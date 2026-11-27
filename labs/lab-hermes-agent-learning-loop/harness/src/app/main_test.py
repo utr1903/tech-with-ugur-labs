@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sys
 import threading
+from pathlib import Path
 
 import pytest
 
@@ -31,20 +32,23 @@ def test_fixtures_command_accepts_check_flag() -> None:
     assert parser.parse_args(["fixtures", "--check"]).check is True
 
 
-def test_unimplemented_command_exits_1_and_logs_json(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+def test_leak_check_dispatches_and_failure_exits_1(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
 ) -> None:
     # main() installs process-wide error hooks; restore them afterwards.
     monkeypatch.setattr(sys, "excepthook", sys.excepthook)
     monkeypatch.setattr(threading, "excepthook", threading.excepthook)
     monkeypatch.setattr("sys.argv", ["app", "leak-check"])
+    monkeypatch.setenv("API_SERVER_KEY", "k" * 20)
+    monkeypatch.setenv("ADC_FILE_RO", str(tmp_path / "missing.json"))
 
     assert main() == 1
 
     last = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert last["event"] == "Command failed."
     assert last["command"] == "leak-check"
-    assert "not implemented yet" in json.dumps(last["exception"])
 
 
 def test_repeat_label_must_look_like_rn() -> None:

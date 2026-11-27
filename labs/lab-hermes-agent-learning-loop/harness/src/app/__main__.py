@@ -15,6 +15,7 @@ from app.cells.names import CELLS
 from app.commands import assert_e2e as assert_e2e_command
 from app.commands import check as check_command
 from app.commands import fixtures as fixtures_command
+from app.commands import leak_check as leak_check_command
 from app.commands import report as report_command
 from app.commands import run as run_command
 from app.envvars import load_settings
@@ -77,13 +78,17 @@ def _assert_e2e(args: argparse.Namespace, log: Logger) -> None:
     )
 
 
-# Later commands register themselves here as they are implemented.
+def _leak_check(_args: argparse.Namespace, log: Logger) -> None:
+    leak_check_command.run(load_settings(os.environ), log=log)
+
+
 HANDLERS: dict[str, Handler] = {
     "fixtures": _fixtures,
     "check": _check,
     "run": _run,
     "report": _report,
     "assert-e2e": _assert_e2e,
+    "leak-check": _leak_check,
 }
 
 
@@ -108,13 +113,6 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _resolve(command: str) -> Handler:
-    handler = HANDLERS.get(command)
-    if handler is None:
-        raise LabError(f"command {command} is not implemented yet")
-    return handler
-
-
 def main() -> int:
     """Parses argv, dispatches to a command, maps failure to an exit code."""
     log = configure_logging(app_name=APP_NAME)
@@ -123,7 +121,7 @@ def main() -> int:
     args = build_parser().parse_args()
 
     try:
-        _resolve(args.command)(args, log)
+        HANDLERS[args.command](args, log)
     except LabError:
         log.exception("Command failed.", command=args.command)
         return 1
