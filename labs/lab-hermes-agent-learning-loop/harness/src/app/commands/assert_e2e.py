@@ -8,6 +8,7 @@ from pathlib import Path
 
 from app.cells.names import CELLS
 from app.cells.record import CellRecord
+from app.cells.stream import COMPLETED
 from app.envvars import Settings
 from app.errors import LabError, ReportError
 from app.hermes.home import parse_frontmatter
@@ -50,7 +51,7 @@ def _complete(rows: Latest) -> Check:
         c
         for c in CELLS
         if c not in rows
-        or rows[c].status != "completed"
+        or rows[c].status != COMPLETED
         or rows[c].score.get("format_failure") is not False
     ]
     return not bad, f"all six cells completed with a valid report (bad: {bad})"

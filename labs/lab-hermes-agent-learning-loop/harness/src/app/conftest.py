@@ -29,7 +29,7 @@ def make_record(cell: str, /, **over: object) -> CellRecord:
         "session_id": "run_1",
         "started_at": "2026-11-27T10:00:00+00:00",
         "wall_seconds": 100.0,
-        "status": "completed",
+        "status": "run.completed",
         "error": None,
         "score": {
             "f1": 0.9,
