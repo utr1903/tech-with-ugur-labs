@@ -25,12 +25,18 @@ class LdrReport:
     metadata: Mapping[str, object]
 
 
+# "quick" is one agent research followed by a summary. "detailed" builds a
+# multi-section report and runs a fresh research per section, which takes
+# several times longer and buries the answer block the scorer needs.
+_MODE = "quick"
+
+
 def start_research(session: LdrSession, prompt: str, *, log: Logger) -> str:
     """Submits the prompt and returns the research id (running or queued)."""
     try:
         log.info("Starting research...", prompt_chars=len(prompt))
         reply = session.post_json(
-            "/api/start_research", {"query": prompt, "mode": "detailed"}
+            "/api/start_research", {"query": prompt, "mode": _MODE}
         )
         research_id = _research_id(reply)
     except LdrError:

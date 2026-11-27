@@ -92,7 +92,7 @@ def test_start_research_sends_csrf_and_returns_id(log: Logger) -> None:
     assert captured[0].headers["X-CSRFToken"] == "api-tok"
     assert json.loads(captured[0].content) == {
         "query": "the prompt",
-        "mode": "detailed",
+        "mode": "quick",
     }
 
 

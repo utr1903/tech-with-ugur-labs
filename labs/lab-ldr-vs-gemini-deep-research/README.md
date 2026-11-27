@@ -188,6 +188,7 @@ it lists in its report.
 | LDR `LLM_CONTEXT_WINDOW_SIZE` | 131072 | Must equal the server's window |
 | LDR `LLM_MAX_TOKENS` | 16384 | **Capped on purpose.** LDR treats an OpenAI-compatible endpoint as a cloud model and would otherwise ask for 30000 output tokens per call; on the 64k L40S setup that leaves too little room for the prompt and tool results, and 16384 still covers the model's thinking |
 | Strategy | LDR's default, `langgraph-agent` | See below |
+| Research mode | `quick` (one agent research, then a summary) | `detailed` writes a multi-section report and runs a fresh research per section: on this box one such run did not finish within an hour |
 | Search | SearXNG on your laptop | Searches leave from your IP, not the VM's |
 
 The strategy is deliberately LDR's out-of-the-box default so the result is

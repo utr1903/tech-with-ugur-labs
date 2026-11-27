@@ -1,0 +1,19 @@
+{
+  "cost_usd": 2.8092361060219573,
+  "meta": {
+    "ldr_status": "timeout",
+    "ldr_version": "2.0.4",
+    "model": "qwen3.6-27b",
+    "research_id": "ec7ea136-968f-48e5-8fcf-d3ba0de0c46a",
+    "terminated": true
+  },
+  "question_id": "q1-kev",
+  "report": "",
+  "run": 1,
+  "sources": [],
+  "started_at": "2026-11-27T08:39:39+00:00",
+  "status": "timeout",
+  "tool": "ldr",
+  "usage": {},
+  "wall_seconds": 3607.3657862240216
+}
