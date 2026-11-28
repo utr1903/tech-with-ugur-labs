@@ -290,6 +290,16 @@ mounted read-only over Hermes' `config.yaml`:
 - **Stalled streams.** Vertex streams can go quiet for up to about 180 seconds.
   Hermes kills and retries them; do not abort a run that looks stuck.
 
+- **Spell out `delegate_task`'s arguments.** With only "give each service to
+  its own subagent", Gemma 4 sometimes passed each task as a plain string
+  ("Task 1 must be an object, got str.") or asked for 101 subagents at once
+  (the cap is 10 at a time and 50 per turn). Hermes rejects the call, the
+  model retries the same call until Hermes' loop guard ends the turn, and no
+  report is written. That broke 3 of 9 `full` runs in a first `REPEATS=3`
+  pass. The prompt's tool line now says to call `delegate_task` once with a
+  list of objects, each with a `goal` and a `context`. The line is the same in
+  every cell, and `flat` cells don't have the tool.
+
 ## Security
 
 This setup is for learning, not for running on anything that matters.

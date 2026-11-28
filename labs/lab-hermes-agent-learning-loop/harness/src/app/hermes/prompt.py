@@ -10,7 +10,9 @@ FOLLOW_UP = (
 )
 
 _TOOL_HINT = (
-    "If you have delegate_task, give each service to its own subagent. "
+    "If you have delegate_task, give each service to its own subagent: call "
+    "delegate_task once with tasks set to a list of objects, one per service, "
+    'each with a "goal" and a "context" string. '
     "If you have execute_code, do counting and matching in code instead of "
     "reading whole files into the conversation."
 )
